@@ -10,6 +10,29 @@ venv/
 .ruff_cache/
 *.blend1
 
+# Node.js
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Frontend build
+frontend/.next/
+frontend/out/
+frontend/build/
+frontend/dist/
+
 # Secrets / environnement local
 .env
 .env.*
