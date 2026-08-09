@@ -1,0 +1,174 @@
+"""Tests d'intégration : PipelineRunner (brief -> Director -> Blender -> QA)."""
+
+from __future__ import annotations
+
+import asyncio
+import json
+from pathlib import Path
+
+import pytest
+
+from deepblender.codegen.validator import ValidationReport
+from deepblender.domain.project import Brief
+from deepblender.domain.qa import QAReport, Issue, IssueKind
+from deepblender.domain.scene import BlenderScript, SceneSpec
+from deepblender.production.budget import BudgetTracker
+from deepblender.production.runner import PipelineRunner
+
+VALID_SCRIPT = "import bpy\nscene = bpy.context.scene\nscene.frame_end = 120\n"
+INVALID_SCRIPT = "import os\nprint(os.system('whoami'))\n"
+
+
+class StubDirector:
+    async def plan_scene(self, brief: Brief) -> SceneSpec:
+        return SceneSpec(brief=brief.text)
+
+
+class StubBlender:
+    def __init__(self, scripts: list[str] | None = None) -> None:
+        self.scripts = list(scripts or [])
+        self.calls = 0
+
+    async def build_script(self, spec: SceneSpec) -> BlenderScript:
+        code = (
+            self.scripts[min(self.calls, len(self.scripts) - 1)]
+            if self.scripts
+            else VALID_SCRIPT
+        )
+        self.calls += 1
+        return BlenderScript(code=code, scene_name="stub_scene")
+
+
+class StubQA:
+    def __init__(self, passed: bool = True) -> None:
+        self.passed = passed
+
+    async def assess(self, spec: SceneSpec, artifact_path: str) -> QAReport:
+        return QAReport(passed=self.passed, score=1.0 if self.passed else 0.0)
+
+
+async def _run(
+    tmp_path: Path,
+    blender: StubBlender | None = None,
+    qa: StubQA | None = None,
+    budget: BudgetTracker | None = None,
+    max_revisions: int = 1,
+) -> tuple[PipelineRunner, object]:
+    brief = Brief(text="Une ruelle sombre sous la pluie.")
+    runner = PipelineRunner(
+        project_id="proj-1",
+        director=StubDirector(),
+        blender=blender or StubBlender(),
+        qa=qa or StubQA(),
+        workdir=tmp_path,
+        budget=budget,
+        cost_hook=lambda step: {"director": 0.10, "blender": 0.20, "qa": 0.05}.get(step, 0.0),
+        max_revisions=max_revisions,
+    )
+    outcome = await runner.run(brief)
+    return runner, outcome
+
+
+def _kinds(path: Path) -> list[str]:
+    return [
+        json.loads(line)["kind"]
+        for line in path.read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
+
+
+@pytest.mark.asyncio
+async def test_happy_path_produces_traced_run(tmp_path: Path) -> None:
+    runner, outcome = await _run(tmp_path)
+
+    assert outcome.run.status == "completed"
+    assert outcome.revisions == 0
+    assert outcome.scene is not None
+    assert outcome.script is not None
+    assert outcome.report is not None and outcome.report.passed
+
+    for name in ("director", "blender", "qa"):
+        assert outcome.run.steps[name].status == "completed"
+
+    kinds = _kinds(tmp_path / "events.jsonl")
+    assert kinds[0] == "run_started"
+    assert kinds[-1] == "run_completed"
+    assert kinds.count("step_completed") == 3
+    assert "cost_recorded" in kinds
+
+    types = sorted(art.type for art in outcome.artifacts._artifacts.values())
+    assert types == ["blender_script", "scene_spec"]
+    script_art = next(
+        a for a in outcome.artifacts._artifacts.values() if a.type == "blender_script"
+    )
+    assert script_art.status == "generated"
+    assert script_art.cost == pytest.approx(0.20)
+
+    spec_art = next(
+        a for a in outcome.artifacts._artifacts.values() if a.type == "scene_spec"
+    )
+    assert outcome.provenance.parents(script_art.id) == [spec_art.id]
+
+
+@pytest.mark.asyncio
+async def test_invalid_script_blocks_and_targets_blender(tmp_path: Path) -> None:
+    runner, outcome = await _run(tmp_path, blender=StubBlender([INVALID_SCRIPT]), max_revisions=2)
+
+    assert outcome.run.status == "blocked"
+    assert outcome.revisions == 2
+    assert outcome.report is not None and not outcome.report.passed
+    assert outcome.report.issues and outcome.report.issues[0].kind == IssueKind.TECHNICAL
+
+    kinds = _kinds(tmp_path / "events.jsonl")
+    assert kinds[-1] == "run_blocked"
+    assert kinds.count("revision_requested") == 2
+    assert "cost_recorded" in kinds
+
+    revisions = [
+        a for a in outcome.artifacts._artifacts.values() if a.type == "revision_spec"
+    ]
+    assert len(revisions) == 2
+    payload = json.loads((tmp_path / "revision_1_blender.json").read_text(encoding="utf-8"))
+    assert payload["target_step"] == "blender"
+    assert payload["issues"][0]["kind"] == "technical"
+
+
+@pytest.mark.asyncio
+async def test_revision_recovers_and_completes(tmp_path: Path) -> None:
+    blender = StubBlender([INVALID_SCRIPT, VALID_SCRIPT])
+    runner, outcome = await _run(tmp_path, blender=blender, max_revisions=1)
+
+    assert blender.calls == 2
+    assert outcome.run.status == "completed"
+    assert outcome.revisions == 1
+    kinds = _kinds(tmp_path / "events.jsonl")
+    assert kinds.count("revision_requested") == 1
+    assert kinds[-1] == "run_completed"
+
+
+@pytest.mark.asyncio
+async def test_qa_failure_targets_director_when_issue_says_so(tmp_path: Path) -> None:
+    class FailingQA(StubQA):
+        async def assess(self, spec: SceneSpec, artifact_path: str) -> QAReport:
+            return QAReport(
+                passed=False,
+                score=0.4,
+                issues=[Issue(kind=IssueKind.SEMANTIC, message="brief non respecté", step="director")],
+            )
+
+    runner, outcome = await _run(tmp_path, qa=FailingQA(), max_revisions=1)
+
+    assert outcome.run.status == "blocked"
+    assert outcome.revisions == 1
+    payload = json.loads((tmp_path / "revision_1_director.json").read_text(encoding="utf-8"))
+    assert payload["target_step"] == "director"
+
+
+@pytest.mark.asyncio
+async def test_budget_records_agent_costs(tmp_path: Path) -> None:
+    budget = BudgetTracker(budget=1.0, run_id="run-1")
+    _, outcome = await _run(tmp_path, budget=budget)
+
+    assert budget.llm == pytest.approx(0.35)
+    assert not budget.over_budget()
+    assert outcome.budget is budget

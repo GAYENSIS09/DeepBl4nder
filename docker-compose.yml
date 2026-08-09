@@ -1,0 +1,57 @@
+version: "3.9"
+
+services:
+  deepblender-worker:
+    build:
+      context: .
+      dockerfile: Dockerfile.worker
+    image: deepblender/worker:latest
+    volumes:
+      - ./work:/work
+      - ./projects:/projects
+    environment:
+      - BLENDER_EXE=/usr/local/bin/blender
+      - PYTHONPATH=/app:/work
+      - DEEPBLENDER_WORKER=1
+    # GPU support (requires nvidia-container-toolkit)
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: 1
+    #           capabilities: [gpu]
+    restart: unless-stopped
+
+  # Optional: render farm coordinator (scheduler)
+  deepblender-scheduler:
+    build:
+      context: .
+      dockerfile: Dockerfile.worker
+    image: deepblender/scheduler:latest
+    command: python -m deepblender.blender.scheduler
+    volumes:
+      - ./work:/work
+    environment:
+      - PYTHONPATH=/app:/work
+    depends_on:
+      - deepblender-worker
+    restart: unless-stopped
+
+  # Optional: gateway API
+  deepblender-api:
+    build:
+      context: .
+      dockerfile: Dockerfile.worker
+    image: deepblender/api:latest
+    command: python -m deepblender.api.server --host 0.0.0.0 --port 8000
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./work:/work
+    environment:
+      - PYTHONPATH=/app:/work
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - GEMINI_LLM_MODEL=${GEMINI_LLM_MODEL:-gemini/gemini-3.5-flash}
+      - DEEPBENDER_LLM_BASE_URL=${DEEPBENDER_LLM_BASE_URL}
+    restart: unless-stopped
