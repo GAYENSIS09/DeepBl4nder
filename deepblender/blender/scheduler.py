@@ -9,6 +9,7 @@ sans redémarrage »). Chaque worker porte un `worker_id` et une ressource
 
 from __future__ import annotations
 
+import os
 import queue
 import threading
 import time
@@ -107,3 +108,41 @@ class WorkerScheduler:
             threads = list(self._threads)
         for thread in threads:
             thread.join(timeout=5)
+
+
+def main(argv: list[str] | None = None) -> int:
+    """Point d'entrée `python -m deepblender.blender.scheduler`.
+
+    Démarre le pool de workers (CPU/GPU) et maintient le statut en boucle.
+    Les jobs sont soumis programmatiquement via `WorkerScheduler.submit`.
+    """
+    import argparse
+    import signal
+    import time
+
+    parser = argparse.ArgumentParser(prog="deepblender.blender.scheduler", description="Coordinateur de render farm (pool de workers).")
+    parser.add_argument("--workers", type=int, default=int(os.environ.get("DEEPBLENDER_WORKERS", "3")))
+    parser.add_argument("--gpu-workers", type=int, default=int(os.environ.get("DEEPBLENDER_GPU_WORKERS", "0")))
+    args = parser.parse_args(argv)
+
+    scheduler = WorkerScheduler(workers=args.workers, gpu_workers=args.gpu_workers)
+    print(f"DeepBlender scheduler : {scheduler.worker_count} workers (gpu: {scheduler.gpu_count})")
+
+    def _stop(_signum: int, _frame: object) -> None:
+        raise KeyboardInterrupt
+
+    signal.signal(signal.SIGTERM, _stop)
+    try:
+        while True:
+            time.sleep(5)
+            print(f"workers: {scheduler.worker_count} (gpu: {scheduler.gpu_count})", flush=True)
+    except KeyboardInterrupt:
+        pass
+    finally:
+        scheduler.shutdown()
+        print("Scheduler stopped.")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

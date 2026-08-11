@@ -1,41 +1,65 @@
-"""Plugins (frontières externes) et tools (primitives d'action).
+"""Plugins DeepBlender : architecture modulaire par domaine.
 
-Ne contient AUCUN runtime agentique : les plugins sont des passerelles vers
-des systèmes externes (Blender, FFmpeg, TTS, storage, git…), utilisés par les
-agents NOOA (doc 06-tools-et-plugins.md).
+Structure :
+├── base.py              # Classe de base Plugin
+├── registry.py          # PluginRegistry (registre central)
+├── tools.py             # ToolRegistry (outils LLM)
+│
+├── media/               # Plugins média
+│   ├── audio.py         # AudioPlugin (génération audio)
+│   ├── tts.py           # TTSPlugin (text-to-speech)
+│   └── subtitle.py      # SubtitlePlugin (sous-titres)
+│
+├── rendering/           # Plugins rendu
+│   ├── blender.py       # BlenderPlugin (Blender)
+│   ├── ffmpeg.py        # FFmpegPlugin (FFmpeg)
+│   └── render_farm.py   # RenderFarmPlugin (ferme de rendu)
+│
+├── storage/             # Plugins stockage
+│   ├── storage.py       # StoragePlugin
+│   └── git.py           # GitPlugin
+│
+└── knowledge/           # Plugins connaissance
+    ├── knowledge_graph.py  # KnowledgeGraphPlugin
+    └── asset_library.py    # AssetLibraryPlugin
 """
 
-from __future__ import annotations
-
-from deepblender.plugins.asset_library import AssetLibraryPlugin
-from deepblender.plugins.audio import AudioPlugin
 from deepblender.plugins.base import Plugin, PluginError
-from deepblender.plugins.blender import BlenderPlugin
-from deepblender.plugins.ffmpeg import FFmpegPlugin
-from deepblender.plugins.git import GitPlugin
-from deepblender.plugins.knowledge_graph import KnowledgeGraphPlugin
 from deepblender.plugins.registry import PluginRegistry
-from deepblender.plugins.render_farm import RenderFarmPlugin
-from deepblender.plugins.storage import StoragePlugin
-from deepblender.plugins.subtitle import SubtitleEntry, SubtitlePlugin
 from deepblender.plugins.tools import Tool, ToolRegistry
-from deepblender.plugins.tts import TTSPlugin
+
+# Media
+from deepblender.plugins.media import AudioPlugin, TTSPlugin, SubtitlePlugin, SubtitleEntry
+
+# Rendering
+from deepblender.plugins.rendering import BlenderPlugin, FFmpegPlugin, RenderFarmPlugin
+
+# Storage
+from deepblender.plugins.storage import StoragePlugin, GitPlugin
+
+# Knowledge
+from deepblender.plugins.knowledge import KnowledgeGraphPlugin, AssetLibraryPlugin
 
 __all__ = [
-    "AssetLibraryPlugin",
-    "AudioPlugin",
-    "BlenderPlugin",
-    "FFmpegPlugin",
-    "GitPlugin",
-    "KnowledgeGraphPlugin",
+    # Base
     "Plugin",
     "PluginError",
     "PluginRegistry",
-    "RenderFarmPlugin",
-    "StoragePlugin",
-    "SubtitleEntry",
-    "SubtitlePlugin",
-    "TTSPlugin",
     "Tool",
     "ToolRegistry",
+    # Media
+    "AudioPlugin",
+    "TTSPlugin",
+    "SubtitlePlugin",
+    "SubtitleEntry",
+    # Rendering
+    "BlenderPlugin",
+    "FFmpegPlugin",
+    "RenderFarmPlugin",
+    # Storage
+    "StoragePlugin",
+    "GitPlugin",
+    # Knowledge
+    "KnowledgeGraphPlugin",
+    "AssetLibraryPlugin",
 ]

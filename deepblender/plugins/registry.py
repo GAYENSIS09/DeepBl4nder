@@ -4,17 +4,17 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-from deepblender.plugins.asset_library import AssetLibraryPlugin
-from deepblender.plugins.audio import AudioPlugin
 from deepblender.plugins.base import Plugin
-from deepblender.plugins.blender import BlenderPlugin
-from deepblender.plugins.ffmpeg import FFmpegPlugin
-from deepblender.plugins.git import GitPlugin
-from deepblender.plugins.knowledge_graph import KnowledgeGraphPlugin
-from deepblender.plugins.render_farm import RenderFarmPlugin
-from deepblender.plugins.storage import StoragePlugin
-from deepblender.plugins.subtitle import SubtitlePlugin
-from deepblender.plugins.tts import TTSPlugin
+from deepblender.plugins.knowledge.asset_library import AssetLibraryPlugin
+from deepblender.plugins.media.audio import AudioPlugin
+from deepblender.plugins.media.subtitle import SubtitlePlugin
+from deepblender.plugins.media.tts import TTSPlugin
+from deepblender.plugins.rendering.blender import BlenderPlugin
+from deepblender.plugins.rendering.ffmpeg import FFmpegPlugin
+from deepblender.plugins.rendering.render_farm import RenderFarmPlugin
+from deepblender.plugins.knowledge.knowledge_graph import KnowledgeGraphPlugin
+from deepblender.plugins.storage.storage import StoragePlugin
+from deepblender.plugins.storage.git import GitPlugin
 
 _BUILTINS: dict[str, type[Plugin]] = {
     "blender": BlenderPlugin,
@@ -39,7 +39,7 @@ class PluginRegistry:
     def __post_init__(self) -> None:
         for name, plugin_cls in _BUILTINS.items():
             if name == "render-farm":
-                self.plugins[name] = plugin_cls(plugins=self)
+                self.plugins[name] = RenderFarmPlugin(plugins=self)
             else:
                 self.plugins[name] = plugin_cls()
 

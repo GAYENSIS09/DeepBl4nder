@@ -119,6 +119,67 @@ def test_deterministic_bodies_are_pure_python() -> None:
 
     localization = LocalizationAgent(llm=llm)
     assert localization.default_language() == "fr"
+    assert localization.default_languages() == ["fr"]
+
+
+def test_agents_apply_truncation_config_from_env(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("DEEPBLENDER_AGENT_TRUNCATION", "1")
+    monkeypatch.setenv("LLM_CONTEXT_TOKENS", "32000")
+
+    director = DirectorAgent(llm=FakeLLMClient())
+
+    assert director._truncation is not None
+    assert director._truncation.max_context_tokens == 32000
+    assert director._truncation.min_preserved_events == 8
+    assert director._truncation.response_reserve_tokens == 2048
+
+
+def test_agents_use_sqlite_storage_from_env(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    db = tmp_path / "agent.db"
+    monkeypatch.setenv("DEEPBLENDER_AGENT_STORAGE", str(db))
+
+    director = DirectorAgent(llm=FakeLLMClient())
+
+    assert director._storage is not None
+    assert db.exists()
+
+
+def test_scene_spec_postcondition_rejects_empty_shots() -> None:
+    from nooa.strategy_validation import InvariantError
+
+    from deepblender.agents.base import scene_spec_postcondition
+    from deepblender.domain.scene import SceneSpec
+
+    with pytest.raises(InvariantError):
+        scene_spec_postcondition(None, SceneSpec(brief="x"), None)
+
+
+def test_scene_spec_postcondition_accepts_spec_with_shots() -> None:
+    from deepblender.agents.base import scene_spec_postcondition
+    from deepblender.domain.scene import SceneSpec, ShotSpec
+
+    spec = SceneSpec(brief="x", shots=[ShotSpec()])
+    # Aucune levée = pas d'InvariantError
+    scene_spec_postcondition(None, spec, None)
+
+
+def test_blender_script_postcondition_rejects_empty_code() -> None:
+    from nooa.strategy_validation import InvariantError
+
+    from deepblender.agents.base import blender_script_postcondition
+    from deepblender.domain.scene import BlenderScript
+
+    with pytest.raises(InvariantError):
+        blender_script_postcondition(None, BlenderScript(code="", scene_name="s"), None)
+
+
+def test_blender_script_postcondition_accepts_valid_code() -> None:
+    from deepblender.agents.base import blender_script_postcondition
+    from deepblender.domain.scene import BlenderScript
+
+    blender_script_postcondition(
+        None, BlenderScript(code="import bpy\nscene = bpy.context.scene", scene_name="s"), None
+    )
 
 
 def test_no_generic_runtime_reimplementation() -> None:

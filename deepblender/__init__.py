@@ -40,4 +40,22 @@ def _install_windows_shims() -> None:
             setattr(signal, _name, _num)
 
 
+def _install_utf8_stdio() -> None:
+    """Force un stdout/stderr UTF-8 (erreurs non bloquantes).
+
+    Sous Windows la console par défaut est cp1252 : un ``print`` contenant des
+    caractères non-ASCII (ex. le glyphe ⚠ des bascules LLM) lève
+    ``UnicodeEncodeError`` et peut faire échouer un run au milieu du failover.
+    """
+    for stream in (sys.stdout, sys.stderr):
+        reconfigure = getattr(stream, "reconfigure", None)
+        if reconfigure is None:
+            continue
+        try:
+            reconfigure(encoding="utf-8", errors="replace")
+        except (ValueError, OSError):  # noqa: BLE001
+            pass
+
+
 _install_windows_shims()
+_install_utf8_stdio()

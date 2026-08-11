@@ -11,8 +11,8 @@ from __future__ import annotations
 
 from typing import Any
 
-from nooa import Agent, CodeActStrategy, strategy
-from nooa.skill import TextSkill
+from nooa import CodeActStrategy, PredictStrategy, strategy
+from nooa.agentdoc import hidden
 
 from deepblender.agents.base import BaseAgent, DefaultsMixin
 from deepblender.domain.qa import QAReport, Issue, IssueKind
@@ -46,8 +46,12 @@ class QAAgent(BaseAgent, DefaultsMixin):
         super().__init__(*args, skill_registry=skill_registry, **kwargs)
 
     @strategy(CodeActStrategy())
-    async def assess(self, spec: SceneSpec, artifact_path: str) -> QAReport:
+    async def assess(self, spec: SceneSpec, artifact_path: str, code: str = "") -> QAReport:  # type: ignore[return]
         """Assess the rendered artifact against the scene spec.
+
+        ``artifact_path`` is the host path of the artifact (may not be readable
+        from the sandbox) ; ``code`` carries the artifact content when it is a
+        script, so the assessment never depends on host filesystem access.
 
         Steps:
         1. Load core skill summaries
@@ -64,6 +68,19 @@ class QAAgent(BaseAgent, DefaultsMixin):
         # CodeActStrategy generates assessment code, output validated as QAReport
         ...
 
+    @strategy(PredictStrategy())
+    async def quick_scan(self, code: str, spec: SceneSpec) -> QAReport:  # type: ignore[return]
+        """Fast semantic first-pass scan of a generated script.
+
+        Single LLM turn, no code execution: checks that the script plausibly
+        addresses the spec (environment, characters, shots) and returns a typed
+        QAReport. Slow, deterministic checks stay in ``technical_check``.
+        """
+        self._load_core_skills()
+        self._load_skill("qa")
+        ...
+
+    @hidden
     def technical_check(self, artifact_path: str) -> list[Issue]:
         """Deterministic technical checks on an artifact path."""
         issues: list[Issue] = []

@@ -52,10 +52,23 @@ class CompositeSpec:
     effects: list[str] = field(default_factory=list)
     output_format: str = "exr"
 
+    def to_mapping(self) -> dict[str, Any]:
+        return {
+            "passes": len(self.passes),
+            "grade": self.grade,
+            "effects": self.effects,
+            "output_format": self.output_format,
+        }
+
 
 @dataclass
 class LanguagePackage:
-    """Un lot de localisation complet pour une langue cible."""
+    """Un lot de localisation complet pour une langue cible.
+
+    ``language`` est la langue cible du lot ; ``languages`` liste toutes les
+    langues impliquées (cible + langues d'origine des répliques), ce qui permet
+    de représenter un personnage multilingue sans perte d'information.
+    """
 
     language: str
     dialogues: list[str] = field(default_factory=list)
@@ -63,10 +76,12 @@ class LanguagePackage:
     voice_path: str = ""
     metadata: dict[str, str] = field(default_factory=dict)
     interface: dict[str, str] = field(default_factory=dict)
+    languages: list[str] = field(default_factory=list)
 
     def to_mapping(self) -> dict[str, Any]:
         return {
             "language": self.language,
+            "languages": len(self.languages),
             "dialogues": len(self.dialogues),
             "subtitles_path": self.subtitles_path,
             "voice_path": self.voice_path,

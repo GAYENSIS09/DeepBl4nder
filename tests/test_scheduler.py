@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import time
+from typing import Callable
 
 import pytest
 
@@ -33,7 +34,11 @@ def test_add_workers_scales_without_restart() -> None:
     initial = scheduler.worker_count
     scheduler.add_workers(2)
     assert scheduler.worker_count == initial + 2
-    futures = [scheduler.submit(lambda i=i: i) for i in range(5)]
+
+    def constant(value: int) -> Callable[[], int]:
+        return lambda: value
+
+    futures = [scheduler.submit(constant(i)) for i in range(5)]
     assert sorted(f.result(timeout=5) for f in futures) == [0, 1, 2, 3, 4]
     scheduler.shutdown()
 

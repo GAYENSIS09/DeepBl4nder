@@ -32,8 +32,20 @@ frontend/.next/
 frontend/out/
 frontend/build/
 frontend/dist/
+*.tsbuildinfo
 
 # Secrets / environnement local
 .env
 .env.*
 !*.env.example
+
+# Base SQLite locale
+*.db
+*.db-journal
+
+# Données runtime (runs, logs, sorties de pipeline)
+data/
+artifacts/
+
+# État NOOA / mémoire locale
+.nooa/

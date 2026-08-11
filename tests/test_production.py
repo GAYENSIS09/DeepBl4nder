@@ -4,9 +4,15 @@ from __future__ import annotations
 
 import pytest
 
-from deepblender.production.budget import BudgetTracker
+from deepblender.production.budget import BudgetAlert, BudgetTracker
 from deepblender.production.events import EventLog
 from deepblender.production.runs import ProductionRun, ProductionStep
+
+
+def _status(run: ProductionRun, name: str) -> str:
+    step = run.step(name)
+    assert step is not None
+    return step.status
 
 
 def test_run_snapshot_and_pending_steps() -> None:
@@ -57,7 +63,7 @@ def test_budget_report() -> None:
 
 def test_budget_alert_fires_once_on_overflow() -> None:
     tracker = BudgetTracker(budget=1.0)
-    alerts = []
+    alerts: list[BudgetAlert] = []
     tracker.subscribe(alerts.append)
     tracker.add_llm(0.40)
     assert alerts == []
@@ -101,7 +107,7 @@ def test_recovery_resumes_unconsumed_steps(tmp_path) -> None:  # noqa: ANN001
     log.append("step_started", {"step": "render"})
     run = ProductionRun.recover("proj-9", log)
     assert run.status == "running"
-    assert run.step("brief").status == "completed"
+    assert _status(run, "brief") == "completed"
     assert run.pending_steps() == ["render"]
 
 
@@ -110,7 +116,7 @@ def test_recovery_keeps_failed_steps(tmp_path) -> None:  # noqa: ANN001
     log.append("step_started", {"step": "qa"})
     log.append("step_failed", {"step": "qa"})
     run = ProductionRun.recover("proj-10", log)
-    assert run.step("qa").status == "failed"
+    assert _status(run, "qa") == "failed"
     assert run.pending_steps() == []
 
 
@@ -120,10 +126,10 @@ def test_approval_workflow(tmp_path) -> None:  # noqa: ANN001
     run.add_step(ProductionStep(name="previs"))
     run.request_approval("previs")
     assert run.status == "awaiting_approval"
-    assert run.step("previs").status == "awaiting_approval"
+    assert _status(run, "previs") == "awaiting_approval"
     run.approve("previs")
     assert run.status == "running"
-    assert run.step("previs").status == "approved"
+    assert _status(run, "previs") == "approved"
 
 
 def test_reject_sets_revision(tmp_path) -> None:  # noqa: ANN001
@@ -133,7 +139,7 @@ def test_reject_sets_revision(tmp_path) -> None:  # noqa: ANN001
     run.request_approval("story")
     run.reject("story", "refaire l'arc narratif")
     assert run.status == "revision"
-    assert run.step("story").status == "rejected"
+    assert _status(run, "story") == "rejected"
 
 
 def test_recovery_restores_pending_approval(tmp_path) -> None:  # noqa: ANN001
@@ -142,7 +148,7 @@ def test_recovery_restores_pending_approval(tmp_path) -> None:  # noqa: ANN001
     log.append("approval_requested", {"step": "previs"})
     run = ProductionRun.recover("proj-11", log)
     assert run.status == "awaiting_approval"
-    assert run.step("previs").status == "awaiting_approval"
+    assert _status(run, "previs") == "awaiting_approval"
 
 
 def test_recovery_approval_granted(tmp_path) -> None:  # noqa: ANN001
@@ -151,4 +157,4 @@ def test_recovery_approval_granted(tmp_path) -> None:  # noqa: ANN001
     log.append("approval_granted", {"step": "previs"})
     run = ProductionRun.recover("proj-12", log)
     assert run.status == "running"
-    assert run.step("previs").status == "approved"
+    assert _status(run, "previs") == "approved"

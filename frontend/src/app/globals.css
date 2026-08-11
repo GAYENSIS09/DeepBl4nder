@@ -3,15 +3,50 @@
 @tailwind utilities;
 
 :root {
-  --foreground-rgb: 230, 230, 230;
-  --background-rgb: 22, 22, 26;
+  --bg: #0a0a0a;
+  --bg-card: #0f0f0f;
+  --bg-sidebar: #111111;
+  --bg-accent: #aaff00;
+  --bg-accent-dim: #88cc00;
+  --text-body: #f5f5f0;
+  --text-muted: #888880;
+  --text-display: #ffffff;
+  --border: #222222;
+
+  --font-display: 'Space Grotesk', 'Segoe UI', system-ui, sans-serif;
+  --font-body: 'Inter', 'Segoe UI', system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+* {
+  border-color: var(--border);
+}
+
+html {
+  color-scheme: dark;
 }
 
 body {
-  color: rgb(var(--foreground-rgb));
-  background: rgb(var(--background-rgb));
+  background-color: var(--bg);
+  color: var(--text-body);
+  font-family: var(--font-body);
+  min-height: 100vh;
 }
 
-code {
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+code,
+pre,
+kbd,
+samp {
+  font-family: var(--font-mono);
+}
+
+::selection {
+  background: var(--bg-accent);
+  color: var(--bg);
+}
+
+@layer utilities {
+  .card-bg {
+    background-color: var(--bg-card);
+  }
 }

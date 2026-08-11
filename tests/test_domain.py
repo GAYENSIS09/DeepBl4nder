@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from deepblender.domain.asset import sha256_of_file
 from deepblender.domain.qa import Issue, IssueKind, QAReport, QAStatus, RevisionSpec
-from deepblender.domain.scene import SceneSpec, ShotSpec
+from deepblender.domain.scene import CharacterSpec, SceneSpec, ShotSpec
 
 
 def test_shot_spec_frame_count() -> None:
@@ -24,6 +24,18 @@ def test_scene_spec_mapping() -> None:
     mapping = spec.to_mapping()
     assert mapping["brief"] == "ruelle sous la pluie"
     assert mapping["shots"] == 2
+
+
+def test_character_spec_multilingual() -> None:
+    char = CharacterSpec(name="Awa", main_language="fr", languages=["en", "wo"])
+    assert char.spoken_languages() == ["fr", "en", "wo"]
+
+    bilingual = CharacterSpec(name="Ibou", languages=["fr"])
+    assert bilingual.spoken_languages() == ["fr"]
+
+    mapping = char.to_mapping()
+    assert mapping["main_language"] == "fr"
+    assert mapping["languages"] == ["en", "wo"]
 
 
 def test_qa_report_status() -> None:

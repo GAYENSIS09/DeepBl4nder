@@ -19,7 +19,7 @@ import queue
 from dataclasses import asdict
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-from typing import Any
+from typing import Any, cast
 
 from deepblender import __version__
 from deepblender.blender.bridge import BlenderBridge
@@ -27,7 +27,7 @@ from deepblender.codegen.validator import ASTValidator
 from deepblender.production.budget import BudgetTracker
 from deepblender.production.events import EventBus
 from deepblender.plugins.registry import PluginRegistry
-from deepblender.plugins.render_farm import RenderFarmPlugin
+from deepblender.plugins.rendering.render_farm import RenderFarmPlugin
 from deepblender.plugins.tools import ToolRegistry
 from deepblender.skills.registry import get_default_registry
 
@@ -73,7 +73,7 @@ class DeepBlenderHandler(BaseHTTPRequestHandler):
             registry = get_default_registry()
             bridge = BlenderBridge()
             plugin_registry = PluginRegistry()
-            farm = plugin_registry.get("render-farm")
+            farm = cast(RenderFarmPlugin, plugin_registry.get("render-farm"))
             self._json(
                 HTTPStatus.OK,
                 {
@@ -95,7 +95,7 @@ class DeepBlenderHandler(BaseHTTPRequestHandler):
             )
         elif self.path == "/workers":
             plugin_registry = PluginRegistry()
-            farm = plugin_registry.get("render-farm")
+            farm = cast(RenderFarmPlugin, plugin_registry.get("render-farm"))
             self._json(
                 HTTPStatus.OK,
                 {
@@ -219,7 +219,7 @@ def create_server(
 
 
 def serve(host: str = "0.0.0.0", port: int = 8000) -> None:
-    default_budget = float(os.environ.get("DEEPBENDER_BUDGET", "1.0"))
+    default_budget = float(os.environ.get("DEEPBLENDER_BUDGET", "1.0"))
     bus = EventBus()
     budget = BudgetTracker(budget=default_budget, run_id="gateway")
     budget.subscribe(lambda alert: bus.publish({"type": "budget_alert", **asdict(alert)}))
@@ -230,3 +230,19 @@ def serve(host: str = "0.0.0.0", port: int = 8000) -> None:
     except KeyboardInterrupt:
         print("\nShutting down.")
         server.server_close()
+
+
+def main(argv: list[str] | None = None) -> int:
+    """Point d'entrée `python -m deepblender.api.server --host ... --port ...`."""
+    import argparse
+
+    parser = argparse.ArgumentParser(prog="deepblender.api.server", description="Gateway HTTP DeepBlender.")
+    parser.add_argument("--host", default=os.environ.get("DEEPBLENDER_HOST", "0.0.0.0"))
+    parser.add_argument("--port", type=int, default=int(os.environ.get("DEEPBLENDER_PORT", "8000")))
+    args = parser.parse_args(argv)
+    serve(host=args.host, port=args.port)
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

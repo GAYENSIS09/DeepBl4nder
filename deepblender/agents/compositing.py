@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from nooa import CodeActStrategy, strategy
+from nooa import CodeActLiteStrategy, strategy
 
 from deepblender.agents.base import BaseAgent, DefaultsMixin
 from deepblender.domain.media import CompositeSpec
@@ -35,11 +35,10 @@ class CompositingAgent(BaseAgent, DefaultsMixin):
     """
 
     def __init__(self, *args: Any, skill_registry: SkillRegistry | None = None, **kwargs: Any) -> None:
-        self.composite_spec: CompositeSpec | None = None
         super().__init__(*args, skill_registry=skill_registry, **kwargs)
 
-    @strategy(CodeActStrategy())
-    async def plan_compositing(self, spec: SceneSpec) -> CompositeSpec:
+    @strategy(CodeActLiteStrategy())  # type: ignore[arg-type]
+    async def plan_compositing(self, spec: SceneSpec) -> CompositeSpec:  # type: ignore[return]
         """Turn the scene spec into a post-render compositing plan.
 
         Steps:

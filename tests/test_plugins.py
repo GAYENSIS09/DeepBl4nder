@@ -4,16 +4,17 @@ from __future__ import annotations
 
 import pytest
 from pathlib import Path
+from typing import cast
 
 from deepblender.codegen import CodePolicyViolation
 from deepblender.blender.bridge import BlenderNotFoundError
 from deepblender.domain.scene import BlenderScript
-from deepblender.plugins.asset_library import AssetLibraryPlugin
-from deepblender.plugins.audio import AudioPlugin
-from deepblender.plugins.blender import BlenderPlugin
+from deepblender.plugins.knowledge.asset_library import AssetLibraryPlugin
+from deepblender.plugins.media.audio import AudioPlugin
+from deepblender.plugins.rendering.blender import BlenderPlugin
 from deepblender.plugins.registry import PluginRegistry
-from deepblender.plugins.storage import StoragePlugin
-from deepblender.plugins.subtitle import SubtitleEntry, SubtitlePlugin
+from deepblender.plugins.storage.storage import StoragePlugin
+from deepblender.plugins.media.subtitle import SubtitleEntry, SubtitlePlugin
 from deepblender.plugins.tools import ToolRegistry
 
 
@@ -145,7 +146,7 @@ def test_tool_get_unknown_raises() -> None:
 
 def test_tool_render_routes_to_plugin() -> None:
     registry = ToolRegistry()
-    blender = registry.plugins.get_or_create("blender")
+    blender = cast(BlenderPlugin, registry.plugins.get_or_create("blender"))
     blender.bridge._blender_exe = "definitely-not-blender"
     with pytest.raises(BlenderNotFoundError):
         registry.get("render").execute()
@@ -157,3 +158,16 @@ def test_tool_create_audio_produces_file(tmp_path: Path) -> None:
     registry.get("create_audio").execute(0.2, out, seed=1)
     assert out.is_file()
     assert out.stat().st_size > 0
+
+
+def test_knowledge_graph_add_node_and_query(tmp_path: Path) -> None:
+    from deepblender.plugins.knowledge.knowledge_graph import KnowledgeGraphPlugin
+
+    kg = KnowledgeGraphPlugin(path=tmp_path / "kg.json")
+    kg.add_node("nina", "Character", {"language": "fr"})
+    kg.add_node("ruelle", "Scene", {"mood": "dark"})
+    kg.add_edge("nina", "ruelle", "appears_in")
+
+    results = kg.query("nina", depth=1)
+    assert len(results) >= 1
+    assert any(r["source"] == "nina" and r["target"] == "ruelle" for r in results)

@@ -38,11 +38,16 @@ class LocalizationAgent(BaseAgent, DefaultsMixin):
     """
 
     def __init__(self, *args: Any, skill_registry: SkillRegistry | None = None, **kwargs: Any) -> None:
-        self.package: LanguagePackage | None = None
         super().__init__(*args, skill_registry=skill_registry, **kwargs)
 
     @strategy(CodeActStrategy())
-    async def plan_localization(self, spec: SceneSpec, language: str) -> LanguagePackage:
+    async def plan_localization(  # type: ignore[return]
+        self,
+        spec: SceneSpec,
+        language: str,
+        languages: list[str] | None = None,
+    ) -> LanguagePackage:  #type: ignore[return-value]
+
         """Turn the scene spec into a typed localization package.
 
         Steps:
@@ -51,13 +56,28 @@ class LocalizationAgent(BaseAgent, DefaultsMixin):
         3. Load translation, subtitles, voice skills
         4. Generate LanguagePackage with:
            - language: target language code
-           - dialogues: list of translated lines with character, timing
+           - languages: all languages involved in this lot (target language
+             plus the original languages of the characters' lines)
+           - dialogues: list of translated lines with character, timing,
+             source language and target language
            - subtitles_path: where SRT will be written
            - voice_path: where TTS audio will be written
            - metadata: translation notes, cultural adaptations
            - interface: UI strings for this language
+
+        A character may speak several languages: honor
+        ``spec.characters[*].main_language`` and ``spec.characters[*].languages``.
+        If ``languages`` is not provided, fall back to ``self.default_languages()``.
         """
         self._load_core_skills()
         self._load_skills("translation", "subtitles", "voice")
 
-        ...
+        if languages is None:
+            languages = self.default_languages()
+        self.context.set("target_languages", ", ".join(languages))
+        self.context.set("character_languages", ", ".join(sorted({
+            lang for char in spec.characters for lang in char.spoken_languages()
+        })))
+
+        # NOOA CodeActStrategy generates the return value via LLM at runtime
+        ...  

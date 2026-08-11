@@ -78,6 +78,51 @@ result = bridge.run_script(script, workdir)  # blender -b -P <script>
 Le script doit d'abord passer `ASTValidator` (imports autorisés, pas de
 `exec`/`eval`/`subprocess`/`os.system`, pas d'accès réseau).
 
+## Comptes, rôles et seed de développement
+
+Il n'existe **aucun compte pré-créé** : la base (`deepblender.db` par défaut)
+est créée vide au premier démarrage. Chaque inscription (`/api/auth/register`
+ou l'écran d'inscription) crée un utilisateur **`owner`** d'une nouvelle
+organisation avec un workspace `Default`.
+
+### Modèle de rôles (RBAC par organisation)
+
+| Rôle | Lecture | Écriture | Gestion (membres, suppression projet) |
+|---|---|---|---|
+| `owner` | ✅ | ✅ | ✅ |
+| `admin` | ✅ | ✅ | ✅ |
+| `editor` | ✅ | ✅ | ❌ |
+| `viewer` | ✅ | ❌ | ❌ |
+
+L'`owner` attribue un rôle à un membre via `POST /api/organizations/{id}/members`
+(`role` : `owner`/`admin`/`editor`/`viewer`). Il n'y a pas de « super-admin »
+global.
+
+### Seed de développement (compte admin)
+
+Pour disposer d'un compte `admin` + org/projet de démo prêt à l'emploi,
+idempotent (ne crée que ce qui manque) :
+
+```bash
+python -m deepblender.api.seed --email admin@deepblender.local --password admin-dev-123
+```
+
+Ou via la CLI globale :
+
+```bash
+deepblender seed --email admin@deepblender.local --password admin-dev-123
+```
+
+Options : `--db` (URL ou fichier SQLite), `--email`, `--password`, `--org`
+(défaut `DeepBlender Dev`), `--project` (défaut `Démo`). Elles se passent
+aussi par l'environnement (`DEEPBLENDER_SEED_EMAIL`, `DEEPBLENDER_SEED_PASSWORD`,
+`DEEPBLENDER_SEED_ORG`, `DEEPBLENDER_SEED_PROJECT`).
+
+> **Sécurité** : aucun mot de passe n'est en dur dans le code ni ce guide.
+> Sans `--password`/`DEEPBLENDER_SEED_PASSWORD`, un mot de passe aléatoire est
+> généré et affiché une seule fois en sortie. Le mot de passe doit faire au
+> moins 8 caractères.
+
 ## Vérifications
 
 ```bash

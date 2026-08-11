@@ -27,6 +27,10 @@ class Issue:
     message: str
     step: str = ""
 
+    def __post_init__(self) -> None:
+        if isinstance(self.kind, str):
+            self.kind = IssueKind(self.kind)
+
 
 @dataclass
 class QAReport:

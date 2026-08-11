@@ -10,7 +10,7 @@ from typing import Sequence
 from deepblender import __version__
 from deepblender.codegen.validator import ASTValidator
 from deepblender.plugins.registry import PluginRegistry
-from deepblender.plugins.render_farm import RenderFarmPlugin
+from deepblender.plugins.rendering.render_farm import RenderFarmPlugin
 from deepblender.plugins.tools import ToolRegistry
 from deepblender.skills.registry import get_default_registry
 
@@ -28,6 +28,13 @@ def build_parser() -> argparse.ArgumentParser:
     serve = sub.add_parser("serve", help="Lance la gateway HTTP.")
     serve.add_argument("--host", default="0.0.0.0")
     serve.add_argument("--port", type=int, default=8000)
+
+    seed = sub.add_parser("seed", help="Crée le compte admin de dev (SaaS).")
+    seed.add_argument("--db", default=None, help="Base SQLAlchemy (URL ou fichier SQLite).")
+    seed.add_argument("--email", default=None)
+    seed.add_argument("--password", default=None)
+    seed.add_argument("--org", default=None)
+    seed.add_argument("--project", default=None)
 
     return parser
 
@@ -81,6 +88,15 @@ def main(argv: Sequence[str] | None = None) -> int:
 
         serve(host=args.host, port=args.port)
         return 0
+    if args.command == "seed":
+        from deepblender.api.seed import main as seed_main
+
+        seed_args: list[str] = []
+        for option, value in (("--db", args.db), ("--email", args.email), ("--password", args.password),
+                              ("--org", args.org), ("--project", args.project)):
+            if value is not None:
+                seed_args.extend([option, value])
+        return seed_main(seed_args)
     return 2
 
 

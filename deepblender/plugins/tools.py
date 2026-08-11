@@ -8,8 +8,11 @@ est branchée sur les plugins (Blender, audio, ffmpeg) via PluginRegistry.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any, Callable
+from typing import Any, Callable, cast
 
+from deepblender.plugins.media.audio import AudioPlugin
+from deepblender.plugins.rendering.blender import BlenderPlugin
+from deepblender.plugins.rendering.ffmpeg import FFmpegPlugin
 from deepblender.plugins.registry import PluginRegistry
 
 
@@ -35,9 +38,9 @@ class ToolRegistry:
     plugins: PluginRegistry = field(default_factory=PluginRegistry)
 
     def tools(self) -> list[Tool]:
-        blender = self.plugins.get("blender")
-        audio = self.plugins.get("audio")
-        ffmpeg = self.plugins.get("ffmpeg")
+        blender = cast(BlenderPlugin, self.plugins.get("blender"))
+        audio = cast(AudioPlugin, self.plugins.get("audio"))
+        ffmpeg = cast(FFmpegPlugin, self.plugins.get("ffmpeg"))
         return [
             Tool("inspect_scene", "Inspecte les objets de la scène Blender.", blender.inspect_scene),
             Tool("load_asset", "Append un asset dans la scène Blender.", blender.load_asset),

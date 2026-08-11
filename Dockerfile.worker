@@ -64,6 +64,5 @@ ENV DEEPBLENDER_WORKER=1
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
     CMD blender -b -P -c "import bpy; print('Blender OK:', bpy.app.version_string)" 2>&1 | grep -q "Blender OK"
 
-# Default command: wait for work (override with docker run args)
-ENTRYPOINT ["blender"]
-CMD ["-b", "-P", "/work/script.py"]
+# Default command: wait for work (override with docker run args or compose command)
+CMD ["blender", "-b", "-P", "/work/script.py"]

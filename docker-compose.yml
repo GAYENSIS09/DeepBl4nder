@@ -1,11 +1,10 @@
-version: "3.9"
-
 services:
   deepblender-worker:
     build:
       context: .
       dockerfile: Dockerfile.worker
     image: deepblender/worker:latest
+    command: ["blender", "-b", "-P", "/work/script.py"]
     volumes:
       - ./work:/work
       - ./projects:/projects
@@ -51,7 +50,4 @@ services:
       - ./work:/work
     environment:
       - PYTHONPATH=/app:/work
-      - GEMINI_API_KEY=${GEMINI_API_KEY}
-      - GEMINI_LLM_MODEL=${GEMINI_LLM_MODEL:-gemini/gemini-3.5-flash}
-      - DEEPBENDER_LLM_BASE_URL=${DEEPBENDER_LLM_BASE_URL}
     restart: unless-stopped

@@ -2,18 +2,16 @@
 
 from __future__ import annotations
 
-import asyncio
 import json
 from pathlib import Path
 
 import pytest
 
-from deepblender.codegen.validator import ValidationReport
 from deepblender.domain.project import Brief
 from deepblender.domain.qa import QAReport, Issue, IssueKind
 from deepblender.domain.scene import BlenderScript, SceneSpec
 from deepblender.production.budget import BudgetTracker
-from deepblender.production.runner import PipelineRunner
+from deepblender.production.runner import PipelineRunner, RunOutcome
 
 VALID_SCRIPT = "import bpy\nscene = bpy.context.scene\nscene.frame_end = 120\n"
 INVALID_SCRIPT = "import os\nprint(os.system('whoami'))\n"
@@ -42,8 +40,10 @@ class StubBlender:
 class StubQA:
     def __init__(self, passed: bool = True) -> None:
         self.passed = passed
+        self.received_code: list[str] = []
 
-    async def assess(self, spec: SceneSpec, artifact_path: str) -> QAReport:
+    async def assess(self, spec: SceneSpec, artifact_path: str, code: str = "") -> QAReport:
+        self.received_code.append(code)
         return QAReport(passed=self.passed, score=1.0 if self.passed else 0.0)
 
 
@@ -53,7 +53,7 @@ async def _run(
     qa: StubQA | None = None,
     budget: BudgetTracker | None = None,
     max_revisions: int = 1,
-) -> tuple[PipelineRunner, object]:
+) -> tuple[PipelineRunner, RunOutcome]:
     brief = Brief(text="Une ruelle sombre sous la pluie.")
     runner = PipelineRunner(
         project_id="proj-1",
@@ -87,13 +87,13 @@ async def test_happy_path_produces_traced_run(tmp_path: Path) -> None:
     assert outcome.script is not None
     assert outcome.report is not None and outcome.report.passed
 
-    for name in ("director", "blender", "qa"):
+    for name in ("director", "blender", "qa", "render"):
         assert outcome.run.steps[name].status == "completed"
 
     kinds = _kinds(tmp_path / "events.jsonl")
     assert kinds[0] == "run_started"
     assert kinds[-1] == "run_completed"
-    assert kinds.count("step_completed") == 3
+    assert kinds.count("step_completed") == 4
     assert "cost_recorded" in kinds
 
     types = sorted(art.type for art in outcome.artifacts._artifacts.values())
@@ -149,7 +149,7 @@ async def test_revision_recovers_and_completes(tmp_path: Path) -> None:
 @pytest.mark.asyncio
 async def test_qa_failure_targets_director_when_issue_says_so(tmp_path: Path) -> None:
     class FailingQA(StubQA):
-        async def assess(self, spec: SceneSpec, artifact_path: str) -> QAReport:
+        async def assess(self, spec: SceneSpec, artifact_path: str, code: str = "") -> QAReport:
             return QAReport(
                 passed=False,
                 score=0.4,
@@ -165,6 +165,74 @@ async def test_qa_failure_targets_director_when_issue_says_so(tmp_path: Path) ->
 
 
 @pytest.mark.asyncio
+async def test_revision_injects_feedback_into_agent_context(tmp_path: Path) -> None:
+    """La révision est « informée » : les issues QA atteignent le contexte NOOA
+    de l'agent ciblé (``revision_feedback``) avant la régénération."""
+
+    class RecordingContext:
+        def __init__(self) -> None:
+            self.static: dict[str, str] = {}
+
+        def set_static(self, key: str, value: str) -> None:
+            self.static[key] = value
+
+    class ContextBlender(StubBlender):
+        def __init__(self) -> None:
+            super().__init__([VALID_SCRIPT, VALID_SCRIPT])
+            self.context = RecordingContext()
+
+    class FailingQA(StubQA):
+        async def assess(self, spec: SceneSpec, artifact_path: str, code: str = "") -> QAReport:
+            return QAReport(
+                passed=False,
+                score=0.3,
+                issues=[Issue(kind=IssueKind.VISUAL, message="exposition surexposée", step="blender")],
+                recommendations=["baisser l'intensité des lumières"],
+            )
+
+    blender = ContextBlender()
+    runner, outcome = await _run(tmp_path, blender=blender, qa=FailingQA(), max_revisions=1)
+
+    assert outcome.revisions == 1
+    feedback = blender.context.static.get("revision_feedback", "")
+    assert "Révision 1" in feedback
+    assert "[visual]" in feedback
+    assert "exposition surexposée" in feedback
+    assert "baisser l'intensité des lumières" in feedback
+
+
+@pytest.mark.asyncio
+async def test_revision_spec_instructions_carry_formatted_issues(tmp_path: Path) -> None:
+    """Le RevisionSpec persistant embarque les issues formatées (pas un texte générique)."""
+
+    class FailingQA(StubQA):
+        async def assess(self, spec: SceneSpec, artifact_path: str, code: str = "") -> QAReport:
+            return QAReport(
+                passed=False,
+                score=0.2,
+                issues=[Issue(kind=IssueKind.VISUAL, message="exposition surexposée", step="blender")],
+            )
+
+    _, outcome = await _run(tmp_path, qa=FailingQA(), max_revisions=1)
+
+    payload = json.loads((tmp_path / "revision_1_blender.json").read_text(encoding="utf-8"))
+    assert payload["target_step"] == "blender"
+    assert "exposition surexposée" in payload["instructions"]
+    assert "[visual]" in payload["instructions"]
+
+
+@pytest.mark.asyncio
+async def test_qa_receives_script_code_inline(tmp_path: Path) -> None:
+    """Régression : l'agent QA (sandboxé) reçoit le code, pas un chemin hôte."""
+    qa = StubQA()
+    runner, outcome = await _run(tmp_path, qa=qa)
+
+    assert outcome.run.status == "completed"
+    assert qa.received_code == [VALID_SCRIPT]
+    assert (tmp_path / "stub_scene" / "script.py").read_text(encoding="utf-8") == VALID_SCRIPT
+
+
+@pytest.mark.asyncio
 async def test_budget_records_agent_costs(tmp_path: Path) -> None:
     budget = BudgetTracker(budget=1.0, run_id="run-1")
     _, outcome = await _run(tmp_path, budget=budget)
@@ -172,3 +240,48 @@ async def test_budget_records_agent_costs(tmp_path: Path) -> None:
     assert budget.llm == pytest.approx(0.35)
     assert not budget.over_budget()
     assert outcome.budget is budget
+
+
+@pytest.mark.asyncio
+async def test_budget_exhausted_blocks_before_execution(tmp_path: Path) -> None:
+    """Enforcement déterministe du budget : aucun agent n'est appelé si dépassé."""
+    budget = BudgetTracker(budget=0.0, run_id="run-1")
+    budget.add_llm(1.0)
+    assert budget.over_budget()
+
+    runner, outcome = await _run(tmp_path, budget=budget)
+
+    assert outcome.run.status == "blocked"
+    assert outcome.revisions == 0
+    assert outcome.scene is None
+    assert outcome.script is None
+
+    kinds = _kinds(tmp_path / "events.jsonl")
+    assert kinds[0] == "run_started"
+    assert kinds[-1] == "run_blocked"
+    assert "director" not in [k for k in kinds if k.startswith("step_")]
+
+
+@pytest.mark.asyncio
+async def test_run_history_injected_into_agent_context(tmp_path: Path) -> None:
+    """Les agents reçoivent l'historique récent du run (``run_history``)."""
+
+    class RecordingContext:
+        def __init__(self) -> None:
+            self.static: dict[str, str] = {}
+
+        def set_static(self, key: str, value: str) -> None:
+            self.static[key] = value
+
+    class ContextBlender(StubBlender):
+        def __init__(self) -> None:
+            super().__init__()
+            self.context = RecordingContext()
+
+    blender = ContextBlender()
+    _, outcome = await _run(tmp_path, blender=blender)
+
+    assert outcome.run.status == "completed"
+    history = blender.context.static.get("run_history", "")
+    assert "step_completed" in history
+    assert "cost_recorded" in history

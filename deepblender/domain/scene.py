@@ -30,11 +30,34 @@ class EnvironmentSpec:
 
 @dataclass
 class CharacterSpec:
-    """Personnage présent dans la scène."""
+    """Personnage présent dans la scène.
+
+    Un personnage peut parler plusieurs langues : ``main_language`` est sa
+    langue principale, ``languages`` les langues secondaires éventuelles.
+    """
 
     name: str
     description: str = ""
     position: tuple[float, float, float] = (0.0, 0.0, 0.0)
+    main_language: str = ""
+    languages: list[str] = field(default_factory=list)
+
+    def spoken_languages(self) -> list[str]:
+        """Langues parlées (principale en premier), sans doublon ni vide."""
+        seen: list[str] = []
+        for lang in [self.main_language, *self.languages]:
+            if lang and lang not in seen:
+                seen.append(lang)
+        return seen
+
+    def to_mapping(self) -> dict[str, Any]:
+        return {
+            "name": self.name,
+            "description": self.description,
+            "position": list(self.position),
+            "main_language": self.main_language,
+            "languages": list(self.languages),
+        }
 
 
 @dataclass
@@ -95,3 +118,55 @@ class BlenderScript:
     code: str
     scene_name: str
     version: int = 1
+
+
+@dataclass
+class RenderOutput:
+    """Résultat du rendu : fichier vidéo/image produit par Blender."""
+
+    video_path: str
+    scene_name: str
+    duration: float = 0.0
+    fps: int = 24
+    resolution: tuple[int, int] = (1920, 1080)
+    format: str = "mp4"
+    version: int = 1
+
+    def to_mapping(self) -> dict[str, Any]:
+        return {
+            "video_path": self.video_path,
+            "scene_name": self.scene_name,
+            "duration": self.duration,
+            "fps": self.fps,
+            "resolution": list(self.resolution),
+            "format": self.format,
+            "version": self.version,
+        }
+
+
+@dataclass
+class FinalOutput:
+    """Sortie finale : vidéo + audio + sous-titres fusionnés."""
+
+    output_path: str
+    scene_name: str
+    duration: float = 0.0
+    fps: int = 24
+    resolution: tuple[int, int] = (1920, 1080)
+    format: str = "mp4"
+    version: int = 1
+    has_audio: bool = False
+    has_subtitles: bool = False
+
+    def to_mapping(self) -> dict[str, Any]:
+        return {
+            "output_path": self.output_path,
+            "scene_name": self.scene_name,
+            "duration": self.duration,
+            "fps": self.fps,
+            "resolution": list(self.resolution),
+            "format": self.format,
+            "version": self.version,
+            "has_audio": self.has_audio,
+            "has_subtitles": self.has_subtitles,
+        }

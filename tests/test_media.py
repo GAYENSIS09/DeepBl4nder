@@ -24,13 +24,24 @@ def test_composite_spec_defaults() -> None:
     assert spec.output_format == "exr"
 
 
+def test_composite_spec_mapping() -> None:
+    spec = CompositeSpec(passes=["diffuse", "mist"], grade="filmic", effects=["bloom"])
+    mapping = spec.to_mapping()
+    assert mapping["passes"] == 2
+    assert mapping["grade"] == "filmic"
+    assert mapping["effects"] == ["bloom"]
+    assert mapping["output_format"] == "exr"
+
+
 def test_language_package_includes_interface() -> None:
     package = LanguagePackage(
         language="fr",
+        languages=["fr", "en", "wo"],
         subtitles_path="sub/fr.srt",
         interface={"play": "Lecture", "render": "Rendu"},
     )
     mapping = package.to_mapping()
     assert mapping["language"] == "fr"
+    assert mapping["languages"] == 3
     assert mapping["interface_keys"] == 2
     assert mapping["subtitles_path"] == "sub/fr.srt"

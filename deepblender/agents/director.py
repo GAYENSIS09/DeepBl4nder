@@ -10,8 +10,10 @@ from __future__ import annotations
 from typing import Any
 
 from nooa import CodeActStrategy, strategy
+from nooa.agentdoc import hidden
+from nooa.config.strategy_config import CodeActConfig
 
-from deepblender.agents.base import BaseAgent, DefaultsMixin
+from deepblender.agents.base import BaseAgent, DefaultsMixin, scene_spec_postcondition
 from deepblender.domain.project import Brief
 from deepblender.domain.scene import SceneSpec
 from deepblender.skills.registry import SkillRegistry
@@ -35,14 +37,28 @@ class DirectorAgent(BaseAgent, DefaultsMixin):
     - Keep shots short enough to stay within budget and render constraints.
     - Use skills to inform decisions; load full skill only when needed.
     - Output MUST be a valid SceneSpec (validated via output_model).
+
+    ## CRITICAL: String formatting in generated code
+    - Keep ALL description strings SHORT (max 60 chars). Summarize, do not quote.
+    - Use triple-quoted strings ONLY for brief descriptions, never for long text.
+    - NEVER embed full paragraphs or dialogue in code. Use concise labels.
+    - Example: description="dark alley, rain, neon reflections" NOT a full sentence.
+    - For brief: use a SHORT summary, not the full creative brief text.
+
+    ## Revision
+    - On a QA revision, ``revision_feedback`` is set in context with the failing
+      issues (kind, step, message) and recommendations. Adjust the spec
+      accordingly instead of replaying the same plan.
     """
 
     def __init__(self, *args: Any, skill_registry: SkillRegistry | None = None, **kwargs: Any) -> None:
-        self.brief: Brief | None = None
         super().__init__(*args, skill_registry=skill_registry, **kwargs)
 
-    @strategy(CodeActStrategy())
-    async def plan_scene(self, brief: Brief) -> SceneSpec:
+    @strategy(CodeActStrategy(config=CodeActConfig(
+        postconditions=[scene_spec_postcondition],
+        max_tokens=2048,
+    )))
+    async def plan_scene(self, brief: Brief) -> SceneSpec:  # type: ignore[return]
         """Turn the creative brief into a structured scene specification.
 
         Steps:
@@ -55,7 +71,6 @@ class DirectorAgent(BaseAgent, DefaultsMixin):
            - ShotSpec list (duration, fps, camera, environment, characters, animation, lighting)
         5. Return the constructed SceneSpec
         """
-        self.brief = brief
         self._load_core_skills()
 
         # Load skills relevant to this brief
@@ -64,3 +79,11 @@ class DirectorAgent(BaseAgent, DefaultsMixin):
         # The CodeActStrategy will generate Python code to build the SceneSpec
         # Output is validated against SceneSpec type annotation
         ...
+
+    @hidden
+    def validate_spec(self, spec: SceneSpec) -> list[str]:
+        """Contrôles déterministes d'une SceneSpec (utilisables en tests)."""
+        problems: list[str] = []
+        if not getattr(spec, "shots", None):
+            problems.append("aucun plan")
+        return problems

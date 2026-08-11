@@ -38,11 +38,10 @@ class AudioAgent(BaseAgent, DefaultsMixin):
     """
 
     def __init__(self, *args: Any, skill_registry: SkillRegistry | None = None, **kwargs: Any) -> None:
-        self.audio_plan: AudioPlan | None = None
         super().__init__(*args, skill_registry=skill_registry, **kwargs)
 
     @strategy(CodeActStrategy())
-    async def plan_audio(self, spec: SceneSpec) -> AudioPlan:
+    async def plan_audio(self, spec: SceneSpec) -> AudioPlan:  # type: ignore[return]
         """Turn the scene spec into a structured audio plan.
 
         Steps:
