@@ -25,6 +25,32 @@ class BlenderNotFoundError(RuntimeError):
     """Blender n'est pas disponible sur cet hôte (binaire introuvable)."""
 
 
+def _find_blender() -> str | None:
+    """Résout le binaire Blender : env explicite, PATH, puis emplacements Windows.
+
+    ``BLENDER_EXE`` prime (chemin absolu ou nom résolvable via PATH). Si rien
+    n'est trouvé, on cherche dans les dossiers d'installation Blender
+    (``C:\\Program Files\\Blender Foundation\\Blender *\\blender.exe``).
+    """
+    explicit = (os.environ.get("BLENDER_EXE") or "").strip()
+    if explicit:
+        if Path(explicit).is_file() or shutil.which(explicit) is not None:
+            return explicit
+    if shutil.which("blender") is not None:
+        return "blender"
+    if os.name != "nt":
+        return None
+    root = Path(os.environ.get("PROGRAMFILES", r"C:\Program Files")) / "Blender Foundation"
+    if not root.is_dir():
+        return None
+    candidates: list[Path] = [root / "blender.exe"]
+    candidates.extend(sorted(root.glob("Blender */blender.exe"), reverse=True))
+    for candidate in candidates:
+        if candidate.is_file():
+            return str(candidate)
+    return None
+
+
 @dataclass
 class BlenderBridge:
     """Frontière Blender : valide puis exécute des scripts headless."""
@@ -33,11 +59,14 @@ class BlenderBridge:
     timeout: float = 300.0
 
     def __post_init__(self) -> None:
-        self._blender_exe = self.blender_exe or os.environ.get("BLENDER_EXE", "blender")
+        self._blender_exe = self.blender_exe or _find_blender()
         self._worker = WorkerProcess()
 
     def available(self) -> bool:
-        return shutil.which(self._blender_exe) is not None
+        exe = self._blender_exe
+        if not exe:
+            return False
+        return shutil.which(exe) is not None or Path(exe).is_file()
 
     def run_script(self, script: BlenderScript, workdir: Path) -> ProcessResult:
         """Valide le script (fail-closed), puis l'exécute dans Blender headless."""
@@ -49,8 +78,8 @@ class BlenderBridge:
             )
         if not self.available():
             raise BlenderNotFoundError(
-                f"Blender executable not found: '{self._blender_exe}'. "
-                "Set BLENDER_EXE or install Blender (see Dockerfile)."
+                "Blender executable not found. Install Blender or set "
+                "BLENDER_EXE to the full path of blender.exe (see Dockerfile)."
             )
         workdir.mkdir(parents=True, exist_ok=True)
         script_path = workdir / f"{script.scene_name}_v{script.version}.py"

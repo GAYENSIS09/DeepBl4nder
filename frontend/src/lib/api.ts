@@ -69,6 +69,66 @@ export interface ProductionOut {
   finished_at: string | null;
 }
 
+export interface ShotOut {
+  id: string;
+  index: number;
+  start: number;
+  end: number;
+  camera_summary: string;
+  action: string;
+  status: string;
+}
+
+export interface SceneOut {
+  id: string;
+  name: string;
+  order_index: number;
+  status: string;
+  shots: ShotOut[];
+}
+
+export interface SequenceOut {
+  id: string;
+  name: string;
+  order_index: number;
+  scenes: SceneOut[];
+}
+
+export interface TimelineOut {
+  production_id: string;
+  sequences: SequenceOut[];
+}
+
+export interface PatchRequest {
+  target: string;
+  old_value: any | null;
+  new_value: any;
+  rationale: string;
+}
+
+export interface PatchResponse {
+  patch_id: string;
+  status: string;
+  message: string;
+}
+
+export interface ArtifactRecordOut {
+  id: string;
+  type: string;
+  name: string;
+  version: number;
+  path: string;
+  sha256: string;
+  status: string;
+  cost: number;
+  parent_ids: string[];
+  created_at: string;
+}
+
+export interface ArtifactRecordsOut {
+  records: ArtifactRecordOut[];
+}
+
 export interface MemberOut {
   user_id: string;
   email: string;
@@ -346,6 +406,36 @@ export const api = {
 
   async preview(productionId: string): Promise<{ blob: Blob; filename: string }> {
     return requestBlob(`/api/productions/${encodeURIComponent(productionId)}/preview`);
+  },
+
+  async getTimeline(productionId: string): Promise<TimelineOut> {
+    return request<TimelineOut>(`/api/productions/${encodeURIComponent(productionId)}/timeline`);
+  },
+
+  async createPatch(productionId: string, payload: PatchRequest): Promise<PatchResponse> {
+    return request<PatchResponse>(`/api/productions/${encodeURIComponent(productionId)}/patches`, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  },
+
+  async approveProduction(productionId: string): Promise<ProductionOut> {
+    return request<ProductionOut>(`/api/productions/${encodeURIComponent(productionId)}/approve`, { method: 'POST' });
+  },
+
+  async listArtifactVersions(
+    productionId: string,
+    type?: string,
+    name?: string
+  ): Promise<ArtifactRecordsOut> {
+    const params = new URLSearchParams();
+    if (type) params.set('type', type);
+    if (name) params.set('name', name);
+    return request<ArtifactRecordsOut>(`/api/productions/${encodeURIComponent(productionId)}/versions?${params.toString()}`);
+  },
+
+  async restoreArtifactVersion(artifactId: string): Promise<PatchResponse> {
+    return request<PatchResponse>(`/api/artifacts/${encodeURIComponent(artifactId)}/restore`, { method: 'POST' });
   },
 
   async getArtifactBlob(productionId: string, path: string): Promise<Blob> {

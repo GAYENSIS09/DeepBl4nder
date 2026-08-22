@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import re
 from datetime import datetime
+from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
@@ -237,3 +238,64 @@ class UsageOut(BaseModel):
     runs: int
     total_cost: float
     quotas: UsageQuotas
+
+
+class SequenceOut(BaseModel):
+    id: str
+    name: str
+    order_index: int
+    scenes: list["SceneOut"] = []
+
+
+class SceneOut(BaseModel):
+    id: str
+    name: str
+    order_index: int
+    status: str
+    shots: list["ShotOut"] = []
+
+
+class ShotOut(BaseModel):
+    id: str
+    index: int
+    start: float
+    end: float
+    camera_summary: str
+    action: str
+    status: str
+
+
+class TimelineOut(BaseModel):
+    production_id: str
+    sequences: list[SequenceOut]
+
+
+class PatchRequest(BaseModel):
+    """Patch structuré pour modifier un paramètre précis d'un shot/scène."""
+    target: str  # ex: "shots[0].camera.position"
+    old_value: Any | None = None
+    new_value: Any
+    rationale: str = ""
+
+
+class PatchResponse(BaseModel):
+    patch_id: str
+    status: str
+    message: str
+
+
+class ArtifactRecordOut(BaseModel):
+    id: str
+    type: str
+    name: str
+    version: int
+    path: str
+    sha256: str
+    status: str
+    cost: float
+    parent_ids: list[str] = []
+    created_at: datetime
+
+
+class ArtifactRecordsOut(BaseModel):
+    records: list[ArtifactRecordOut]

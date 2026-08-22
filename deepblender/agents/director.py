@@ -16,14 +16,16 @@ from nooa.config.strategy_config import CodeActConfig
 from deepblender.agents.base import BaseAgent, DefaultsMixin, scene_spec_postcondition
 from deepblender.domain.project import Brief
 from deepblender.domain.scene import SceneSpec
+from deepblender.domain.narrative import StorySpec, StoryboardSpec
 from deepblender.skills.registry import SkillRegistry
 
 
 class DirectorAgent(BaseAgent, DefaultsMixin):
     """You are a film director agent.
 
-    You turn a creative brief into a structured, typed scene specification
-    following the production pipeline (Brief -> SceneSpec -> ShotSpec).
+    You turn a creative brief (and optionally a StorySpec + StoryboardSpec)
+    into a structured, typed scene specification following the production
+    pipeline (Brief -> SceneSpec -> ShotSpec).
 
     ## Skills available (progressive disclosure)
     - storyboard: plan shots with timing, camera, composition
@@ -56,25 +58,32 @@ class DirectorAgent(BaseAgent, DefaultsMixin):
 
     @strategy(CodeActStrategy(config=CodeActConfig(
         postconditions=[scene_spec_postcondition],
-        max_tokens=2048,
+        max_tokens=8192,
     )))
-    async def plan_scene(self, brief: Brief) -> SceneSpec:  # type: ignore[return]
+    async def plan_scene(self, brief: Brief, story_spec: StorySpec | None = None, storyboard_spec: StoryboardSpec | None = None) -> SceneSpec:  # type: ignore[return]
         """Turn the creative brief into a structured scene specification.
 
         Steps:
         1. Load core skill summaries for context
         2. Analyze brief: extract mood, setting, characters, key actions
-        3. Load relevant skills (storyboard, cinematography, lighting) as needed
-        4. Generate Python code that constructs a SceneSpec with:
+        3. If available, use story_spec and storyboard_spec to inform the plan
+        4. Load relevant skills (storyboard, cinematography, lighting) as needed
+        5. Generate Python code that constructs a SceneSpec with:
            - EnvironmentSpec (description, lighting_mood, rain)
            - CharacterSpec list (name, description, position)
            - ShotSpec list (duration, fps, camera, environment, characters, animation, lighting)
-        5. Return the constructed SceneSpec
+        6. Return the constructed SceneSpec
         """
         self._load_core_skills()
 
         # Load skills relevant to this brief
         self._load_skills("storyboard", "cinematography", "lighting")
+
+        # Make story and storyboard available in context
+        if story_spec:
+            self._set_dynamic("story_spec", str(story_spec.to_mapping()))
+        if storyboard_spec:
+            self._set_dynamic("storyboard_spec", str(storyboard_spec.to_mapping()))
 
         # The CodeActStrategy will generate Python code to build the SceneSpec
         # Output is validated against SceneSpec type annotation

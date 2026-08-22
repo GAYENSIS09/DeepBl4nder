@@ -1,38 +1,36 @@
-"""Gestion robuste des fournisseurs LLM : pool multi-fournisseurs + failover.
+"""Gestion robuste des fournisseurs LLM : pool multi-fournisseurs + vote.
 
-Un registre ``PROVIDERS`` décrit chaque fournisseur (clé d'API, base URL et
-modèles disponibles). Contrairement à un système mono-fournisseur, le
-``LLMRouter`` utilise TOUS les fournisseurs configurés pour :
+Le registre ``PROVIDERS`` décrit chaque fournisseur via la classe
+``LLMProvider`` (id, clé d'API, base URL, modèles). Aucune configuration n'est
+lue dans l'environnement en dehors des clés d'API : le pool, les modèles et les
+URLs sont définis en dur dans ``PROVIDERS``.
 
-- répartir les appels en ``random`` (tirage uniforme) ou ``adaptive`` (pondéré
-  par la santé historique) → moins de rate limits ;
-- basculer automatiquement sur un autre fournisseur en cas d'erreur (429,
-  5xx, timeout, 404 modèle…) ;
-- mettre un fournisseur en ``cooldown`` après un échec (durée dépendante du
-  type d'erreur) et le réintégrer tout seul quand il refroidit.
+Le ``LLMRouter`` consulte TOUS les fournisseurs du pool à chaque appel (même le
+premier) et choisit la réponse par vote :
 
-Configuration via ``.env`` :
+- tous les fournisseurs disponibles répondent en parallèle ;
+- les réponses identiques forment une majorité → c'est la réponse retenue ;
+- en cas d'égalité, la santé historique départage (fournisseur qui a gagné
+  le plus de votes précédemment, puis le plus de succès) ;
+- un fournisseur en échec (429, 5xx, timeout, 404 modèle…) passe en
+  ``cooldown`` fixe et est réintégré automatiquement quand il refroidit ;
+  s'il est en cooldown, il ne participe pas au vote suivant.
 
-- ``LLM_PROVIDERS`` : liste ordonnée d'ids de fournisseurs (séparés par
-  virgule). Par défaut : tous les fournisseurs dont la clé dédiée est définie.
-- ``LLM_PROVIDER`` : fournisseur préféré (mis en tête de pool ; rétrocompat).
-- ``LLM_ROTATION`` : ``adaptive`` (défaut — tirage pondéré par le taux de
-  réussite historique de chaque fournisseur) ou ``random`` (tirage uniforme à
-  chaque appel).
-- ``LLM_COOLDOWN_SECONDS`` : cooldown de base après un échec (défaut 30 s ;
-  ×5 pour rate limit, ×10 pour erreurs d'auth/modèle).
-- ``LLM_MODEL`` / ``<FOURNISSEUR>_MODEL`` : modèle actif par fournisseur
-  (pas de modèles de secours : le routeur bascule de fournisseur).
+Sélection du pool (simple et explicite) :
 
-Variables héritées toujours supportées : ``GEMINI_LLM_MODEL``,
-``DEEPBLENDER_LLM_BASE_URL``, ``DEEPBLENDER_FAKE_LLM`` (mode fake pour les
-tests sans quota).
+- ``LLMRouter(provider_ids=[...])`` (ou ``get_router`` / ``build_llm``) : pool
+  strict, dans cet ordre ;
+- sinon : tous les fournisseurs de ``PROVIDERS`` dont la clé d'API est définie.
+
+Seule variable d'environnement lue hors clés d'API : ``CLOUDFLARE_ACCOUNT_ID``,
+requise pour résoudre l'URL Workers AI de Cloudflare (liée à sa clé d'API).
 """
 
 from __future__ import annotations
 
+import asyncio
+import json
 import os
-import random
 import threading
 import time
 from dataclasses import dataclass
@@ -50,7 +48,7 @@ except ImportError:
 
 @dataclass(frozen=True)
 class LLMProvider:
-    """Fournisseur LLM : clé d'API, base URL officielle et modèles disponibles."""
+    """Fournisseur LLM : clé d'API, base URL et modèles, en dur dans ``PROVIDERS``."""
 
     id: str
     api_key_env: str
@@ -58,8 +56,50 @@ class LLMProvider:
     models: tuple[str, ...]
 
     def default_model(self) -> str:
-        """Premier modèle disponible (utilisé si rien n'est configuré)."""
+        """Premier modèle disponible (seul modèle actif de ce fournisseur)."""
         return self.models[0]
+
+    def model(self) -> str:
+        """Modèle actif : fixé dans le registre (plus de surcharge .env)."""
+        return self.default_model()
+
+    def api_key(self) -> str | None:
+        """Clé d'API dédiée (seule lecture d'environnement du module)."""
+        return os.getenv(self.api_key_env)
+
+    def is_available(self) -> bool:
+        """Un fournisseur est utilisable s'il a sa clé dédiée."""
+        return bool(self.api_key())
+
+    def api_base(self) -> str | None:
+        """Base URL : celle du registre pour un serveur local, sinon None
+        (litellm connaît l'URL officielle du fournisseur)."""
+        if self.id == "local":
+            return self.base_url
+        return None
+
+    def resolved_base_url(self) -> str:
+        """Base URL effective, placeholders substitués (ex. ``ACCOUNT_ID`` cloudflare).
+
+        Cloudflare exige l'identifiant de compte dans l'URL ; litellm le lit
+        aussi à l'appel via ``CLOUDFLARE_ACCOUNT_ID``, cette méthode sert à
+        l'affichage (config / stats) sans placeholder brut.
+        """
+        custom = self.api_base()
+        if custom:
+            return custom
+        if "ACCOUNT_ID" in self.base_url:
+            return self.base_url.replace("ACCOUNT_ID", os.getenv("CLOUDFLARE_ACCOUNT_ID", ""))
+        return self.base_url
+
+    def config(self) -> dict[str, Any]:
+        """Résumé de configuration (sans exposer la clé)."""
+        return {
+            "id": self.id,
+            "base_url": self.resolved_base_url(),
+            "model": self.model(),
+            "api_key_configured": bool(self.api_key()),
+        }
 
 
 PROVIDERS: dict[str, LLMProvider] = {
@@ -122,111 +162,13 @@ PROVIDERS: dict[str, LLMProvider] = {
     ),
 }
 
-# Compatibilité : ancien nom (id fournisseur -> modèles disponibles).
-MODELS_DICT: dict[str, list[str]] = {pid: list(p.models) for pid, p in PROVIDERS.items()}
 
-DEFAULT_PROVIDER = "gemini"
-
-_ROTATIONS = ("random", "adaptive")
-
-
-def _weighted_shuffle(items: list[Any], weights: list[float], rng: random.Random | Any) -> list[Any]:
-    """Tri aléatoire pondéré (sans remise).
-
-    Les éléments à poids élevé sortent plus souvent en tête, sans jamais
-    exclure totalement les autres — utile pour "sonder" un fournisseur en
-    délicatesse plutôt que de l'abandonner définitivement.
-    """
-    pool = list(zip(items, weights))
-    result: list[Any] = []
-    while pool:
-        total = sum(w for _, w in pool)
-        r = rng.uniform(0, total)
-        upto = 0.0
-        for i, (item, w) in enumerate(pool):
-            upto += w
-            if upto >= r:
-                result.append(item)
-                pool.pop(i)
-                break
-    return result
-
-
-def provider_from_env() -> str:
-    """Id du fournisseur actif (``LLM_PROVIDER``, défaut ``gemini``)."""
-    return os.getenv("LLM_PROVIDER", DEFAULT_PROVIDER)
-
-
-def get_provider(provider_id: str | None = None) -> LLMProvider:
-    """Retourne le fournisseur demandé, sinon celui de l'environnement."""
-    pid = provider_id or provider_from_env()
-    if pid not in PROVIDERS:
+def get_provider(provider_id: str) -> LLMProvider:
+    """Fournisseur du registre, avec une erreur claire si l'id est inconnu."""
+    if provider_id not in PROVIDERS:
         available = ", ".join(sorted(PROVIDERS))
-        raise ValueError(f"Fournisseur LLM inconnu : {pid!r}. Disponibles : {available}.")
-    return PROVIDERS[pid]
-
-
-def model_from_env(provider: LLMProvider | None = None) -> str:
-    """Modèle actif : ``LLM_MODEL``, puis ``<FOURNISSEUR>_MODEL``, puis défaut."""
-    prov = provider or get_provider()
-    for env_name in ("LLM_MODEL", f"{prov.id.upper()}_MODEL"):
-        if explicit := os.getenv(env_name):
-            return explicit
-    if prov.id == "gemini":
-        legacy = os.getenv("GEMINI_LLM_MODEL")
-        if legacy:
-            return legacy
-    return prov.default_model()
-
-
-def api_key_from_env(provider: LLMProvider | None = None) -> str | None:
-    """Clé d'API : ``LLM_API_KEY`` surchargée, sinon la clé dédiée du fournisseur."""
-    prov = provider or get_provider()
-    return os.getenv("LLM_API_KEY") or os.getenv(prov.api_key_env)
-
-
-def api_base_from_env(provider: LLMProvider | None = None) -> str | None:
-    """Base URL : surcharge explicite, sinon la base par défaut pour les locaux."""
-    prov = provider or get_provider()
-    custom = os.getenv("LLM_BASE_URL") or os.getenv("DEEPBLENDER_LLM_BASE_URL")
-    if custom:
-        return custom
-    if prov.id == "local":
-        return prov.base_url
-    return None
-
-
-def resolved_base_url(provider: LLMProvider | None = None) -> str:
-    """Base URL effective, placeholders substitués (ex. ``ACCOUNT_ID`` cloudflare).
-
-    Cloudflare exige l'identifiant de compte dans l'URL ; litellm le lit
-    aussi à l'appel via ``CLOUDFLARE_ACCOUNT_ID``, cette fonction sert à
-    l'affichage (config / stats) sans placeholder brut.
-    """
-    prov = provider or get_provider()
-    custom = api_base_from_env(prov)
-    if custom:
-        return custom
-    if "ACCOUNT_ID" in prov.base_url:
-        return prov.base_url.replace("ACCOUNT_ID", os.getenv("CLOUDFLARE_ACCOUNT_ID", ""))
-    return prov.base_url
-
-
-def use_fake_llm() -> bool:
-    """Vérifie si le mode fake est activé (tests sans quota)."""
-    val = os.getenv("DEEPBLENDER_FAKE_LLM", "").lower()
-    return val in ("1", "true", "yes", "on")
-
-
-def provider_config(provider: LLMProvider | None = None) -> dict[str, Any]:
-    """Résumé de configuration d'un fournisseur (sans exposer la clé)."""
-    prov = provider or get_provider()
-    return {
-        "id": prov.id,
-        "base_url": resolved_base_url(prov),
-        "model": model_from_env(prov),
-        "api_key_configured": bool(api_key_from_env(prov)),
-    }
+        raise ValueError(f"Fournisseur LLM inconnu : {provider_id!r}. Disponibles : {available}.")
+    return PROVIDERS[provider_id]
 
 
 # Types litellm "déterministes" : la classe d'exception prime sur le message.
@@ -279,7 +221,7 @@ def _classify_error(error: Exception) -> str:
 
     ``rate_limit`` couvre aussi le quota/billing (ex. OpenRouter 402 : pas
     assez de crédits) : c'est un état du compte, pas un prompt trop long —
-    le failover doit continuer.
+    le vote doit continuer avec les autres fournisseurs.
     """
     cls = type(error).__name__.lower()
     for marker, kind in _LITELLM_DETERMINISTIC_MARKERS:
@@ -347,23 +289,21 @@ def _classify_error(error: Exception) -> str:
 
     status = getattr(error, "status_code", None)
     if isinstance(status, int) and not isinstance(status, bool):
-        kind = _STATUS_TO_KIND.get(status)
-        if kind is not None:
-            return kind
+        kind_by_status = _STATUS_TO_KIND.get(status)
+        if kind_by_status is not None:
+            return kind_by_status
 
     if any(marker in cls for marker in _LITELLM_TRANSIENT_MARKERS):
         return "transient"
     return "transient"
 
 
-_COOLDOWN_FACTORS: dict[str, int] = {"rate_limit": 5, "model": 10, "auth": 10}
-
-
 @dataclass
 class ProviderHealth:
-    """Santé d'un couple (fournisseur, modèle) : compteurs, cooldown, erreur."""
+    """Santé d'un fournisseur : compteurs, victoires, cooldown, erreur."""
 
     successes: int = 0
+    wins: int = 0
     failures: int = 0
     cooldown_until: float = 0.0
     last_error: str | None = None
@@ -372,83 +312,55 @@ class ProviderHealth:
         return self.cooldown_until > now
 
 
-class LLMRouter:
-    """Routeur multi-fournisseurs : rotation configurable + failover + cooldown.
+def _signature(result: Any) -> str:
+    """Empreinte canonique d'une réponse : deux réponses identiques votent pareil."""
+    try:
+        return json.dumps(result, sort_keys=True, ensure_ascii=False, default=str)
+    except Exception:  # noqa: BLE001
+        return str(result)
 
-    Rotation : ``adaptive`` (défaut, pondéré par la santé historique de chaque
-    fournisseur) ou ``random`` (tirage uniforme). Compatible drop-in avec
-    ``UnifiedLLM`` (``call`` / ``acall``) donc directement injectable dans les
-    agents NOOA.
+
+class LLMRouter:
+    """Routeur multi-fournisseurs : vote de tous + cooldown simple.
+
+    Compatible drop-in avec ``UnifiedLLM`` (``call`` / ``acall``) donc
+    directement injectable dans les agents NOOA.
     """
 
     def __init__(
         self,
         provider_ids: list[str] | None = None,
-        rotation: str | None = None,
-        cooldown: float | None = None,
+        cooldown: float = 30.0,
         client_factory: Callable[..., UnifiedLLM] | None = None,
         clock: Callable[[], float] | None = None,
     ) -> None:
-        self._rotation = (rotation or os.getenv("LLM_ROTATION", "adaptive")).strip().lower()
-        if self._rotation not in _ROTATIONS:
-            self._rotation = "adaptive"
-        self._cooldown = cooldown if cooldown is not None else float(
-            os.getenv("LLM_COOLDOWN_SECONDS", "30") or "30"
-        )
+        self._cooldown = cooldown if cooldown is not None else 30.0
         self._client_factory = client_factory or get_llm_client
         self._clock = clock or time.time
-        self._configured_ids: list[str] = provider_ids or []
+        self._configured_ids: list[str] = [
+            pid.strip() for pid in (provider_ids or []) if pid.strip()
+        ]
 
         self._providers = self._discover()
-        self._health: dict[tuple[str, str], ProviderHealth] = {}
-        self._clients: dict[tuple[str, str], UnifiedLLM] = {}
+        self._health: dict[str, ProviderHealth] = {}
+        self._clients: dict[str, UnifiedLLM] = {}
         self._lock = threading.Lock()
 
     # ------------------------------------------------------------------ pool
 
-    def _available(self, provider: LLMProvider) -> bool:
-        """Un fournisseur est utilisable s'il a sa clé dédiée.
-
-        ``local`` n'est utilisable que si ``LLM_API_KEY`` est définie (serveur
-        compatible OpenAI), pour ne pas tenter un serveur absent à chaque appel.
-        """
-        return bool(os.getenv(provider.api_key_env))
-
     def _discover(self) -> list[LLMProvider]:
         """Construit le pool.
 
-        Ordre de priorité :
-        - ids explicites (constructeur) ou ``LLM_PROVIDERS`` : pool strict,
-          aucun fournisseur ajouté automatiquement ;
-        - ``LLM_PROVIDER`` : ce fournisseur en tête + tous les autres configurés ;
-        - sinon : tous les fournisseurs configurés (clé dédiée définie).
+        - ids explicites (constructeur) : pool strict, dans cet ordre ;
+        - sinon : tous les fournisseurs de ``PROVIDERS`` dont la clé d'API
+          est définie.
         """
-        strict = False
         if self._configured_ids:
-            raw_ids = [pid.strip() for pid in self._configured_ids if pid.strip()]
-            strict = True
-        elif providers_env := os.getenv("LLM_PROVIDERS"):
-            raw_ids = [pid.strip() for pid in providers_env.split(",") if pid.strip()]
-            strict = True
-        elif primary := os.getenv("LLM_PROVIDER"):
-            raw_ids = [primary]
+            providers = [get_provider(pid) for pid in self._configured_ids]
         else:
-            raw_ids = []
+            providers = list(PROVIDERS.values())
 
-        if raw_ids:
-            self._configured_ids = raw_ids
-            providers = [get_provider(pid) for pid in raw_ids]
-            if strict:
-                return [p for p in providers if self._available(p)]
-            providers = providers + [
-                p
-                for p in PROVIDERS.values()
-                if p.id not in {x.id for x in providers} and self._available(p)
-            ]
-        else:
-            providers = [p for p in PROVIDERS.values() if self._available(p)]
-
-        pool = [p for p in providers if self._available(p)]
+        pool = [p for p in providers if p.is_available()]
         if not pool:
             raise RuntimeError(self._missing_keys_message())
         return pool
@@ -465,121 +377,52 @@ class LLMRouter:
                     }
                 )
             )
-            msg += f" Vérifiez les clés suivantes dans .env : {keys} (ou LLM_API_KEY)."
+            msg += f" Vérifiez les clés suivantes dans .env : {keys}."
         else:
             msg += (
                 " Définissez au moins une clé d'API (GEMINI_API_KEY, GROQ_API_KEY, "
-                "NVIDIA_API_KEY, OPENROUTER_API_KEY, CLOUDFLARE_API_KEY) ou LLM_PROVIDERS."
+                "NVIDIA_API_KEY, OPENROUTER_API_KEY, CLOUDFLARE_API_KEY, LLM_API_KEY)."
             )
-        msg += " Pour le mode sans quota : DEEPBLENDER_FAKE_LLM=1."
         return msg
 
     def models_for(self, provider: LLMProvider) -> list[str]:
-        """Modèle actif pour ce fournisseur (pas de fallbacks : le routeur
-        bascule de fournisseur plutôt que de modèle)."""
-        model = model_from_env(provider)
-        return [model] if model else []
+        """Modèle actif pour ce fournisseur (pas de fallbacks : le vote
+        désigne le fournisseur, un seul modèle par fournisseur)."""
+        return [provider.model()]
+
+    def model(self) -> str:
+        """Modèle du premier fournisseur du pool (affichage / métadonnées)."""
+        if not self._providers:
+            return "unknown"
+        return self._providers[0].model()
 
     def providers(self) -> list[LLMProvider]:
         return list(self._providers)
 
-    @property
-    def rotation(self) -> str:
-        return self._rotation
-
     # -------------------------------------------------------------- routing
 
-    def _health_for(self, provider_id: str, model: str) -> ProviderHealth:
-        """Santé d'un couple (fournisseur, modèle) — créée à la volée."""
-        key = (provider_id, model)
+    def _health_for(self, provider_id: str) -> ProviderHealth:
+        """Santé d'un fournisseur — créée à la volée."""
         with self._lock:
-            health = self._health.get(key)
+            health = self._health.get(provider_id)
             if health is None:
                 health = ProviderHealth()
-                self._health[key] = health
+                self._health[provider_id] = health
         return health
 
-    def _provider_models_health(self, provider: LLMProvider) -> list[ProviderHealth]:
-        """Santé de tous les modèles d'un fournisseur (vue agrégée)."""
-        return [self._health_for(provider.id, m) for m in self.models_for(provider)]
-
     def _provider_is_cooling(self, provider: LLMProvider, now: float) -> bool:
-        """Un fournisseur n'est 'en cooldown' que si TOUS ses modèles le sont."""
-        healths = self._provider_models_health(provider)
-        return bool(healths) and all(h.is_cooling(now) for h in healths)
+        return self._health_for(provider.id).is_cooling(now)
 
-    def _provider_cooldown_until(self, provider: LLMProvider) -> float:
-        healths = self._provider_models_health(provider)
-        return min((h.cooldown_until for h in healths), default=0.0)
-
-    def _provider_weight(self, provider: LLMProvider) -> float:
-        """Poids adaptatif d'un fournisseur : taux de réussite agrégé + 5 %."""
-        successes = sum(h.successes for h in self._provider_models_health(provider))
-        failures = sum(h.failures for h in self._provider_models_health(provider))
-        total = successes + failures
-        return 1.0 if total == 0 else 0.05 + (successes / total)
-
-    def _ordered_candidates(self, now: float) -> list[LLMProvider]:
-        """Fournisseurs à essayer pour un appel, selon la stratégie."""
+    def _get_client(self, provider: LLMProvider) -> UnifiedLLM:
         with self._lock:
-            order = list(self._providers)
-        if self._rotation == "random":
-            order = order.copy()
-            random.shuffle(order)
-        else:  # adaptive
-            order = _weighted_shuffle(
-                order, [self._provider_weight(p) for p in order], random
-            )
-
-        cooling = [p for p in order if self._provider_is_cooling(p, now)]
-        healthy = [p for p in order if not self._provider_is_cooling(p, now)]
-        if healthy:
-            return healthy
-        # Tout est en cooldown : on réessaie le plus proche de l'expiration
-        # (auto-réparation) plutôt que d'échouer sans appel.
-        if cooling:
-            return [min(cooling, key=self._provider_cooldown_until)]
-        return order
-
-    def _ordered_models(self, provider: LLMProvider, now: float) -> list[str]:
-        """Ordre des modèles à essayer pour ce fournisseur, selon la stratégie.
-
-        Un seul modèle actif par fournisseur (pas de fallbacks) : les modèles
-        en cooldown passent après les sains ; si tous refroidissent, on
-        réessaie le plus proche de l'expiration.
-        """
-        models = self.models_for(provider)
-        if self._rotation == "random":
-            models = models.copy()
-            random.shuffle(models)
-        elif self._rotation == "adaptive":
-            def _model_weight(model: str) -> float:
-                h = self._health_for(provider.id, model)
-                total = h.successes + h.failures
-                return 1.0 if total == 0 else 0.05 + (h.successes / total)
-
-            models = _weighted_shuffle(models, [_model_weight(m) for m in models], random)
-
-        cooling = [m for m in models if self._health_for(provider.id, m).is_cooling(now)]
-        healthy = [m for m in models if not self._health_for(provider.id, m).is_cooling(now)]
-        if healthy:
-            return healthy
-        if cooling:
-            return [min(cooling, key=lambda m: self._health_for(provider.id, m).cooldown_until)]
-        return models
-
-    def _get_client(self, provider: LLMProvider, model: str) -> UnifiedLLM:
-        key = (provider.id, model)
-        with self._lock:
-            client = self._clients.get(key)
+            client = self._clients.get(provider.id)
         if client is not None:
             return client
-        api_key = api_key_from_env(provider)
         kwargs: dict[str, Any] = {
             "cache_control_injection_points": [],
-            # Fail fast : le routeur gère lui-même le failover et le cooldown
-            # par fournisseur. Un seul retry court pour les erreurs transitoires,
-            # aucun backoff long sur rate limit (sinon un 429 bloque le run ~3 min
+            # Fail fast : le vote s'appuie sur les autres fournisseurs en cas
+            # d'échec. Un seul retry court pour les erreurs transitoires,
+            # aucun backoff long sur rate limit (sinon un 429 bloque le run
             # et chaque tentative consomme des tokens inutilement).
             "retry_config": RetryConfig(
                 max_retries=1,
@@ -588,72 +431,63 @@ class LLMRouter:
                 rate_limit_base_delay=1.0,
             ),
         }
-        if api_key:
+        if api_key := provider.api_key():
             kwargs["api_key"] = api_key
-        if api_base := api_base_from_env(provider):
+        if api_base := provider.api_base():
             kwargs["api_base"] = api_base
-        client = self._client_factory(model, **kwargs)
+        client = self._client_factory(provider.model(), **kwargs)
         with self._lock:
-            self._clients[key] = client
+            self._clients[provider.id] = client
         return client
 
-    def _record_success(self, provider: LLMProvider, model: str) -> None:
-        health = self._health_for(provider.id, model)
+    def _record_success(self, provider: LLMProvider) -> None:
+        health = self._health_for(provider.id)
         with self._lock:
             health.successes += 1
             health.cooldown_until = 0.0
             health.last_error = None
 
-    def _record_failure(self, provider: LLMProvider, model: str, error: Exception) -> str:
+    def _record_failure(self, provider: LLMProvider, error: Exception) -> str:
         kind = _classify_error(error)
         now = self._clock()
-        health = self._health_for(provider.id, model)
+        health = self._health_for(provider.id)
         with self._lock:
             health.failures += 1
             health.last_error = str(error)[:500]
-            factor = _COOLDOWN_FACTORS.get(kind, 1)
-            health.cooldown_until = now + self._cooldown * factor
+            health.cooldown_until = now + self._cooldown
         try:
-            if kind == "context":
-                print(f"⚠ LLM {provider.id}/{model} en échec ({kind}) : prompt trop long → pas de bascule utile.")
-            else:
-                print(f"⚠ LLM {provider.id}/{model} en échec ({kind}) → bascule vers un autre fournisseur.")
+            print(f"⚠ LLM {provider.id} en échec ({kind}) → exclu du vote "
+                  f"pendant {self._cooldown:g}s.")
         except UnicodeEncodeError:
-            # Ne jamais laisser un encodage de console casser le failover.
-            print(f"LLM {provider.id}/{model} en echec ({kind}) -> bascule.")
+            # Ne jamais laisser un encodage de console casser le routage.
+            print(f"LLM {provider.id} en echec ({kind}) -> cooldown.")
         return str(error)
 
-    # ------------------------------------------------------------- appel LLM
+    def _record_win(self, provider_id: str) -> None:
+        health = self._health_for(provider_id)
+        with self._lock:
+            health.wins += 1
 
-    def call(
-        self,
-        messages: list[dict[str, Any]],
-        tools: list[Any] | None = None,
-        output_model: type[Any] | None = None,
-        **kwargs: Any,
-    ) -> Any:
-        """Appel synchrone avec failover multi-fournisseurs."""
-        last_error = "aucune erreur capturée"
-        now = self._clock()
-        for provider in self._ordered_candidates(now):
-            for model in self._ordered_models(provider, now):
-                client = self._get_client(provider, model)
-                try:
-                    result = client.call(messages, tools=tools, output_model=output_model, **kwargs)
-                    self._record_success(provider, model)
-                    return result
-                except Exception as exc:  # noqa: BLE001
-                    last_error = self._record_failure(provider, model, exc)
-                    if _classify_error(exc) == "context":
-                        # Un prompt trop long est déterministe : changer de
-                        # fournisseur ne fait que brûler du quota. On arrête.
-                        raise RuntimeError(
-                            "Prompt trop long : la fenêtre de contexte du modèle "
-                            f"{provider.id}/{model} est dépassée. Réduisez le brief "
-                            "ou la taille du contexte, ou utilisez un modèle avec une "
-                            f"fenêtre plus grande. Détail : {last_error}"
-                        ) from exc
-        raise RuntimeError(f"Tous les fournisseurs LLM ont échoué. Dernière erreur : {last_error}")
+    def _decide(self, results: dict[str, Any]) -> Any:
+        """Choisit la réponse : majorité, puis santé (victoires, succès).
+
+        Les réponses identiques forment un bloc ; le bloc le plus nombreux
+        gagne. En cas d'égalité, le fournisseur le plus fiable du bloc l'emporte
+        (ordre de priorité : victoires de vote, puis succès, puis ordre du pool).
+        """
+        sizes: dict[str, int] = {}
+        for pid, result in results.items():
+            sizes[pid] = sum(1 for other in results.values() if _signature(other) == _signature(result))
+
+        def _score(pid: str) -> tuple[int, int, int, int]:
+            health = self._health_for(pid)
+            return (sizes[pid], health.wins, health.successes, -health.failures)
+
+        winner = max(results, key=_score)
+        self._record_win(winner)
+        return results[winner]
+
+    # ------------------------------------------------------------- appel LLM
 
     async def acall(
         self,
@@ -662,30 +496,50 @@ class LLMRouter:
         output_model: type[Any] | None = None,
         **kwargs: Any,
     ) -> Any:
-        """Appel asynchrone avec failover multi-fournisseurs."""
-        last_error = "aucune erreur capturée"
+        """Appel asynchrone : tous les fournisseurs votent, la majorité gagne."""
         now = self._clock()
-        for provider in self._ordered_candidates(now):
-            for model in self._ordered_models(provider, now):
-                client = self._get_client(provider, model)
-                try:
-                    result = await client.acall(
-                        messages, tools=tools, output_model=output_model, **kwargs
-                    )
-                    self._record_success(provider, model)
-                    return result
-                except Exception as exc:  # noqa: BLE001
-                    last_error = self._record_failure(provider, model, exc)
-                    if _classify_error(exc) == "context":
-                        # Un prompt trop long est déterministe : changer de
-                        # fournisseur ne fait que brûler du quota. On arrête.
-                        raise RuntimeError(
-                            "Prompt trop long : la fenêtre de contexte du modèle "
-                            f"{provider.id}/{model} est dépassée. Réduisez le brief "
-                            "ou la taille du contexte, ou utilisez un modèle avec une "
-                            f"fenêtre plus grande. Détail : {last_error}"
-                        ) from exc
-        raise RuntimeError(f"Tous les fournisseurs LLM ont échoué. Dernière erreur : {last_error}")
+        voters = [p for p in self._providers if not self._provider_is_cooling(p, now)]
+        if not voters:
+            # Tout est en cooldown : on retente quand même (auto-réparation).
+            voters = list(self._providers)
+        if not voters:
+            raise RuntimeError(self._missing_keys_message())
+
+        async def _vote(provider: LLMProvider) -> tuple[LLMProvider, Any]:
+            client = self._get_client(provider)
+            try:
+                result = await client.acall(
+                    messages, tools=tools, output_model=output_model, **kwargs
+                )
+                return provider, result
+            except Exception as exc:  # noqa: BLE001
+                return provider, exc
+
+        outcomes = await asyncio.gather(*(_vote(p) for p in voters))
+
+        results: dict[str, Any] = {}
+        errors: list[str] = []
+        for provider, outcome in outcomes:
+            if isinstance(outcome, Exception):
+                errors.append(self._record_failure(provider, outcome))
+            else:
+                results[provider.id] = outcome
+                self._record_success(provider)
+
+        if not results:
+            last = errors[-1] if errors else "inconnue"
+            raise RuntimeError(f"Tous les fournisseurs LLM ont échoué. Dernière erreur : {last}")
+        return self._decide(results)
+
+    def call(
+        self,
+        messages: list[dict[str, Any]],
+        tools: list[Any] | None = None,
+        output_model: type[Any] | None = None,
+        **kwargs: Any,
+    ) -> Any:
+        """Appel synchrone : même logique de vote que ``acall``."""
+        return asyncio.run(self.acall(messages, tools=tools, output_model=output_model, **kwargs))
 
     def close(self) -> None:
         for client in self._clients.values():
@@ -702,35 +556,33 @@ class LLMRouter:
     def provider_stats(self, provider: LLMProvider) -> dict[str, Any]:
         """Statistiques d'un fournisseur, agrégées + ventilation par modèle."""
         now = self._clock()
-        model_stats = []
-        for model in self.models_for(provider):
-            h = self._health_for(provider.id, model)
-            model_stats.append(
-                {
-                    "model": model,
-                    "successes": h.successes,
-                    "failures": h.failures,
-                    "cooldown_remaining_s": max(0.0, h.cooldown_until - now),
-                    "last_error": h.last_error,
-                }
-            )
+        health = self._health_for(provider.id)
+        model_stats = [
+            {
+                "model": model,
+                "successes": health.successes,
+                "failures": health.failures,
+                "cooldown_remaining_s": max(0.0, health.cooldown_until - now),
+                "last_error": health.last_error,
+            }
+            for model in self.models_for(provider)
+        ]
         return {
             "id": provider.id,
-            "model": model_from_env(provider),
-            "base_url": resolved_base_url(provider),
+            "model": provider.model(),
+            "base_url": provider.resolved_base_url(),
             "models": model_stats,
-            "successes": sum(m["successes"] for m in model_stats),
-            "failures": sum(m["failures"] for m in model_stats),
-            "cooldown_remaining_s": max(0.0, self._provider_cooldown_until(provider) - now),
-            "last_error": next(
-                (m["last_error"] for m in model_stats if m["last_error"]), None
-            ),
+            "successes": health.successes,
+            "failures": health.failures,
+            "wins": health.wins,
+            "cooldown_remaining_s": max(0.0, health.cooldown_until - now),
+            "last_error": health.last_error,
         }
 
     def routing_stats(self) -> dict[str, Any]:
         """Résumé observable du routeur (santé par fournisseur, sans clés)."""
         return {
-            "rotation": self._rotation,
+            "rotation": "vote",
             "cooldown_seconds": self._cooldown,
             "pool": [p.id for p in self._providers],
             "providers": [self.provider_stats(p) for p in self._providers],
@@ -742,16 +594,16 @@ class LLMRouter:
 _ROUTER: LLMRouter | None = None
 
 
-def get_router() -> LLMRouter:
+def get_router(provider_ids: list[str] | None = None) -> LLMRouter:
     """Routeur partagé (santé continue entre les runs). Créé à la demande."""
     global _ROUTER
     if _ROUTER is None:
-        _ROUTER = LLMRouter()
+        _ROUTER = LLMRouter(provider_ids=provider_ids)
     return _ROUTER
 
 
 def reset_router() -> None:
-    """Réinitialise le singleton (tests / relecture du .env)."""
+    """Réinitialise le singleton (tests)."""
     global _ROUTER
     _ROUTER = None
 
@@ -763,16 +615,18 @@ def routing_stats() -> dict[str, Any]:
     return _ROUTER.routing_stats()
 
 
-def build_llm() -> Any:
-    """Construit un client LLM robuste (mode fake ou routeur multi-fournisseurs).
+def build_llm(provider_ids: list[str] | None = None, fake: bool = False) -> Any:
+    """Construit un client LLM : routeur multi-fournisseurs ou FakeLLMClient.
 
-    - Mode fake (``DEEPBLENDER_FAKE_LLM``) : FakeLLMClient scripté, sans quota.
-    - Mode réel : ``LLMRouter`` — utilise tous les fournisseurs configurés avec
-      rotation random/adaptive + failover + cooldown (robuste au rate limiting).
+    - ``fake=True`` : FakeLLMClient scripté, sans quota (tests/développement).
+    - Sinon : ``LLMRouter`` — tous les fournisseurs du pool votent à chaque
+      appel (majorité + tie-break santé), cooldown simple après un échec.
+    - ``provider_ids`` : pool strict optionnel (défaut : tous les fournisseurs
+      dont la clé d'API est définie).
     - cache_control désactivé pour éviter l'API cachedContents (quota 0 gratuit).
     """
     # Mode fake pour tests/développement
-    if use_fake_llm():
+    if fake:
         if FakeLLMClient is None:
             raise RuntimeError("FakeLLMClient non disponible (nooa<0.0.8?). Mettez à jour nooa.")
         from nooa.unifiedllm import LLMResponse
@@ -790,7 +644,7 @@ def build_llm() -> Any:
             )
 
         # Note: FakeLLMClient avec scripted_responses consomme les réponses séquentiellement.
-        # Pour tests de pipeline complet, préférez un vrai LLM (avec failover ci-dessous).
+        # Pour tests de pipeline complet, préférez un vrai LLM (avec vote ci-dessous).
         # Ce mode est utile pour tests unitaires d'agents isolés.
         return FakeLLMClient(
             scripted_responses=[
@@ -803,5 +657,5 @@ def build_llm() -> Any:
             ]
         )
 
-    # Mode réel : routeur multi-fournisseurs (random/adaptive + failover + cooldown)
-    return get_router()
+    # Mode réel : routeur multi-fournisseurs (vote + cooldown simple)
+    return get_router(provider_ids)

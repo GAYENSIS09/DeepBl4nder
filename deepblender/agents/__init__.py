@@ -13,6 +13,8 @@ from deepblender.agents.compositing import CompositingAgent
 from deepblender.agents.director import DirectorAgent
 from deepblender.agents.localization import LocalizationAgent
 from deepblender.agents.qa import QAAgent
+from deepblender.agents.story import StoryAgent
+from deepblender.agents.storyboard import StoryboardAgent
 
 __all__ = [
     "AudioAgent",
@@ -23,4 +25,6 @@ __all__ = [
     "DirectorAgent",
     "LocalizationAgent",
     "QAAgent",
+    "StoryAgent",
+    "StoryboardAgent",
 ]

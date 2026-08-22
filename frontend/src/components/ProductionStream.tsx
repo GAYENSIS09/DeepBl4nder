@@ -9,8 +9,8 @@ import { useNotifications } from '@/lib/notifications';
 import { useProductionStream } from '@/hooks/useProductionStream';
 import { useProductionTree } from '@/hooks/useProductionTree';
 import type { SSEEvent, SSEStatus } from '@/lib/sse';
-import type { ArtifactOut } from '@/lib/api';
-import { Badge, Button, Card, CardBody, CardHeader, EmptyState, Field, Select, Skeleton, Spinner, TextArea } from '@/components/ui';
+import type { ArtifactOut, TimelineOut } from '@/lib/api';
+import { Badge, Button, Card, CardBody, CardHeader, EmptyState, Field, Select, Skeleton, Spinner, TextArea, Tabs, TabList, TabTrigger, TabContent } from '@/components/ui';
 import { fmtCost, fmtSize } from '@/lib/format';
 
 const EVENT_META: Record<string, { label: string; tone: 'green' | 'amber' | 'red' | 'blue' | 'acid' | 'muted' }> = {
@@ -118,6 +118,158 @@ function statusBadge(status: SSEStatus, heartbeatText: string): ReactNode {
         </Badge>
       );
   }
+}
+
+/* ------------------------------------------------------------------ */
+/* Timeline View                                                       */
+/* ------------------------------------------------------------------ */
+
+interface TimelineViewProps {
+  timeline: TimelineOut;
+  patchTargets: Record<string, { target: string; newValue: string; rationale: string }>;
+  onPatchTargetChange: (shotId: string, field: string, value: string) => void;
+  onSubmitPatch: (shotId: string, target: string, newValue: any, rationale: string) => void;
+  patchBusy: string | null;
+}
+
+function TimelineView({
+  timeline,
+  patchTargets,
+  onPatchTargetChange,
+  onSubmitPatch,
+  patchBusy,
+}: TimelineViewProps) {
+  const shotStatusTone: Record<string, 'green' | 'amber' | 'red' | 'blue' | 'acid' | 'muted'> = {
+    planned: 'muted',
+    pending: 'blue',
+    running: 'acid',
+    completed: 'green',
+    failed: 'red',
+    blocked: 'amber',
+  };
+
+  return (
+    <div className="space-y-4">
+      {timeline.sequences.map((seq) => (
+        <Card key={seq.id} className="overflow-hidden border-t border-border/50">
+          <CardHeader
+            title={`Séquence ${seq.order_index + 1}: ${seq.name}`}
+            subtitle={`${seq.scenes.length} scène(s)`}
+          />
+          <CardBody className="space-y-3 p-0">
+            {seq.scenes.map((scene) => (
+              <div key={scene.id} className="border-t border-border/30">
+                <div className="px-4 py-2 bg-off-black/30 font-medium text-sm text-off-white">
+                  Scène {scene.order_index + 1}: {scene.name} ({scene.shots.length} plan(s))
+                </div>
+                <ul className="divide-y divide-border/30">
+                  {scene.shots.map((shot) => (
+                    <li
+                      key={shot.id}
+                      className="flex flex-col sm:flex-row sm:items-center gap-3 px-4 py-3 hover:bg-off-black/30"
+                    >
+                      <div className="flex flex-col sm:flex-row sm:items-center gap-3 flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <span className="font-mono text-xs text-muted w-12 text-right">#{shot.index + 1}</span>
+                          <Badge tone={shotStatusTone[shot.status] ?? 'muted'}>
+                            {shot.status}
+                          </Badge>
+                        </div>
+                        <div className="flex-1 min-w-0 space-y-1">
+                          {shot.camera_summary && (
+                            <p className="truncate text-sm text-muted font-mono">
+                              📷 {shot.camera_summary}
+                            </p>
+                          )}
+                          {shot.action && (
+                            <p className="truncate text-sm text-off-white/80">{shot.action}</p>
+                          )}
+                          <p className="truncate text-xs text-muted">
+                            {shot.start.toFixed(1)}s → {shot.end.toFixed(1)}s ({(
+                              shot.end - shot.start
+                            ).toFixed(1)}s)
+                          </p>
+                        </div>
+                        <PatchForm
+                          shotId={shot.id}
+                          shotIndex={shot.index}
+                          patchTargets={patchTargets}
+                          onPatchTargetChange={onPatchTargetChange}
+                          onSubmitPatch={onSubmitPatch}
+                          patchBusy={patchBusy}
+                        />
+                      </div>
+                      </li>
+                    ))}
+                </ul>
+              </div>
+            ))}
+          </CardBody>
+        </Card>
+      ))}
+    </div>
+  );
+}
+
+interface PatchFormProps {
+  shotId: string;
+  shotIndex: number;
+  patchTargets: Record<string, { target: string; newValue: string; rationale: string }>;
+  onPatchTargetChange: (shotId: string, field: string, value: string) => void;
+  onSubmitPatch: (shotId: string, target: string, newValue: any, rationale: string) => void;
+  patchBusy: string | null;
+}
+
+function PatchForm({
+  shotId,
+  shotIndex,
+  patchTargets,
+  onPatchTargetChange,
+  onSubmitPatch,
+  patchBusy,
+}: PatchFormProps) {
+  const target = patchTargets[shotId]?.target || `shots[${shotIndex}].camera_summary`;
+  const newValue = patchTargets[shotId]?.newValue || '';
+  const rationale = patchTargets[shotId]?.rationale || '';
+
+  return (
+    <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-80">
+      <Select
+        value={target}
+        onChange={(e) => onPatchTargetChange(shotId, 'target', e.target.value)}
+        className="flex-1 min-w-[150px]"
+      >
+        <option value={`shots[${shotIndex}].camera_summary`}>camera_summary</option>
+        <option value={`shots[${shotIndex}].action`}>action</option>
+        <option value={`shots[${shotIndex}].camera_angle`}>camera_angle</option>
+        <option value={`shots[${shotIndex}].camera_movement`}>camera_movement</option>
+        <option value={`shots[${shotIndex}].duration`}>duration</option>
+        <option value={`shots[${shotIndex}].transition`}>transition</option>
+        <option value={`shots[${shotIndex}].visual_notes`}>visual_notes</option>
+      </Select>
+      <input
+        type="text"
+        placeholder="Nouvelle valeur"
+        value={newValue}
+        onChange={(e) => onPatchTargetChange(shotId, 'newValue', e.target.value)}
+        className="flex-1 min-w-[120px] px-2 py-1 text-sm bg-black/50 border border-border rounded"
+      />
+      <input
+        type="text"
+        placeholder="Raison (optionnel)"
+        value={rationale}
+        onChange={(e) => onPatchTargetChange(shotId, 'rationale', e.target.value)}
+        className="flex-1 min-w-[120px] px-2 py-1 text-sm bg-black/50 border border-border rounded"
+      />
+      <Button
+        className="px-3 py-1.5 text-xs"
+        onClick={() => onSubmitPatch(shotId, target, newValue, rationale)}
+        disabled={patchBusy === shotId || !newValue.trim()}
+      >
+        {patchBusy === shotId ? <span className="h-3 w-3 animate-spin border-t-current rounded-full" /> : 'Patch'}
+      </Button>
+    </div>
+  );
 }
 
 /* ------------------------------------------------------------------ */
@@ -290,7 +442,23 @@ export function ProductionStream({ initialProductionId }: { initialProductionId?
   const [viewingArtifact, setViewingArtifact] = useState<ArtifactOut | null>(null);
   const [deleteBusy, setDeleteBusy] = useState<string | null>(null);
 
+  // Timeline & patches
+  const [timeline, setTimeline] = useState<TimelineOut | null>(null);
+  const [timelineLoading, setTimelineLoading] = useState(false);
+  const [patchTargets, setPatchTargets] = useState<Record<string, { target: string; newValue: string; rationale: string }>>({});
+  const [patchBusy, setPatchBusy] = useState<string | null>(null);
+
   const { events, status, lastHeartbeatAt, reconnect } = useProductionStream(productionId, token);
+
+  const refreshTimeline = useCallback(() => {
+    if (!productionId) return;
+    setTimelineLoading(true);
+    api
+      .getTimeline(productionId)
+      .then(setTimeline)
+      .catch(() => setTimeline(null))
+      .finally(() => setTimelineLoading(false));
+  }, [productionId]);
 
   useEffect(() => {
     const id = window.setInterval(() => setNow(Date.now()), 5000);
@@ -314,10 +482,37 @@ export function ProductionStream({ initialProductionId }: { initialProductionId?
         if (prev) URL.revokeObjectURL(prev.url);
         return null;
       });
+      setTimeline(null);
       return;
     }
     refreshArtifacts();
-  }, [productionId, events.length, refreshArtifacts]);
+    refreshTimeline();
+  }, [productionId, events.length, refreshArtifacts, refreshTimeline]);
+
+  const handleApproval = async () => {
+    if (!productionId) return;
+    try {
+      await api.approveProduction(productionId);
+      notify('success', 'Production approuvée — le run continue.');
+      refreshTimeline();
+    } catch (err) {
+      notify('error', err instanceof Error ? err.message : 'Approbation impossible.');
+    }
+  };
+
+  const handlePatch = async (shotId: string, target: string, newValue: any, rationale: string) => {
+    if (!productionId) return;
+    setPatchBusy(shotId);
+    try {
+      await api.createPatch(productionId, { target, old_value: null, new_value: newValue, rationale });
+      notify('success', `Patch créé pour ${target} — s'appliquera au prochain run.`);
+      setPatchTargets((prev) => ({ ...prev, [shotId]: { target, newValue: '', rationale: '' } }));
+    } catch (err) {
+      notify('error', err instanceof Error ? err.message : 'Patch impossible.');
+    } finally {
+      setPatchBusy(null);
+    }
+  };
 
   const handleRevision = async () => {
     if (!productionId) return;
@@ -480,7 +675,20 @@ export function ProductionStream({ initialProductionId }: { initialProductionId?
                   ? `${selected.production.status} · version ${selected.production.version} · ${fmtCost(selected.production.cost)}`
                   : undefined
               }
-              actions={statusBadge(status, heartbeatText)}
+              actions={
+                <>
+                  {statusBadge(status, heartbeatText)}
+                  {selected && (selected.production.status === 'waiting_approval' || selected.production.status === 'awaiting_approval') && (
+                    <Button
+                      variant="outline"
+                      className="ml-2 bg-amber-500/10 text-amber-400 hover:bg-amber-500/20"
+                      onClick={() => void handleApproval()}
+                    >
+                      ✓ Approuver & continuer
+                    </Button>
+                  )}
+                </>
+              }
             />
             <CardBody className="space-y-3">
               <p className="text-sm text-muted">État : {status.state === 'connected' ? 'flux actif' : 'flux suspendu'}</p>
@@ -586,93 +794,124 @@ export function ProductionStream({ initialProductionId }: { initialProductionId?
 
           <Card className="mt-6">
             <CardHeader
-              title="Artefacts"
-              subtitle="Fichiers produits par le pipeline (specs, scripts, rendus…). Cliquez sur un fichier pour le visualiser."
-              actions={
-                <Button variant="outline" onClick={() => void handlePreview()} disabled={!productionId || previewBusy}>
-                  {previewBusy ? <Spinner className="border-t-acid" /> : 'Aperçu global'}
-                </Button>
-              }
+              title="Timeline & Artefacts"
+              subtitle="Visualisez la structure de la production et les fichiers générés."
             />
-            <CardBody className="space-y-4">
-              {previewUrl ? (
-                <div className="overflow-hidden rounded-lg border border-border bg-black">
-                  {previewUrl.isVideo ? (
-                    <video src={previewUrl.url} controls className="max-h-96 w-full" />
-                  ) : (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img src={previewUrl.url} alt="Aperçu de la production" className="max-h-96 w-full object-contain" />
-                  )}
-                </div>
-              ) : null}
-              {artifactsLoading ? (
-                <div className="space-y-2">
-                  {[0, 1, 2].map((i) => (
-                    <Skeleton key={i} className="h-10 w-full" />
-                  ))}
-                </div>
-              ) : null}
-              {!artifactsLoading && artifacts.length === 0 ? (
-                <EmptyState
-                  title="Aucun artefact"
-                  description="Lancez un run pour que les agents génèrent specs, scripts et rendus."
-                />
-              ) : null}
-              {!artifactsLoading && artifacts.length ? (
-                <ul className="divide-y divide-border rounded-lg border border-border">
-                  {artifacts.map((artifact) => {
-                    const viewType = artifactViewType(artifact);
-                    const canView = viewType !== null;
-                    return (
-                      <li
-                        key={artifact.path}
-                        className="flex flex-wrap items-center gap-3 px-4 py-3 transition-colors hover:bg-off-black/50"
-                      >
-                        <div className="min-w-0 flex-1">
-                          <button
-                            type="button"
-                            onClick={() => canView && setViewingArtifact(artifact)}
-                            className={`truncate font-mono text-sm ${canView ? 'text-acid hover:underline cursor-pointer' : 'text-off-white'}`}
-                            title={canView ? 'Cliquez pour visualiser' : artifact.path}
+            <Tabs defaultValue="timeline" className="w-full">
+              <TabList className="grid w-full grid-cols-2">
+                <TabTrigger value="timeline">📋 Timeline</TabTrigger>
+                <TabTrigger value="artifacts">📦 Artefacts</TabTrigger>
+              </TabList>
+
+<TabContent value="timeline">
+                {timelineLoading ? (
+                  <div className="space-y-2 p-4">
+                    {[0, 1, 2].map((i) => (
+                      <Skeleton key={i} className="h-10 w-full" />
+                    ))}
+                  </div>
+                ) : (timeline ? (
+                  <TimelineView
+                    timeline={timeline}
+                    patchTargets={patchTargets}
+                    onPatchTargetChange={(shotId, field, value) =>
+                      setPatchTargets((prev) => {
+                        const updated = { ...prev };
+                        updated[shotId] = { ...updated[shotId], [field]: value };
+                        return updated;
+                      })}
+                    onSubmitPatch={handlePatch}
+                    patchBusy={patchBusy}
+                  />
+                ) : (
+                  <EmptyState
+                    title="Aucune timeline"
+                    description="La timeline sera disponible après les étapes story/storyboard."
+                  />
+                ))}
+              </TabContent>
+
+              <TabContent value="artifacts">
+                <CardBody className="space-y-4">
+                  {previewUrl ? (
+                    <div className="overflow-hidden rounded-lg border border-border bg-black">
+                      {previewUrl.isVideo ? (
+                        <video src={previewUrl.url} controls className="max-h-96 w-full" />
+                      ) : (
+                        <img src={previewUrl.url} alt="Aperçu de la production" className="max-h-96 w-full object-contain" />
+                      )}
+                    </div>
+                  ) : null}
+                  {artifactsLoading ? (
+                    <div className="space-y-2">
+                      {[0, 1, 2].map((i) => (
+                        <Skeleton key={i} className="h-10 w-full" />
+                      ))}
+                    </div>
+                  ) : null}
+                  {!artifactsLoading && artifacts.length === 0 ? (
+                    <EmptyState
+                      title="Aucun artefact"
+                      description="Lancez un run pour que les agents génèrent specs, scripts et rendus."
+                    />
+                  ) : null}
+                  {!artifactsLoading && artifacts.length ? (
+                    <ul className="divide-y divide-border rounded-lg border border-border">
+                      {artifacts.map((artifact) => {
+                        const viewType = artifactViewType(artifact);
+                        const canView = viewType !== null;
+                        return (
+                          <li
+                            key={artifact.path}
+                            className="flex flex-wrap items-center gap-3 px-4 py-3 transition-colors hover:bg-off-black/50"
                           >
-                            {artifact.name}
-                          </button>
-                          <p className="text-xs text-muted">
-                            {artifact.type} · {fmtSize(artifact.size)}
-                            {canView && <span className="ml-2 text-acid/60">● cliquable</span>}
-                          </p>
-                        </div>
-                        <Badge tone="muted">v{selected?.production.version ?? '—'}</Badge>
-                        {canView ? (
-                          <Button
-                            variant="ghost"
-                            className="px-3 py-1.5 text-xs"
-                            onClick={() => setViewingArtifact(artifact)}
-                          >
-                            Visualiser
-                          </Button>
-                        ) : null}
-                        <Button
-                          variant="outline"
-                          className="px-3 py-1.5"
-                          onClick={() => void handleDownload(artifact)}
-                        >
-                          Télécharger
-                        </Button>
-                        <Button
-                          variant="danger"
-                          className="px-3 py-1.5"
-                          disabled={deleteBusy === artifact.path}
-                          onClick={() => void handleDeleteArtifact(artifact)}
-                        >
-                          {deleteBusy === artifact.path ? <Spinner className="border-t-red-300 h-3 w-3" /> : 'Supprimer'}
-                        </Button>
-                      </li>
-                    );
-                  })}
-                </ul>
-              ) : null}
-            </CardBody>
+                            <div className="min-w-0 flex-1">
+                              <button
+                                type="button"
+                                onClick={() => canView && setViewingArtifact(artifact)}
+                                className={`truncate font-mono text-sm ${canView ? 'text-acid hover:underline cursor-pointer' : 'text-off-white'}`}
+                                title={canView ? 'Cliquez pour visualiser' : artifact.path}
+                              >
+                                {artifact.name}
+                              </button>
+                              <p className="text-xs text-muted">
+                                {artifact.type} · {fmtSize(artifact.size)}
+                                {canView && <span className="ml-2 text-acid/60">● cliquable</span>}
+                              </p>
+                            </div>
+                            <Badge tone="muted">v{selected?.production.version ?? '—'}</Badge>
+                            {canView ? (
+                              <Button
+                                variant="ghost"
+                                className="px-3 py-1.5 text-xs"
+                                onClick={() => setViewingArtifact(artifact)}
+                              >
+                                Visualiser
+                              </Button>
+                            ) : null}
+                            <Button
+                              variant="outline"
+                              className="px-3 py-1.5"
+                              onClick={() => void handleDownload(artifact)}
+                            >
+                              Télécharger
+                            </Button>
+                            <Button
+                              variant="danger"
+                              className="px-3 py-1.5"
+                              disabled={deleteBusy === artifact.path}
+                              onClick={() => void handleDeleteArtifact(artifact)}
+                            >
+                              {deleteBusy === artifact.path ? <Spinner className="border-t-red-300 h-3 w-3" /> : 'Supprimer'}
+                            </Button>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  ) : null}
+                </CardBody>
+              </TabContent>
+            </Tabs>
           </Card>
         </>
       )}

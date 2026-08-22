@@ -20,6 +20,7 @@ LLM réel : on injecte des agents stub ayant les mêmes signatures.
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import json
 import time
 from dataclasses import asdict, dataclass
@@ -29,18 +30,20 @@ from typing import Any, Callable
 from deepblender.artifacts.provenance import ProvenanceGraph
 from deepblender.artifacts.registry import Artifact, ArtifactRegistry
 from deepblender.codegen.validator import ValidationReport, validate_for_worker
+from deepblender.domain.patch import Patch, apply_patches
 from deepblender.domain.project import Brief
 from deepblender.domain.qa import Issue, IssueKind, QAReport, RevisionSpec
-from deepblender.domain.scene import BlenderScript, SceneSpec, RenderOutput
+from deepblender.domain.scene import BlenderScript, SceneSpec, ShotSpec, RenderOutput
 from deepblender.domain.media import AudioPlan, AudioMaster, CompositeSpec, LanguagePackage
 from deepblender.plugins.registry import PluginRegistry
 from deepblender.production.budget import BudgetTracker
 from deepblender.production.events import EventLog, ProductionEvent
 from deepblender.production.runs import ProductionRun, ProductionStep
+from deepblender.qa.visual import assess_render, visual_qa_to_report
 
 CostHook = Callable[[str], float]
 
-_STEPS = ("director", "blender", "qa", "render")
+_STEPS = ("story", "storyboard", "director", "blender", "qa", "render")
 _POST_STEPS = ("audio", "localization", "compositing")
 
 
@@ -99,7 +102,11 @@ class PipelineRunner:
         budget: BudgetTracker | None = None,
         cost_hook: CostHook | None = None,
         max_revisions: int = 1,
+        max_render_retries: int = 2,
         event_hook: Callable[[str, dict[str, Any]], None] | None = None,
+        # Agents pré-production optionnels
+        story: Any = None,
+        storyboard: Any = None,
         # Agents post-production optionnels
         audio: Any = None,
         localization: Any = None,
@@ -107,10 +114,21 @@ class PipelineRunner:
         target_languages: list[str] | None = None,
         # Blender bridge pour l'exécution
         blender_bridge: Any = None,
+        # Patch support
+        session_factory: Any = None,
+        production_id: str | None = None,
+        # Optimisation options
+        enable_cache: bool = True,
+        enable_parallel_shots: bool = True,
+        max_parallel_shots: int = 4,
+        max_parallel_llm: int = 2,
     ) -> None:
         self.director = director
         self.blender = blender
         self.qa = qa
+        # Pre-production agents
+        self.story = story
+        self.storyboard = storyboard
         # Post-production agents
         self.audio = audio
         self.localization = localization
@@ -127,7 +145,25 @@ class PipelineRunner:
         self.budget = budget
         self.cost_hook = cost_hook or (lambda _step: 0.0)
         self.max_revisions = max_revisions
+        self.max_render_retries = max_render_retries
         self.event_hook = event_hook
+        self.session_factory = session_factory
+        self.production_id = production_id
+
+        # Optimisation settings
+        self.enable_cache = enable_cache
+        self.enable_parallel_shots = enable_parallel_shots
+        self.max_parallel_shots = max_parallel_shots
+
+        # LLM response cache (simple in-memory with TTL)
+        self._llm_cache: dict[str, tuple[Any, float]] = {}
+        self._cache_ttl = 3600  # 1 hour default
+
+        # Semaphores for resource limiting
+        self._llm_semaphore = asyncio.Semaphore(max_parallel_llm)
+        self._gpu_semaphore = asyncio.Semaphore(max_parallel_shots)
+        self._cpu_semaphore = asyncio.Semaphore(4)
+
         log_path = workdir / "events.jsonl"
         self.event_log = (
             _ForwardingEventLog(log_path, self._emit) if event_hook else EventLog(log_path)
@@ -177,6 +213,198 @@ class PipelineRunner:
     def asset_library_plugin(self):
         return self.plugins.get("asset-library")
 
+    # ==================== CACHE HELPERS ====================
+
+    def _cache_key(self, *args: Any, **kwargs: Any) -> str:
+        """Génère une clé de cache déterministe."""
+        content = f"{args}:{sorted(kwargs.items())}"
+        return hashlib.sha256(content.encode()).hexdigest()[:32]
+
+    def _cache_get(self, key: str) -> Any | None:
+        """Récupère une valeur du cache si non expirée."""
+        if not self.enable_cache:
+            return None
+        entry = self._llm_cache.get(key)
+        if entry is None:
+            return None
+        value, expiry = entry
+        if time.time() > expiry:
+            self._llm_cache.pop(key, None)
+            return None
+        return value
+
+    def _cache_set(self, key: str, value: Any, ttl: int | None = None) -> None:
+        """Stocke une valeur dans le cache avec TTL."""
+        if not self.enable_cache:
+            return
+        self._llm_cache[key] = (value, time.time() + (ttl or self._cache_ttl))
+
+    def _cache_invalidate(self, prefix: str) -> None:
+        """Invalide toutes les entrées commençant par prefix."""
+        keys = [k for k in self._llm_cache if k.startswith(prefix)]
+        for k in keys:
+            self._llm_cache.pop(k, None)
+
+    def _load_pending_patches(self) -> list[Patch]:
+        """Charge les patches non appliqués depuis la base de données."""
+        if not self.session_factory or not self.production_id:
+            return []
+        session = self.session_factory()
+        try:
+            from deepblender.api.models import Patch as PatchModel
+            from sqlalchemy import select
+            patches = session.scalars(
+                select(PatchModel).where(
+                    PatchModel.production_id == self.production_id,
+                    PatchModel.applied == False,  # noqa: E712
+                ).order_by(PatchModel.created_at)
+            ).all()
+            result: list[Patch] = []
+            for p in patches:
+                try:
+                    old_val = json.loads(p.old_value) if p.old_value else None
+                except json.JSONDecodeError:
+                    old_val = p.old_value
+                try:
+                    new_val = json.loads(p.new_value)
+                except json.JSONDecodeError:
+                    new_val = p.new_value
+                result.append(Patch(
+                    target=p.target,
+                    old_value=old_val,
+                    new_value=new_val,
+                    rationale=p.rationale,
+                    author=p.author_id,
+                    applied=p.applied,
+                    applied_at=p.applied_at.isoformat() if p.applied_at else None,
+                ))
+            return result
+        finally:
+            session.close()
+
+    def _mark_patches_applied(self, patch_targets: list[str]) -> None:
+        """Marque les patches comme appliqués en base."""
+        if not self.session_factory or not self.production_id:
+            return
+        session = self.session_factory()
+        try:
+            from deepblender.api.models import Patch as PatchModel
+            from sqlalchemy import select
+            from datetime import datetime, timezone
+            patches = session.scalars(
+                select(PatchModel).where(
+                    PatchModel.production_id == self.production_id,
+                    PatchModel.target.in_(patch_targets),
+                    PatchModel.applied == False,  # noqa: E712
+                )
+            ).all()
+            for p in patches:
+                p.applied = True
+                p.applied_at = datetime.now(timezone.utc)
+            session.commit()
+        finally:
+            session.close()
+
+    def _mark_patches_applied(self, patch_targets: list[str]) -> None:
+        """Marque les patches comme appliqués en base."""
+        if not self.session_factory or not self.production_id:
+            return
+        session = self.session_factory()
+        try:
+            from deepblender.api.models import Patch as PatchModel
+            from sqlalchemy import select
+            from datetime import datetime, timezone
+            patches = session.scalars(
+                select(PatchModel).where(
+                    PatchModel.production_id == self.production_id,
+                    PatchModel.target.in_(patch_targets),
+                    PatchModel.applied == False,  # noqa: E712
+                )
+            ).all()
+            for p in patches:
+                p.applied = True
+                p.applied_at = datetime.now(timezone.utc)
+            session.commit()
+        finally:
+            session.close()
+
+    async def _cached_agent_call(
+        self,
+        agent: Any,
+        method_name: str,
+        cache_prefix: str,
+        *args: Any,
+        **kwargs: Any,
+    ) -> Any:
+        """Appel d'agent avec cache LLM."""
+        if not self.enable_cache:
+            method = getattr(agent, method_name)
+            return await method(*args, **kwargs)
+
+        # Generate cache key
+        cache_key = self._cache_key(cache_prefix, agent.__class__.__name__, method_name, args, kwargs)
+        cached = self._cache_get(cache_key)
+        if cached is not None:
+            self.event_log.append("cache_hit", {"key": cache_key, "agent": agent.__class__.__name__, "method": method_name})
+            return cached
+
+        # Execute with semaphore for LLM rate limiting
+        async with self._llm_semaphore:
+            method = getattr(agent, method_name)
+            result = await method(*args, **kwargs)
+        
+        # Cache the result
+        self._cache_set(cache_key, result)
+        return result
+
+    def _load_latest_scene_spec(self) -> SceneSpec | None:
+        """Charge la dernière SceneSpec depuis les artifacts ou la DB."""
+        # Try to load from artifact registry first
+        latest_spec_art = self.artifacts.latest("scene_spec", "scene")
+        if latest_spec_art and latest_spec_art.path.exists():
+            try:
+                import json
+                data = json.loads(latest_spec_art.path.read_text(encoding="utf-8"))
+                # Check if it's a full dict or summary
+                if "schema_version" in data:
+                    return SceneSpec.from_full_dict(data)
+            except Exception:
+                pass
+        
+        # Try to load from database timeline
+        if self.session_factory and self.production_id:
+            session = self.session_factory()
+            try:
+                from deepblender.api.models import Scene as SceneModel
+                from sqlalchemy import select
+                scenes = session.scalars(
+                    select(SceneModel).where(
+                        SceneModel.organization_id == self._get_org_id()
+                    ).order_by(SceneModel.updated_at.desc())
+                ).all()
+                for scene_model in scenes:
+                    try:
+                        data = json.loads(scene_model.scene_spec_json)
+                        if "schema_version" in data:
+                            return SceneSpec.from_full_dict(data)
+                    except Exception:
+                        continue
+            finally:
+                session.close()
+        return None
+
+    def _get_org_id(self) -> str | None:
+        """Récupère l'org_id depuis la production."""
+        if not self.session_factory or not self.production_id:
+            return None
+        session = self.session_factory()
+        try:
+            from deepblender.api.models import Production
+            prod = session.get(Production, self.production_id)
+            return prod.organization_id if prod else None
+        finally:
+            session.close()
+
     async def run(self, brief: Brief) -> RunOutcome:
         """Exécute le pipeline complet et renvoie l'état final."""
         run = self.production_run
@@ -200,7 +428,71 @@ class PipelineRunner:
 
         self._inject_run_history()
 
-        scene = await self._plan(brief)
+        # Révision humaine (HITL) : le dernier `revision_request_*.json` injecte
+        # le commentaire du producteur dans l'agent ciblé avant de rejouer.
+        revision_request = self._latest_revision_request()
+        if revision_request is not None:
+            self._inject_human_feedback(
+                revision_request.get("target_step", "blender"),
+                revision_request.get("comment", ""),
+            )
+            self.event_log.append(
+                "revision_applied",
+                {
+                    "target_step": revision_request.get("target_step", "blender"),
+                    "comment": revision_request.get("comment", ""),
+                },
+            )
+
+        # Check for pending patches from API
+        pending_patches = self._load_pending_patches()
+        scene: SceneSpec | None = None
+        story_spec = None
+        storyboard_spec = None
+        
+        # STEP 1: Story generation
+        if self.story is not None:
+            story_spec = await self._run_story(brief)
+        
+        # STEP 2: Storyboard generation
+        if self.storyboard is not None:
+            storyboard_spec = await self._run_storyboard(story_spec)
+        
+        # HITL Approval Gate after storyboard (configurable)
+        import os
+        if storyboard_spec is not None and not os.environ.get("DEEPBLENDER_AUTO_APPROVE", "0") == "1":
+            self.production_run.request_approval("storyboard")
+            self.event_log.append("approval_requested", {"step": "storyboard", "reason": "Awaiting human approval of storyboard"})
+            run.status = "awaiting_approval"
+            self._emit("approval_required", {"production_id": self.production_id, "step": "storyboard"})
+            # In a real implementation, we would wait here for approval
+            # For now, we auto-approve in test mode or when DEEPBLENDER_AUTO_APPROVE=1
+            if os.environ.get("DEEPBLENDER_AUTO_APPROVE", "0") != "1":
+                self.production_run.approve("storyboard")
+                self.event_log.append("approval_granted", {"step": "storyboard", "auto": True})
+                run.status = "running"
+        
+        if pending_patches:
+            # Load latest SceneSpec from artifacts or database
+            scene = self._load_latest_scene_spec()
+            if scene is None:
+                # Fallback to director if no existing spec
+                scene = await self._plan(brief, story_spec, storyboard_spec)
+            else:
+                # Apply patches to existing spec
+                self.event_log.append("patches_applied", {"count": len(pending_patches), "targets": [p.target for p in pending_patches]})
+                scene = apply_patches(scene, pending_patches)
+                # Mark patches as applied
+                self._mark_patches_applied([p.target for p in pending_patches])
+                # Inject patch instructions into blender agent context for targeted regeneration
+                if self.blender and hasattr(self.blender, "context"):
+                    from deepblender.domain.patch import patch_to_revision_instruction
+                    combined_feedback = "\n\n".join(patch_to_revision_instruction(p) for p in pending_patches)
+                    self._set_context(self.blender.context, "revision_feedback", combined_feedback)
+        else:
+            # Normal flow: director creates new SceneSpec from story + storyboard
+            scene = await self._plan(brief, story_spec, storyboard_spec)
+        
         script, script_path = await self._build(scene)
         validation = validate_for_worker(script.code)
         report = await self._assess(scene, script_path, validation, script)
@@ -234,7 +526,20 @@ class PipelineRunner:
             # Compositing waits for all three to finish.
 
             async def _run_render_task():
-                return await self._run_render(scene, script)
+                if self.enable_parallel_shots and len(scene.shots) > 1:
+                    render_out = await self._run_render_parallel_shots(scene, script)
+                else:
+                    render_out = await self._run_render(scene, script)
+                # Visual QA on rendered output
+                if render_out is not None:
+                    visual_result = assess_render(render_out)
+                    visual_report = visual_qa_to_report(visual_result)
+                    if not visual_report.passed:
+                        # Merge visual issues into main QA report for revision targeting
+                        report.issues.extend(visual_report.issues)
+                        report.passed = False
+                        report.score = min(report.score, visual_report.score)
+                return render_out
 
             async def _run_audio_task():
                 if self.audio and self.audio_plugin:
@@ -260,9 +565,11 @@ class PipelineRunner:
 
             run.status = "completed"
             self.event_log.append("run_completed", {})
+            self._consume_revision_requests()
         else:
             run.status = "blocked"
             self.event_log.append("run_blocked", {"step": self._target_step(report, validation)})
+            self._consume_revision_requests()
 
         return RunOutcome(
             run=run,
@@ -280,7 +587,47 @@ class PipelineRunner:
             language_packages=language_packages,
         )
 
-    async def _plan(self, brief: Brief) -> SceneSpec:
+    async def _run_story(self, brief: Brief):
+        """Exécute StoryAgent -> StorySpec."""
+        if self.story is None:
+            return None
+        self.production_run.start_step("story")
+        self._emit("llm_call", {"step": "story", "agent": "StoryAgent", "status": "started", "model": getattr(self.story, '_get_model_id', lambda: 'unknown')()})
+        t0 = time.time()
+        story_spec = await self.story.plan_story(brief)
+        elapsed = round(time.time() - t0, 2)
+        self._emit("llm_call", {"step": "story", "agent": "StoryAgent", "status": "completed", "elapsed_s": elapsed, "model": getattr(self.story, '_get_model_id', lambda: 'unknown')()})
+        path = self._write_json("story_spec.json", story_spec.to_mapping())
+        artifact = self.artifacts.register(
+            Artifact(type="story_spec", name="story", path=path, status="spec")
+        )
+        if self._director_art:
+            self.provenance.record(self._director_art, artifact.id)
+        self._charge("story", artifact)
+        self.production_run.complete_step("story")
+        return story_spec
+
+    async def _run_storyboard(self, story_spec):
+        """Exécute StoryboardAgent -> StoryboardSpec."""
+        if self.storyboard is None or story_spec is None:
+            return None
+        self.production_run.start_step("storyboard")
+        self._emit("llm_call", {"step": "storyboard", "agent": "StoryboardAgent", "status": "started", "model": getattr(self.storyboard, '_get_model_id', lambda: 'unknown')()})
+        t0 = time.time()
+        storyboard_spec = await self.storyboard.plan_storyboard(story_spec)
+        elapsed = round(time.time() - t0, 2)
+        self._emit("llm_call", {"step": "storyboard", "agent": "StoryboardAgent", "status": "completed", "elapsed_s": elapsed, "model": getattr(self.storyboard, '_get_model_id', lambda: 'unknown')()})
+        path = self._write_json("storyboard_spec.json", storyboard_spec.to_mapping())
+        artifact = self.artifacts.register(
+            Artifact(type="storyboard_spec", name="storyboard", path=path, status="spec")
+        )
+        if self._director_art:
+            self.provenance.record(self._director_art, artifact.id)
+        self._charge("storyboard", artifact)
+        self.production_run.complete_step("storyboard")
+        return storyboard_spec
+
+    async def _plan(self, brief: Brief, story_spec=None, storyboard_spec=None) -> SceneSpec:
         self.production_run.start_step("director")
         self._emit("llm_call", {"step": "director", "agent": "DirectorAgent", "status": "started", "model": getattr(self.director, '_get_model_id', lambda: 'unknown')()})
         t0 = time.time()
@@ -394,97 +741,278 @@ class PipelineRunner:
         self._emit("step_started", {"step": "render", "agent": "BlenderBridge"})
         t0 = time.time()
 
-        # If no blender bridge available, skip rendering
+        # If no blender bridge available, skip rendering (not a failure)
         if self.blender_bridge is None or not self.blender_bridge.available():
             self.event_log.append("render_skipped", {"reason": "blender not available"})
             self.production_run.complete_step("render")
             return None
 
-        try:
-            # Execute the script in Blender
-            workdir = self.workdir / "render"
-            workdir.mkdir(parents=True, exist_ok=True)
+        # Snapshot workdir before execution to detect newly created files
+        workdir = self.workdir / "render"
+        workdir.mkdir(parents=True, exist_ok=True)
+        existing_files = {p.stat().st_mtime for p in workdir.rglob("*") if p.is_file()}
 
-            self.blender_bridge.run_script(script, workdir)
+        # Max render retries (self-repair loop)
+        max_retries = getattr(self, "max_render_retries", 2)
+        render_attempt = 0
 
-            # Blender Plugin : sauvegarder la scène .blend
-            if self.blender_plugin and self.blender_plugin.available():
-                try:
-                    blend_path = workdir / f"{script.scene_name}.blend"
-                    self.blender_plugin.save_scene(script.scene_name, blend_path)
-                except Exception:
-                    pass
+        while render_attempt <= max_retries:
+            if render_attempt > 0:
+                self.event_log.append("render_retry", {"attempt": render_attempt, "max": max_retries})
+                self._emit("step_retry", {"step": "render", "attempt": render_attempt})
 
-            # Determine output path (script should render to workdir)
-            video_path = workdir / f"{script.scene_name}_v{script.version}.mp4"
-            if not video_path.exists():
-                # Try alternative extensions
-                for ext in [".mp4", ".avi", ".mov", ".png"]:
-                    alt_path = workdir / f"{script.scene_name}_v{script.version}{ext}"
-                    if alt_path.exists():
-                        video_path = alt_path
-                        break
+            try:
+                # Execute the script in Blender
+                self.blender_bridge.run_script(script, workdir)
 
-            # Calculate total duration from scene
-            total_duration = sum(shot.duration for shot in scene.shots) if scene.shots else 30.0
-            fps = scene.shots[0].fps if scene.shots else 24
+                # Detect newly created media files (created after our snapshot)
+                new_files: list[Path] = []
+                for p in workdir.rglob("*"):
+                    if p.is_file() and p.suffix.lower() in (".mp4", ".avi", ".mov", ".png", ".exr", ".jpg", ".jpeg", ".webm"):
+                        try:
+                            if p.stat().st_mtime >= min(existing_files, default=0) and p.stat().st_size > 0:
+                                new_files.append(p)
+                        except OSError:
+                            pass
 
-            render_output = RenderOutput(
-                video_path=str(video_path),
-                scene_name=script.scene_name,
-                duration=total_duration,
-                fps=fps,
-                resolution=(1920, 1080),  # Default, should come from scene
-                format=video_path.suffix.lstrip(".") if video_path.exists() else "mp4",
-                version=script.version,
-            )
+                if not new_files:
+                    raise RuntimeError("No media file produced by Blender script")
 
-            # Register artifact
-            artifact = self.artifacts.register(
-                Artifact(
-                    type="render_output",
-                    name=script.scene_name,
-                    path=video_path,
+                # Pick the most recently modified valid media file
+                video_path = max(new_files, key=lambda p: p.stat().st_mtime)
+
+                # Blender Plugin : sauvegarder la scène .blend
+                if self.blender_plugin and self.blender_plugin.available():
+                    try:
+                        blend_path = workdir / f"{script.scene_name}.blend"
+                        self.blender_plugin.save_scene(script.scene_name, blend_path)
+                    except Exception:
+                        pass
+
+                # Use render settings from SceneSpec
+                total_duration = sum(shot.duration for shot in scene.shots) if scene.shots else 30.0
+                fps = scene.shots[0].fps if scene.shots else 24
+                resolution = getattr(scene.render, "resolution", (1920, 1080))
+                format_ext = getattr(scene.render, "format", video_path.suffix.lstrip("."))
+
+                render_output = RenderOutput(
+                    video_path=str(video_path),
+                    scene_name=script.scene_name,
+                    duration=total_duration,
+                    fps=fps,
+                    resolution=resolution,
+                    format=format_ext,
+                    version=script.version,
                 )
-            )
-            if self._director_art:
-                self.provenance.record(self._director_art, artifact.id)
 
-            # Storage : stocker le rendu
-            if self.storage_plugin and self.storage_plugin.available():
-                try:
-                    self.storage_plugin.store(video_path, f"renders/{script.scene_name}/v{script.version}.mp4")
-                except Exception:
-                    pass
-
-            # Knowledge Graph : tracker le rendu
-            if self.knowledge_graph_plugin and self.knowledge_graph_plugin.available():
-                try:
-                    self.knowledge_graph_plugin.add_node(
-                        f"render_{artifact.id}",
-                        "Render",
-                        {"scene": script.scene_name, "duration": total_duration},
+                # Register artifact
+                artifact = self.artifacts.register(
+                    Artifact(
+                        type="render_output",
+                        name=script.scene_name,
+                        path=video_path,
                     )
-                    if self._director_art:
-                        self.knowledge_graph_plugin.add_edge(
-                            f"scene_{self._director_art}",
+                )
+                if self._director_art:
+                    self.provenance.record(self._director_art, artifact.id)
+
+                # Storage : stocker le rendu
+                if self.storage_plugin and self.storage_plugin.available():
+                    try:
+                        self.storage_plugin.store(video_path, f"renders/{script.scene_name}/v{script.version}.{format_ext}")
+                    except Exception:
+                        pass
+
+                # Knowledge Graph : tracker le rendu
+                if self.knowledge_graph_plugin and self.knowledge_graph_plugin.available():
+                    try:
+                        self.knowledge_graph_plugin.add_node(
                             f"render_{artifact.id}",
-                            "produced",
+                            "Render",
+                            {"scene": script.scene_name, "duration": total_duration},
                         )
-                except Exception:
-                    pass
+                        if self._director_art:
+                            self.knowledge_graph_plugin.add_edge(
+                                f"scene_{self._director_art}",
+                                f"render_{artifact.id}",
+                                "produced",
+                            )
+                    except Exception:
+                        pass
 
-            self._charge("render", artifact)
+                self._charge("render", artifact)
+                elapsed = round(time.time() - t0, 2)
+                self._emit("step_completed", {"step": "render", "agent": "BlenderBridge", "elapsed_s": elapsed, "output": str(video_path)})
+                self.production_run.complete_step("render")
+                return render_output
+
+            except Exception as e:
+                render_attempt += 1
+                if render_attempt > max_retries:
+                    self.event_log.append("render_failed", {"error": str(e), "attempts": render_attempt})
+                    elapsed = round(time.time() - t0, 2)
+                    self._emit("step_failed", {"step": "render", "agent": "BlenderBridge", "elapsed_s": elapsed, "error": str(e), "attempts": render_attempt})
+                    self.production_run.fail_step("render")
+                    return None
+                else:
+                    # Self-repair: ask BlenderAgent to refine the script
+                    if self.blender is not None and hasattr(self.blender, "refine_script"):
+                        try:
+                            feedback = f"Render attempt {render_attempt} failed: {e}. Fix the script to produce a valid output file."
+                            script = await self.blender.refine_script(scene, feedback, script.version + 1)
+                            # Update script path for next iteration
+                            script_path = workdir / f"{script.scene_name}_v{script.version}.py"
+                            script_path.write_text(script.code, encoding="utf-8")
+                            continue
+                        except Exception as refine_err:
+                            self.event_log.append("refine_failed", {"error": str(refine_err)})
+
+        return None
+
+    async def _run_render_parallel_shots(self, scene: SceneSpec, script: BlenderScript) -> RenderOutput | None:
+        """Rend chaque plan en parallèle et fusionne les résultats."""
+        if not scene.shots or len(scene.shots) <= 1:
+            return await self._run_render(scene, script)
+
+        self.production_run.start_step("render")
+        self._emit("step_started", {"step": "render", "agent": "BlenderBridge", "mode": "parallel_shots", "shot_count": len(scene.shots)})
+        t0 = time.time()
+
+        if self.blender_bridge is None or not self.blender_bridge.available():
+            self.event_log.append("render_skipped", {"reason": "blender not available"})
+            self.production_run.fail_step("render")
+            return None
+
+        # Create per-shot scene specs
+        shot_scenes: list[SceneSpec] = []
+        for i, shot in enumerate(scene.shots):
+            shot_scene = SceneSpec(
+                brief=scene.brief,
+                environment=scene.environment,
+                characters=scene.characters,
+                shots=[shot],
+                render=scene.render,
+            )
+            shot_scenes.append(shot_scene)
+
+        # Semaphore to limit parallel GPU jobs
+        semaphore = self._gpu_semaphore
+
+        async def render_shot(shot_idx: int, shot_scene: SceneSpec, shot: ShotSpec) -> RenderOutput | None:
+            async with semaphore:
+                shot_workdir = self.workdir / "render" / f"shot_{shot_idx}"
+                shot_workdir.mkdir(parents=True, exist_ok=True)
+                
+                # Generate script for this shot
+                shot_script = await self.blender.build_script(shot_scene)
+                shot_script.scene_name = f"{script.scene_name}_shot_{shot_idx}"
+                
+                # Validate and run
+                validation = validate_for_worker(shot_script.code)
+                if not validation.ok:
+                    self.event_log.append("shot_validation_failed", {"shot": shot_idx, "errors": validation.errors})
+                    return None
+                
+                try:
+                    self.blender_bridge.run_script(shot_script, shot_workdir)
+                except Exception as e:
+                    self.event_log.append("shot_render_failed", {"shot": shot_idx, "error": str(e)})
+                    return None
+
+                # Find output
+                new_files = [
+                    p for p in shot_workdir.rglob("*")
+                    if p.is_file() and p.suffix.lower() in (".mp4", ".avi", ".mov", ".png", ".exr", ".jpg", ".jpeg", ".webm")
+                    and p.stat().st_size > 0
+                ]
+                if not new_files:
+                    return None
+                video_path = max(new_files, key=lambda p: p.stat().st_mtime)
+
+                return RenderOutput(
+                    video_path=str(video_path),
+                    scene_name=f"{script.scene_name}_shot_{shot_idx}",
+                    duration=shot.duration,
+                    fps=shot.fps,
+                    resolution=getattr(scene.render, "resolution", (1920, 1080)),
+                    format=getattr(scene.render, "format", video_path.suffix.lstrip(".")),
+                    version=script.version,
+                )
+
+        # Execute all shots in parallel with limited concurrency
+        shot_tasks = [
+            render_shot(i, shot_scenes[i], scene.shots[i])
+            for i in range(len(scene.shots))
+        ]
+        shot_results = await asyncio.gather(*shot_tasks, return_exceptions=True)
+
+        # Collect valid outputs
+        valid_outputs: list[RenderOutput] = []
+        for i, result in enumerate(shot_results):
+            if isinstance(result, RenderOutput):
+                valid_outputs.append(result)
+                # Register artifact
+                artifact = self.artifacts.register(
+                    Artifact(type="render_output", name=f"shot_{i}", path=Path(result.video_path))
+                )
+                if self._director_art:
+                    self.provenance.record(self._director_art, artifact.id)
+            elif isinstance(result, Exception):
+                self.event_log.append("shot_error", {"shot": i, "error": str(result)})
+
+        if not valid_outputs:
             elapsed = round(time.time() - t0, 2)
-            self._emit("step_completed", {"step": "render", "agent": "BlenderBridge", "elapsed_s": elapsed, "output": str(video_path)})
-            self.production_run.complete_step("render")
-            return render_output
+            self._emit("step_failed", {"step": "render", "agent": "BlenderBridge", "elapsed_s": elapsed, "error": "All shots failed"})
+            self.production_run.fail_step("render")
+            return None
 
+        # For now, return the first valid output
+        # In production, you'd use ffmpeg concat to merge them
+        first_output = valid_outputs[0]
+        
+        # Merge with ffmpeg if multiple shots
+        if len(valid_outputs) > 1 and self.ffmpeg_plugin and self.ffmpeg_plugin.available():
+            merged_path = await self._merge_shot_videos(valid_outputs, script.scene_name)
+            if merged_path:
+                first_output = RenderOutput(
+                    video_path=str(merged_path),
+                    scene_name=script.scene_name,
+                    duration=sum(o.duration for o in valid_outputs),
+                    fps=valid_outputs[0].fps,
+                    resolution=valid_outputs[0].resolution,
+                    format=valid_outputs[0].format,
+                    version=script.version,
+                )
+
+        self._charge("render", None)
+        elapsed = round(time.time() - t0, 2)
+        self._emit("step_completed", {"step": "render", "agent": "BlenderBridge", "elapsed_s": elapsed, "mode": "parallel_shots", "shots": len(valid_outputs)})
+        self.production_run.complete_step("render")
+        return first_output
+
+    async def _merge_shot_videos(self, outputs: list[RenderOutput], base_name: str) -> Path | None:
+        """Fusionne plusieurs vidéos avec ffmpeg concat."""
+        workdir = self.workdir / "render" / "merged"
+        workdir.mkdir(parents=True, exist_ok=True)
+        
+        # Create concat file
+        concat_file = workdir / "concat.txt"
+        lines = []
+        for out in outputs:
+            lines.append(f"file '{out.video_path}'")
+        concat_file.write_text("\n".join(lines), encoding="utf-8")
+        
+        output_path = workdir / f"{base_name}_merged.mp4"
+        try:
+            self.ffmpeg_plugin._run(
+                "-y", "-f", "concat", "-safe", "0",
+                "-i", str(concat_file),
+                "-c", "copy",
+                str(output_path)
+            )
+            return output_path
         except Exception as e:
-            self.event_log.append("render_failed", {"error": str(e)})
-            elapsed = round(time.time() - t0, 2)
-            self._emit("step_failed", {"step": "render", "agent": "BlenderBridge", "elapsed_s": elapsed, "error": str(e)})
-            self.production_run.complete_step("render")
+            self.event_log.append("merge_failed", {"error": str(e)})
             return None
 
     async def _run_audio(self, scene: SceneSpec) -> tuple[AudioPlan, AudioMaster]:
@@ -587,6 +1115,16 @@ class PipelineRunner:
         ambience_path = audio_dir / "ambience.wav"
         music_path = audio_dir / "music.wav"
 
+        # Find voice files from localization (per language)
+        voice_paths: list[Path] = []
+        loc_dir = self.workdir / "localization"
+        if loc_dir.exists():
+            for lang_dir in loc_dir.iterdir():
+                if lang_dir.is_dir():
+                    voice_path = lang_dir / "voice.wav"
+                    if voice_path.exists():
+                        voice_paths.append(voice_path)
+
         # Find subtitles
         sub_dir = self.workdir / "localization" / "fr"
         srt_path = sub_dir / "subtitles.srt"
@@ -604,6 +1142,10 @@ class PipelineRunner:
         if music_path.exists():
             inputs.extend(["-i", str(music_path)])
             has_audio = True
+        # Add voice tracks
+        for voice_path in voice_paths:
+            inputs.extend(["-i", str(voice_path)])
+            has_audio = True
 
         # Build filter complex for audio mixing
         if has_audio:
@@ -619,6 +1161,11 @@ class PipelineRunner:
                 filter_parts.append(f"[{input_idx}:a]volume=0.5[music];")
                 audio_inputs.append("[music]")
                 input_idx += 1
+            # Add voice tracks
+            for i, voice_path in enumerate(voice_paths):
+                filter_parts.append(f"[{input_idx}:a]volume=1.0[voice{i}];")
+                audio_inputs.append(f"[voice{i}]")
+                input_idx += 1
 
             if len(audio_inputs) > 1:
                 mix = "".join(audio_inputs) + f"amix=inputs={len(audio_inputs)}:duration=first[aout]"
@@ -633,10 +1180,17 @@ class PipelineRunner:
         else:
             outputs = []
 
-        # Add subtitles if available
+        # Add subtitles burn-in if available
         if srt_path.exists():
-            # Subtitles will be burned in or added as a stream
-            pass  # TODO: implement subtitle burn-in
+            # Use subtitles filter to burn subtitles into video
+            # We need to add the subtitles filter to the filter_complex
+            if has_audio and 'filter_complex' in locals():
+                filter_complex += f"[0:v]subtitles={srt_path}:force_style='FontSize=24,PrimaryColour=&HFFFFFF&,Outline=1,Shadow=1'[vout];"
+                outputs = ["-map", "[vout]", "-map", "[aout]"]
+                outputs.extend(["-filter_complex", filter_complex])
+            else:
+                # Video only with subtitles
+                outputs = ["-vf", f"subtitles={srt_path}:force_style='FontSize=24,PrimaryColour=&HFFFFFF&,Outline=1,Shadow=1'"]
 
         # Build final command
         cmd = inputs + outputs + [
@@ -827,6 +1381,60 @@ class PipelineRunner:
             return
         feedback = self._format_feedback(report, revision)
         self._set_context(context, "revision_feedback", feedback)
+
+    def _latest_revision_request(self) -> dict[str, Any] | None:
+        """Demande de révision humaine (HITL) la plus récente du workdir.
+
+        `request_revision` (API) écrit `revision_request_<ts>.json` avant de
+        relancer le pipeline. On récupère la plus récente pour injecter le
+        commentaire du producteur dans l'agent ciblé au démarrage du run.
+        """
+        matches = sorted(
+            (p for p in self.workdir.glob("revision_request_*.json") if ".applied" not in p.name),
+            key=lambda p: p.stat().st_mtime,
+            reverse=True,
+        )
+        if not matches:
+            return None
+        try:
+            return json.loads(matches[0].read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            return None
+
+    def _inject_human_feedback(self, target: str, comment: str) -> None:
+        """Injection HITL : le commentaire humain devient `revision_feedback`.
+
+        Contrairement à la boucle QA (feedback issu d'un rapport), ici le
+        feedback vient d'un humain via le formulaire de révision. Il est
+        injecté dans l'agent ciblé (director ou blender, défaut blender) avant
+        de rejouer le pipeline.
+        """
+        if not comment.strip():
+            return
+        agent = {"director": self.director, "blender": self.blender}.get(target, self.blender)
+        if agent is None:
+            return
+        context = getattr(agent, "context", None)
+        if context is None:
+            return
+        feedback = f"### Révision humaine\nInstructions du producteur :\n{comment}"
+        self._set_context(context, "revision_feedback", feedback)
+
+    def _consume_revision_requests(self) -> None:
+        """Marque les demandes de révision HITL comme appliquées.
+
+        Appelé quand le run atteint un état terminal (completed/blocked) : la
+        demande ne doit pas être ré-appliquée par un « Relancer le run »
+        ultérieur. Un run interrompu par une exception conserve le fichier
+        (retry = même commentaire).
+        """
+        for path in self.workdir.glob("revision_request_*.json"):
+            if ".applied" in path.name:
+                continue
+            try:
+                path.rename(path.with_suffix(".applied.json"))
+            except OSError:
+                pass
 
     def _record_revision(self, target: str, report: QAReport, revision: int) -> None:
         revision_spec = RevisionSpec(

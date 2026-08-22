@@ -6,8 +6,8 @@ sessions (le contexte de requête FastAPI est fermé), tient la ligne `Productio
 transition sur le bus asynchrone pour le flux SSE.
 
 Les agents sont construits par `build_agents` (patchable dans les tests) :
-par défaut ce sont les vrais agents NOOA sur le LLM configuré (ou FakeLLM en
-mode `DEEPBLENDER_FAKE_LLM=1`).
+par défaut ce sont les vrais agents NOOA sur le LLM configuré (ou FakeLLM via
+`build_llm(fake=True)`).
 """
 
 from __future__ import annotations
@@ -24,6 +24,8 @@ from deepblender.agents import (
     DirectorAgent,
     LocalizationAgent,
     QAAgent,
+    StoryAgent,
+    StoryboardAgent,
 )
 from deepblender.api.models import Production
 from deepblender.domain.project import Brief
@@ -54,10 +56,12 @@ def _utcnow() -> datetime:
     return datetime.now(timezone.utc)
 
 
-def build_agents() -> tuple[Any, Any, Any, Any, Any, Any]:
-    """Construit les agents NOOA (directeur, Blender, QA + post-production)."""
+def build_agents() -> tuple[Any, Any, Any, Any, Any, Any, Any, Any]:
+    """Construit les agents NOOA (story, storyboard, directeur, Blender, QA + post-production)."""
     llm = build_llm()
     return (
+        StoryAgent(llm=llm),
+        StoryboardAgent(llm=llm),
         DirectorAgent(llm=llm),
         BlenderAgent(llm=llm),
         QAAgent(llm=llm),
@@ -174,17 +178,25 @@ async def run_production(
     bus: Any = None,
     session_factory: Any = None,
     budget_limit: float = 1.0,
-    total_steps: int = 7,  # +1 for render step
-    agents: tuple[Any, Any, Any, Any, Any, Any] | None = None,
+    total_steps: int = 9,  # story + storyboard + director + blender + qa + render + audio + localization + compositing
+    agents: tuple[Any, Any, Any, Any, Any, Any, Any, Any] | None = None,
 ) -> None:
     """Lance le pipeline en tâche de fond et tient DB + bus à jour."""
-    director, blender, qa, audio, localization, compositing = agents or build_agents()
+    story, storyboard, director, blender, qa, audio, localization, compositing = agents or build_agents()
     workdir.mkdir(parents=True, exist_ok=True)
     budget = BudgetTracker(budget=budget_limit, run_id=production_id)
 
     # Create Blender bridge for rendering (lazy import to avoid slow startup)
     from deepblender.blender.bridge import BlenderBridge
     blender_bridge = BlenderBridge()
+
+    # Max render retries from env (default 2)
+    import os
+    max_render_retries = int(os.environ.get("DEEPBLENDER_MAX_RENDER_RETRIES", "2"))
+
+    # Default total steps: story + storyboard + director + blender + qa + render + audio + localization + compositing = 9
+    if total_steps == 7:
+        total_steps = 9
 
     tracker = RunTracker(
         production_id=production_id,
@@ -205,6 +217,11 @@ async def run_production(
         event_hook=tracker.on_event,
         blender_bridge=blender_bridge,
         cost_hook=_default_cost_hook,
+        max_render_retries=max_render_retries,
+        session_factory=session_factory,
+        production_id=production_id,
+        story=story,
+        storyboard=storyboard,
     )
     try:
         await runner.run(Brief(text=brief))

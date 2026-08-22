@@ -263,6 +263,130 @@ async def test_budget_exhausted_blocks_before_execution(tmp_path: Path) -> None:
 
 
 @pytest.mark.asyncio
+async def test_human_revision_injects_comment_into_target_agent(tmp_path: Path) -> None:
+    """HITL : le commentaire du formulaire « Demander une révision » atteint
+    l'agent ciblé comme ``revision_feedback`` au démarrage du run."""
+
+    class RecordingContext:
+        def __init__(self) -> None:
+            self.static: dict[str, str] = {}
+
+        def set_static(self, key: str, value: str) -> None:
+            self.static[key] = value
+
+    class ContextBlender(StubBlender):
+        def __init__(self) -> None:
+            super().__init__()
+            self.context = RecordingContext()
+
+    blender = ContextBlender()
+    revision = {
+        "type": "revision_request",
+        "target_step": "blender",
+        "comment": "Plus de pluie sur les réverbères.",
+        "requested_by": "producer@example.com",
+        "requested_at": "2026-08-11T00:00:00+00:00",
+    }
+    (tmp_path / "revision_request_123.json").write_text(json.dumps(revision), encoding="utf-8")
+
+    runner, outcome = await _run(tmp_path, blender=blender)
+
+    assert outcome.run.status == "completed"
+    feedback = blender.context.static.get("revision_feedback", "")
+    assert "Révision humaine" in feedback
+    assert "Plus de pluie sur les réverbères." in feedback
+    kinds = _kinds(tmp_path / "events.jsonl")
+    assert "revision_applied" in kinds
+
+
+@pytest.mark.asyncio
+async def test_human_revision_consumed_after_terminal_run(tmp_path: Path) -> None:
+    """Un run completed/blocked consomme la demande (renommée .applied) pour
+    qu'un « Relancer le run » ultérieur ne ré-applique pas l'ancien commentaire."""
+    revision = {
+        "type": "revision_request",
+        "target_step": "blender",
+        "comment": "Ajouter du brouillard.",
+    }
+    (tmp_path / "revision_request_123.json").write_text(json.dumps(revision), encoding="utf-8")
+
+    _, outcome = await _run(tmp_path)
+
+    assert outcome.run.status == "completed"
+    assert [p for p in tmp_path.glob("revision_request_*.json") if ".applied" not in p.name] == []
+    assert (tmp_path / "revision_request_123.applied.json").is_file()
+
+
+@pytest.mark.asyncio
+async def test_human_revision_not_consumed_on_exception(tmp_path: Path) -> None:
+    """Un run interrompu par une exception conserve la demande : un retry
+    (« Relancer le run ») ré-applique le même commentaire."""
+
+    class ExplodingDirector(StubDirector):
+        async def plan_scene(self, brief: Brief) -> SceneSpec:
+            raise RuntimeError("panne LLM transitoire")
+
+    revision = {
+        "type": "revision_request",
+        "target_step": "blender",
+        "comment": "Ne pas toucher à cette demande.",
+    }
+    (tmp_path / "revision_request_123.json").write_text(json.dumps(revision), encoding="utf-8")
+
+    runner = PipelineRunner(
+        project_id="proj-1",
+        director=ExplodingDirector(),
+        blender=StubBlender(),
+        qa=StubQA(),
+        workdir=tmp_path,
+    )
+    with pytest.raises(RuntimeError):
+        await runner.run(Brief(text="Une ruelle sombre sous la pluie."))
+
+    assert (tmp_path / "revision_request_123.json").is_file()
+
+
+@pytest.mark.asyncio
+async def test_human_revision_targets_director_when_asked(tmp_path: Path) -> None:
+    """Le commentaire cible l'agent demandé (ici director)."""
+
+    class RecordingContext:
+        def __init__(self) -> None:
+            self.static: dict[str, str] = {}
+
+        def set_static(self, key: str, value: str) -> None:
+            self.static[key] = value
+
+    class ContextDirector(StubDirector):
+        def __init__(self) -> None:
+            self.context = RecordingContext()
+
+        async def plan_scene(self, brief: Brief) -> SceneSpec:
+            return SceneSpec(brief=brief.text)
+
+    revision = {
+        "type": "revision_request",
+        "target_step": "director",
+        "comment": "Plus sombre, caméra plus basse.",
+    }
+    (tmp_path / "revision_request_123.json").write_text(json.dumps(revision), encoding="utf-8")
+
+    director = ContextDirector()
+    runner = PipelineRunner(
+        project_id="proj-1",
+        director=director,
+        blender=StubBlender(),
+        qa=StubQA(),
+        workdir=tmp_path,
+    )
+    outcome = await runner.run(Brief(text="Une ruelle sombre sous la pluie."))
+
+    assert outcome.run.status == "completed"
+    feedback = director.context.static.get("revision_feedback", "")
+    assert "Plus sombre, caméra plus basse." in feedback
+
+
+@pytest.mark.asyncio
 async def test_run_history_injected_into_agent_context(tmp_path: Path) -> None:
     """Les agents reçoivent l'historique récent du run (``run_history``)."""
 

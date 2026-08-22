@@ -255,11 +255,13 @@ class BaseAgent(Agent):
 
     def _get_model_id(self) -> str:
         """Retourne l'identifiant du modèle LLM utilisé."""
-        try:
-            from deepblender.llm import model_from_env
-            return model_from_env()
-        except Exception:
-            return "unknown"
+        llm = getattr(self, "_llm", None)
+        if llm is not None:
+            try:
+                return llm.model()
+            except Exception:  # noqa: BLE001 - modèle non exposé : on reste générique
+                return "unknown"
+        return "unknown"
 
 
 class DefaultsMixin:

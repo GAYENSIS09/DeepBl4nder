@@ -18,17 +18,17 @@ import secrets
 import time
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import Any, AsyncGenerator
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, StreamingResponse
 from sqlalchemy import select
 
-import typing
-
 from deepblender import __version__
 from deepblender.api.bus import AsyncEventBus
 from deepblender.api.db import Base, DbSession, create_engine_for, create_session_factory
+from deepblender.codegen.validator import ASTValidator, ValidationReport
 from deepblender.api.deps import (
     ROLE_MANAGE,
     ROLE_READ,
@@ -41,10 +41,12 @@ from deepblender.api.deps import (
     scoped_project,
     scoped_workspace,
 )
-from deepblender.api.models import Membership, Organization, Production, Project, User, Workspace
+from deepblender.api.models import Membership, Organization, Production, Project, User, Workspace, Sequence, Scene, Shot, Patch, ArtifactRecord
 from deepblender.api.pipeline import run_production
 from deepblender.api.schemas import (
     ArtifactOut,
+    ArtifactRecordOut,
+    ArtifactRecordsOut,
     LoginRequest,
     MeOut,
     MemberAdd,
@@ -68,11 +70,16 @@ from deepblender.api.schemas import (
     WorkerRunOut,
     WorkspaceCreate,
     WorkspaceOut,
+    TimelineOut,
+    PatchRequest,
+    PatchResponse,
+    SequenceOut,
+    SceneOut,
+    ShotOut,
 )
 from deepblender.api.security import create_token, hash_password, verify_password
 from deepblender.api.state import WorkerStatus, configure, get_secret_key, get_session_factory
 from deepblender.llm import get_router as get_llm_router
-from deepblender.llm import use_fake_llm
 
 
 def _default_secret_key() -> str:
@@ -496,6 +503,95 @@ def _register_routes(app: FastAPI) -> None:
         require_role(membership, *ROLE_READ)
         return ProductionOut.model_validate(production)
 
+    @app.get("/api/productions/{production_id}/timeline", response_model=TimelineOut)
+    def get_production_timeline(production_id: str, user: CurrentUser, db: DbSession) -> TimelineOut:
+        production, membership = scoped_production(db, user, production_id)
+        require_role(membership, *ROLE_READ)
+        sequences = db.scalars(
+            select(Sequence).where(Sequence.production_id == production.id).order_by(Sequence.order_index)
+        ).all()
+        seq_outs: list[SequenceOut] = []
+        for seq in sequences:
+            scenes = db.scalars(
+                select(Scene).where(Scene.sequence_id == seq.id).order_by(Scene.order_index)
+            ).all()
+            scene_outs: list[SceneOut] = []
+            for scene in scenes:
+                shots = db.scalars(
+                    select(Shot).where(Shot.scene_id == scene.id).order_by(Shot.index)
+                ).all()
+                shot_outs = [
+                    ShotOut(
+                        id=s.id,
+                        index=s.index,
+                        start=s.start,
+                        end=s.end,
+                        camera_summary=s.camera_summary,
+                        action=s.action,
+                        status=s.status,
+                    )
+                    for s in shots
+                ]
+                scene_outs.append(SceneOut(
+                    id=scene.id,
+                    name=scene.name,
+                    order_index=scene.order_index,
+                    status=scene.status,
+                    shots=shot_outs,
+                ))
+            seq_outs.append(SequenceOut(
+                id=seq.id,
+                name=seq.name,
+                order_index=seq.order_index,
+                scenes=scene_outs,
+            ))
+        return TimelineOut(production_id=production.id, sequences=seq_outs)
+
+    @app.post("/api/productions/{production_id}/patches", response_model=PatchResponse)
+    def create_patch(
+        production_id: str,
+        payload: PatchRequest,
+        user: CurrentUser,
+        db: DbSession,
+    ) -> PatchResponse:
+        production, membership = scoped_production(db, user, production_id)
+        require_role(membership, *ROLE_WRITE)
+        
+        import json
+        import uuid
+        from datetime import datetime, timezone
+        
+        # Store patch in database
+        patch = Patch(
+            id=uuid.uuid4().hex[:12],
+            production_id=production.id,
+            organization_id=production.organization_id,
+            target=payload.target,
+            old_value=json.dumps(payload.old_value) if payload.old_value is not None else "",
+            new_value=json.dumps(payload.new_value),
+            rationale=payload.rationale,
+            author_id=user.id,
+            applied=False,
+            created_at=datetime.now(timezone.utc),
+        )
+        db.add(patch)
+        db.commit()
+        
+        # Publish event for real-time updates
+        app.state.bus.publish_nowait({
+            "type": "patch_created",
+            "production_id": production.id,
+            "patch_id": patch.id,
+            "target": payload.target,
+            "ts": datetime.now(timezone.utc).timestamp(),
+        })
+        
+        return PatchResponse(
+            patch_id=patch.id,
+            status="pending",
+            message="Patch stored and will be applied on next run",
+        )
+
     # ----- Exécution du pipeline (Phase D) -----
 
     @app.post("/api/productions/{production_id}/run", response_model=ProductionOut, status_code=202)
@@ -641,6 +737,101 @@ def _register_routes(app: FastAPI) -> None:
             raise HTTPException(status_code=404, detail="artifact not found")
         target.unlink()
 
+    @app.get("/api/productions/{production_id}/versions", response_model=ArtifactRecordsOut)
+    def list_artifact_versions(
+        production_id: str,
+        user: CurrentUser,
+        db: DbSession,
+        type: str | None = None,
+        name: str | None = None,
+    ) -> ArtifactRecordsOut:
+        """Liste l'historique des versions d'artifacts pour une production."""
+        production, membership = scoped_production(db, user, production_id)
+        require_role(membership, *ROLE_READ)
+        
+        from sqlalchemy import select
+        query = select(ArtifactRecord).where(ArtifactRecord.production_id == production.id)
+        if type:
+            query = query.where(ArtifactRecord.type == type)
+        if name:
+            query = query.where(ArtifactRecord.name == name)
+        query = query.order_by(ArtifactRecord.created_at.desc())
+        
+        records = db.scalars(query).all()
+        
+        import json
+        result = []
+        for r in records:
+            try:
+                parents = json.loads(r.parent_ids) if r.parent_ids else []
+            except json.JSONDecodeError:
+                parents = []
+            result.append(ArtifactRecordOut(
+                id=r.id,
+                type=r.type,
+                name=r.name,
+                version=r.version,
+                path=r.path,
+                sha256=r.sha256,
+                status=r.status,
+                cost=r.cost,
+                parent_ids=parents,
+                created_at=r.created_at,
+            ))
+        return ArtifactRecordsOut(records=result)
+
+    @app.post("/api/artifacts/{artifact_id}/restore", response_model=PatchResponse)
+    def restore_artifact_version(
+        artifact_id: str,
+        user: CurrentUser,
+        db: DbSession,
+    ) -> PatchResponse:
+        """Restaure une version antérieure d'un artifact (crée un patch pour ré-appliquer)."""
+        record = db.get(ArtifactRecord, artifact_id)
+        if record is None:
+            raise HTTPException(status_code=404, detail="artifact record not found")
+        
+        # Verify access via production
+        production = db.get(Production, record.production_id)
+        if production is None:
+            raise HTTPException(status_code=404, detail="production not found")
+        membership = require_membership(db, production.organization_id, user)
+        require_role(membership, *ROLE_WRITE)
+        
+        # Create a patch to restore this version
+        import uuid
+        from datetime import datetime, timezone
+        import json
+        
+        patch = Patch(
+            id=uuid.uuid4().hex[:12],
+            production_id=production.id,
+            organization_id=production.organization_id,
+            target="scene_spec",
+            old_value="{}",  # current version
+            new_value=json.dumps({"restore_from": artifact_id}),
+            rationale=f"Restore artifact version {record.type}/{record.name} v{record.version}",
+            author_id=user.id,
+            applied=False,
+            created_at=datetime.now(timezone.utc),
+        )
+        db.add(patch)
+        db.commit()
+        
+        app.state.bus.publish_nowait({
+            "type": "patch_created",
+            "production_id": production.id,
+            "patch_id": patch.id,
+            "target": "scene_spec",
+            "ts": datetime.now(timezone.utc).timestamp(),
+        })
+        
+        return PatchResponse(
+            patch_id=patch.id,
+            status="pending",
+            message=f"Restore patch created for {record.type}/{record.name} v{record.version}",
+        )
+
     @app.get("/api/productions/{production_id}/preview")
     def production_preview(production_id: str, user: CurrentUser, db: DbSession) -> FileResponse:
         """Renvoie le premier rendu (image/vidéo) disponible pour la production."""
@@ -665,13 +856,12 @@ def _register_routes(app: FastAPI) -> None:
         snapshot = app.state.worker_status.snapshot()
         rotation = "adaptive"
         routing: list[RoutingProviderOut] = []
-        if not use_fake_llm():
-            try:
-                stats = get_llm_router().routing_stats()
-                rotation = stats["rotation"]
-                routing = [RoutingProviderOut(**prov) for prov in stats["providers"]]
-            except Exception:  # noqa: BLE001 - routeur non configuré : on reste sans détail
-                routing = []
+        try:
+            stats = get_llm_router().routing_stats()
+            rotation = stats["rotation"]
+            routing = [RoutingProviderOut(**prov) for prov in stats["providers"]]
+        except Exception:  # noqa: BLE001 - routeur non configuré : on reste sans détail
+            routing = []
         return WorkerOut(
             status=snapshot["status"],
             queue_depth=snapshot["queue_depth"],
@@ -682,6 +872,17 @@ def _register_routes(app: FastAPI) -> None:
             rotation=rotation,
             routing=routing,
         )
+
+    @app.post("/api/validate")
+    def validate_script(payload: dict[str, Any], user: CurrentUser, db: DbSession) -> dict[str, Any]:
+        """Valide un script bpy via AST (fail-closed policy)."""
+        source = payload.get("source", "") if isinstance(payload, dict) else ""
+        report: ValidationReport = ASTValidator().validate(source)
+        return {
+            "ok": report.ok,
+            "errors": report.errors,
+            "imports": report.imports,
+        }
 
     @app.get("/api/usage", response_model=UsageOut)
     def usage(user: CurrentUser, db: DbSession) -> UsageOut:
@@ -724,7 +925,7 @@ def _register_routes(app: FastAPI) -> None:
 async def sse_event_stream(
     queue: asyncio.Queue[dict[str, object]],
     unsubscribe,
-) -> "typing.AsyncGenerator[str, None]":
+) -> AsyncGenerator[str, None]:
     """Génère le flux SSE depuis une file d'événements (heartbeat 15 s)."""
     try:
         while True:

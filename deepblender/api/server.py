@@ -1,4 +1,9 @@
-"""Serveur HTTP minimal (stdlib) : gateway DeepBlender.
+"""Serveur HTTP minimal (stdlib) : gateway DeepBlender — DEPRECATED.
+
+.. deprecated:: 0.2.0
+   Utiliser ``deepblender.api.app`` (FastAPI) à la place.
+   Ce module est conservé pour compatibilité temporaire et sera supprimé
+   dans une version future.
 
 Routes de base : /health, /version, /status, /validate, /budget, /events
 (flux SSE temps réel). Le serveur n'exige aucune dépendance externe et reste

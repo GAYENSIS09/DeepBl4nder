@@ -25,6 +25,7 @@ const STATUS_TONE: Record<string, 'acid' | 'green' | 'amber' | 'red' | 'blue' | 
 
 function rotationLabel(rotation: string): string {
   const labels: Record<string, string> = {
+    vote: 'Vote (majorité)',
     adaptive: 'Adaptatif (pondéré)',
     random: 'Aléatoire',
   };

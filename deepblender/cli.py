@@ -84,9 +84,12 @@ def main(argv: Sequence[str] | None = None) -> int:
     if args.command == "validate":
         return _cmd_validate(args.script)
     if args.command == "serve":
-        from deepblender.api.server import serve
+        import uvicorn
 
-        serve(host=args.host, port=args.port)
+        from deepblender.api.app import create_app
+
+        app = create_app()
+        uvicorn.run(app, host=args.host, port=args.port)
         return 0
     if args.command == "seed":
         from deepblender.api.seed import main as seed_main

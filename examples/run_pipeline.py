@@ -14,12 +14,12 @@ import asyncio
 from deepblender.agents import BlenderAgent, DirectorAgent
 from deepblender.codegen.validator import validate_for_worker
 from deepblender.domain.project import Brief
-from deepblender.llm import build_llm, model_from_env
+from deepblender.llm import build_llm
 
 
 async def main() -> None:
     llm = build_llm()
-    print(f"Modèle : {model_from_env()}")
+    print(f"Modèle : {llm.model()}")
 
     brief = Brief(
         text=(

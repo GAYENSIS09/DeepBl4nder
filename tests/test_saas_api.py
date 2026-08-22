@@ -266,7 +266,7 @@ def test_delete_project_removes_productions(client: TestClient) -> None:
 
 
 class _StubDirector:
-    async def plan_scene(self, brief):
+    async def plan_scene(self, brief, story_spec=None, storyboard_spec=None):
         from deepblender.domain.scene import SceneSpec, ShotSpec
 
         return SceneSpec(brief=brief.text, shots=[ShotSpec(duration=1.0)])
@@ -310,8 +310,24 @@ class _StubCompositing:
         return CompositeSpec(passes=["diffuse", "mist"], grade="balanced")
 
 
+class _StubStory:
+    async def plan_story(self, brief):
+        from deepblender.domain.narrative import StorySpec
+
+        return StorySpec(logline=brief.text[:100], synopsis=brief.text)
+
+
+class _StubStoryboard:
+    async def plan_storyboard(self, story_spec):
+        from deepblender.domain.narrative import StoryboardSpec
+
+        return StoryboardSpec(shots=[])
+
+
 def _stub_agents():
     return (
+        _StubStory(),
+        _StubStoryboard(),
         _StubDirector(),
         _StubBlender(),
         _StubQA(),
@@ -578,7 +594,7 @@ def test_worker_status_reports_runs(client: TestClient, monkeypatch: pytest.Monk
     assert payload["status"] in ("idle", "online")
     assert payload["processed"] >= 0
     assert payload["failed"] >= 0
-    assert payload["rotation"] in ("random", "adaptive")
+    assert payload["rotation"] in ("random", "adaptive", "vote")
     assert isinstance(payload["routing"], list)
     for provider in payload["routing"]:
         assert provider["id"]

@@ -10,14 +10,13 @@ import asyncio
 
 from deepblender.agents import DirectorAgent
 from deepblender.domain.project import Brief
-from deepblender.llm import model_from_env
 
 
 async def main() -> None:
     from deepblender.llm import build_llm
 
     llm = build_llm()
-    print(f"Modèle : {model_from_env()}")
+    print(f"Modèle : {llm.model()}")
     director = DirectorAgent(llm=llm)
     brief = Brief(
         text=(

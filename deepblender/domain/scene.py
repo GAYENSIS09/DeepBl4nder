@@ -11,6 +11,41 @@ from typing import Any
 
 
 @dataclass
+class RenderSpec:
+    """Spécification explicite de rendu (résolution, fps, format, échantillons)."""
+
+    resolution: tuple[int, int] = (1920, 1080)
+    fps: int = 24
+    format: str = "mp4"
+    samples: int = 64
+    engine: str = "CYCLES"  # CYCLES | EEVEE
+
+    def __post_init__(self):
+        # Ensure resolution is a fixed-length tuple of 2 ints
+        if isinstance(self.resolution, (list, tuple)) and len(self.resolution) == 2:
+            self.resolution = (int(self.resolution[0]), int(self.resolution[1]))
+
+    def to_mapping(self) -> dict[str, Any]:
+        return {
+            "resolution": list(self.resolution),
+            "fps": self.fps,
+            "format": self.format,
+            "samples": self.samples,
+            "engine": self.engine,
+        }
+
+    @classmethod
+    def from_mapping(cls, data: dict[str, Any]) -> "RenderSpec":
+        return cls(
+            resolution=tuple(data.get("resolution", (1920, 1080))),
+            fps=data.get("fps", 24),
+            format=data.get("format", "mp4"),
+            samples=data.get("samples", 64),
+            engine=data.get("engine", "CYCLES"),
+        )
+
+
+@dataclass
 class CameraSpec:
     """Spécification de caméra pour un plan."""
 
@@ -101,14 +136,45 @@ class SceneSpec:
     environment: EnvironmentSpec = field(default_factory=EnvironmentSpec)
     characters: list[CharacterSpec] = field(default_factory=list)
     shots: list[ShotSpec] = field(default_factory=list)
+    render: RenderSpec = field(default_factory=RenderSpec)
+
+    SCENE_SPEC_VERSION: int = 1
 
     def to_mapping(self) -> dict[str, Any]:
+        """Sérialisation résumée pour le contexte agent (inchangée)."""
         return {
             "brief": self.brief,
             "environment": self.environment.description,
             "characters": [c.name for c in self.characters],
             "shots": len(self.shots),
         }
+
+    def to_full_dict(self) -> dict[str, Any]:
+        """Sérialisation complète pour persistance/versioning/patches."""
+        return {
+            "schema_version": self.SCENE_SPEC_VERSION,
+            "brief": self.brief,
+            "environment": self.environment.__dict__,
+            "characters": [c.__dict__ for c in self.characters],
+            "shots": [s.__dict__ for s in self.shots],
+            "render": self.render.to_mapping(),
+        }
+
+    @classmethod
+    def from_full_dict(cls, data: dict[str, Any]) -> "SceneSpec":
+        """Reconstruction depuis la sérialisation complète."""
+        env_data = data.get("environment", {})
+        env = EnvironmentSpec(**env_data)
+        chars = [CharacterSpec(**c) for c in data.get("characters", [])]
+        shots = [ShotSpec(**s) for s in data.get("shots", [])]
+        render = RenderSpec.from_mapping(data.get("render", {}))
+        return cls(
+            brief=data.get("brief", ""),
+            environment=env,
+            characters=chars,
+            shots=shots,
+            render=render,
+        )
 
 
 @dataclass

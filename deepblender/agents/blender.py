@@ -80,7 +80,7 @@ class BlenderAgent(BaseAgent, DefaultsMixin):
 
     @strategy(codeact_with_sandbox(CodeActConfig(
         postconditions=[blender_script_postcondition],
-        max_tokens=4096,
+        max_tokens=16384,
     )))
     async def build_script(self, spec: SceneSpec) -> BlenderScript:  # type: ignore[return]
         """Turn the scene spec into a deterministic Blender Python script.
@@ -101,7 +101,7 @@ class BlenderAgent(BaseAgent, DefaultsMixin):
 
         # Load skills relevant to this spec
         self._load_skills(
-            "blender-python", "blender-api-reference",
+            "blender-python",
             "modeling", "shading", "lighting", "camera",
         )
         if any(s.animation.description for s in spec.shots):
@@ -133,7 +133,10 @@ class BlenderAgent(BaseAgent, DefaultsMixin):
 
     @strategy(
         ReflexionStrategy(
-            base=CodeActStrategy(config=CodeActConfig(postconditions=[blender_script_postcondition])),
+            base=CodeActStrategy(config=CodeActConfig(
+                postconditions=[blender_script_postcondition],
+                max_tokens=16384,
+            )),
             config=_blender_reflexion_config(),
         )
     )
