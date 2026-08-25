@@ -2,12 +2,15 @@
 
 from __future__ import annotations
 
+import logging
 import time
 from dataclasses import dataclass, field
 from typing import Literal
 from uuid import uuid4
 
 from deepblender.production.events import APPROVAL_EVENTS, STEP_EVENTS, EventLog
+
+logger = logging.getLogger("deepblender.pipeline")
 
 RunStatus = Literal["created", "planned", "running", "awaiting_approval", "completed", "revision", "blocked"]
 
@@ -45,16 +48,24 @@ class ProductionRun:
 
     def start_step(self, name: str) -> None:
         self.mark_step(name, "running")
+        logger.info("[%s] étape %s démarrée", self.id, name)
         if self.log:
             self.log.append("step_started", {"step": name})
 
     def complete_step(self, name: str) -> None:
         self.mark_step(name, "completed")
+        logger.info(
+            "[%s] étape %s terminée en %.1fs",
+            self.id,
+            name,
+            max(0.0, time.time() - (self.steps[name].started_at if name in self.steps else 0.0)),
+        )
         if self.log:
             self.log.append("step_completed", {"step": name})
 
     def fail_step(self, name: str) -> None:
         self.mark_step(name, "failed")
+        logger.error("[%s] étape %s échouée", self.id, name)
         if self.log:
             self.log.append("step_failed", {"step": name})
 
@@ -62,6 +73,7 @@ class ProductionRun:
         """Human-in-the-loop : bloque l'étape en attente d'une décision humaine."""
         self.mark_step(name, "awaiting_approval")
         self.status = "awaiting_approval"
+        logger.info("[%s] approbation humaine demandée pour %s", self.id, name)
         if self.log:
             self.log.append("approval_requested", {"step": name})
 
@@ -69,12 +81,14 @@ class ProductionRun:
         self.mark_step(name, "approved")
         if self.status == "awaiting_approval":
             self.status = "running"
+        logger.info("[%s] approbation accordée pour %s", self.id, name)
         if self.log:
             self.log.append("approval_granted", {"step": name})
 
     def reject(self, name: str, reason: str) -> None:
         self.mark_step(name, "rejected")
         self.status = "revision"
+        logger.warning("[%s] approbation refusée pour %s : %s", self.id, name, reason)
         if self.log:
             self.log.append("approval_rejected", {"step": name, "reason": reason})
 

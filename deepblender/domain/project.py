@@ -10,7 +10,7 @@ from deepblender.domain.scene import SceneSpec
 
 
 def _new_id() -> str:
-    return uuid4().hex[:8]
+    return uuid4().hex
 
 
 @dataclass

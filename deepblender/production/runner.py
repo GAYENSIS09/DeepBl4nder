@@ -22,11 +22,15 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import json
+import logging
+import math
+import re
 import time
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any, Callable
 
+from deepblender.agents.base import GenerationError
 from deepblender.artifacts.provenance import ProvenanceGraph
 from deepblender.artifacts.registry import Artifact, ArtifactRegistry
 from deepblender.codegen.validator import ValidationReport, validate_for_worker
@@ -35,6 +39,7 @@ from deepblender.domain.project import Brief
 from deepblender.domain.qa import Issue, IssueKind, QAReport, RevisionSpec
 from deepblender.domain.scene import BlenderScript, SceneSpec, ShotSpec, RenderOutput
 from deepblender.domain.media import AudioPlan, AudioMaster, CompositeSpec, LanguagePackage
+from deepblender.domain.narrative import StorySpec, StoryboardShot, StoryboardSpec
 from deepblender.plugins.registry import PluginRegistry
 from deepblender.production.budget import BudgetTracker
 from deepblender.production.events import EventLog, ProductionEvent
@@ -43,8 +48,27 @@ from deepblender.qa.visual import assess_render, visual_qa_to_report
 
 CostHook = Callable[[str], float]
 
+logger = logging.getLogger("deepblender.pipeline")
+
+
+def _compact(payload: dict[str, Any], limit: int = 400) -> str:
+    """Payload d'événement sur une ligne, tronqué pour le journal texte."""
+    try:
+        text = json.dumps(payload, ensure_ascii=False, default=str)
+    except Exception:  # noqa: BLE001
+        text = str(payload)
+    return text if len(text) <= limit else f"{text[:limit]}…({len(text)} car.)"
+
 _STEPS = ("story", "storyboard", "director", "blender", "qa", "render")
 _POST_STEPS = ("audio", "localization", "compositing")
+# Étapes « reprise » : clé checkpoint → nom d'étape pour les événements.
+_RESUME_STEP_BY_KEY = {
+    "story": "story",
+    "storyboard": "storyboard",
+    "scene": "director",
+    "script": "blender",
+    "report": "qa",
+}
 
 
 class _ForwardingEventLog(EventLog):
@@ -107,6 +131,9 @@ class PipelineRunner:
         # Agents pré-production optionnels
         story: Any = None,
         storyboard: Any = None,
+        # Agents conception optionnels
+        character_designer: Any = None,
+        animator: Any = None,
         # Agents post-production optionnels
         audio: Any = None,
         localization: Any = None,
@@ -129,6 +156,9 @@ class PipelineRunner:
         # Pre-production agents
         self.story = story
         self.storyboard = storyboard
+        # Conception agents
+        self.character_designer = character_designer
+        self.animator = animator
         # Post-production agents
         self.audio = audio
         self.localization = localization
@@ -170,11 +200,35 @@ class PipelineRunner:
         )
         self.production_run = ProductionRun(project_id=project_id, log=self.event_log)
         self._director_art: str | None = None
+        # Empreinte du brief courant : clé d'invalidation des checkpoints.
+        self._current_brief_sha: str | None = None
 
     def _emit(self, kind: str, payload: dict[str, Any]) -> None:
-        """Relaye un événement persisté du journal vers le hook temps réel."""
+        """Relaye un événement persisté du journal vers le hook temps réel.
+
+        Chaque événement est AUSSI journalisé (DEBUG, INFO pour les jalons) :
+        le fichier de logs retrace tout l'arrière-plan du pipeline.
+        """
+        level = logging.INFO if kind in {
+            "run_started", "run_completed", "run_failed", "run_blocked",
+            "step_started", "step_completed", "step_failed",
+        } else logging.DEBUG
+        logger.log(level, "[event] %s %s", kind, _compact(payload))
         if self.event_hook is not None:
             self.event_hook(kind, payload)
+
+    def _reported_llm_meta(self, agent: Any) -> dict[str, Any]:
+        """Métadonnées modèle pour les événements llm_call ``completed``.
+
+        Rapporte le vainqueur réel du vote du routeur (``provider`` + ``model``)
+        quand il est connu ; retombe sur la config statique de l'agent sinon
+        (client sans routeur, ou décision inexistante avant tout appel).
+        """
+        getter = getattr(agent, "_get_last_call_info", None)
+        meta: dict[str, Any] = getter() if callable(getter) else {}
+        if not meta.get("model"):
+            meta["model"] = getattr(agent, "_get_model_id", lambda: "unknown")()
+        return meta
 
     # Raccourcis pratiques pour accéder aux plugins
     @property
@@ -305,29 +359,6 @@ class PipelineRunner:
         finally:
             session.close()
 
-    def _mark_patches_applied(self, patch_targets: list[str]) -> None:
-        """Marque les patches comme appliqués en base."""
-        if not self.session_factory or not self.production_id:
-            return
-        session = self.session_factory()
-        try:
-            from deepblender.api.models import Patch as PatchModel
-            from sqlalchemy import select
-            from datetime import datetime, timezone
-            patches = session.scalars(
-                select(PatchModel).where(
-                    PatchModel.production_id == self.production_id,
-                    PatchModel.target.in_(patch_targets),
-                    PatchModel.applied == False,  # noqa: E712
-                )
-            ).all()
-            for p in patches:
-                p.applied = True
-                p.applied_at = datetime.now(timezone.utc)
-            session.commit()
-        finally:
-            session.close()
-
     async def _cached_agent_call(
         self,
         agent: Any,
@@ -410,6 +441,12 @@ class PipelineRunner:
         run = self.production_run
         run.status = "running"
         self.event_log.append("run_started", {"project_id": run.project_id})
+        logger.info(
+            "Run %s démarré (projet=%s, workdir=%s)",
+            run.id,
+            run.project_id,
+            self.workdir,
+        )
         for name in _STEPS:
             run.add_step(ProductionStep(name=name))
         for name in _POST_STEPS:
@@ -446,21 +483,76 @@ class PipelineRunner:
 
         # Check for pending patches from API
         pending_patches = self._load_pending_patches()
+        self._current_brief_sha = self._brief_fingerprint(brief)
+
+        # Reprise : recharge les checkpoints valides du workdir (run interrompu,
+        # « Relancer le run ») pour ne pas rejouer ce qui est déjà produit.
+        cached = self._load_checkpoints(brief)
+        # Préfixe valide de la chaîne : story → storyboard → scene → script → report.
+        chain = [
+            key
+            for key, active in (
+                ("story", self.story is not None),
+                ("storyboard", self.storyboard is not None),
+                ("scene", True),
+                ("script", True),
+                ("report", True),
+            )
+            if active
+        ]
+        natural = next((i for i, key in enumerate(chain) if key not in cached), len(chain))
+        # Étapes réutilisables après invalidations éventuelles (revision/patches).
+        reusable = set(chain[:natural])
+        rev_target = (revision_request or {}).get("target_step")
+        if rev_target == "story":
+            reusable.clear()
+        elif rev_target == "storyboard":
+            reusable -= {"storyboard", "scene", "script", "report"}
+        elif rev_target == "director":
+            reusable -= {"scene", "script", "report"}
+        elif rev_target == "blender":
+            reusable -= {"script", "report"}
+        elif rev_target == "qa":
+            reusable -= {"report"}
+        if pending_patches:
+            # Les patches ciblent le script : la scène est rechargée des
+            # artefacts, le script et l'évaluation sont régénérés.
+            reusable -= {"scene", "script", "report"}
+        rerun_from = next((key for key in chain if key not in reusable), None)
+        if natural > 0 and len(reusable) < natural and rerun_from is not None:
+            self.event_log.append(
+                "resume_invalidated", {"from_step": _RESUME_STEP_BY_KEY[rerun_from]}
+            )
+        elif natural > 0:
+            self.event_log.append("resume_ready", {"steps": list(chain[:natural])})
+
         scene: SceneSpec | None = None
         story_spec = None
         storyboard_spec = None
-        
+
         # STEP 1: Story generation
-        if self.story is not None:
+        if "story" in reusable:
+            story_spec = cached["story"]
+            self._reuse_step("story", {"output": "story_spec.json"})
+        elif self.story is not None:
             story_spec = await self._run_story(brief)
-        
+            self._mark_checkpoint("story")
+
         # STEP 2: Storyboard generation
-        if self.storyboard is not None:
+        if "storyboard" in reusable:
+            storyboard_spec = cached["storyboard"]
+            self._reuse_step("storyboard", {"output": "storyboard_spec.json"})
+        elif self.storyboard is not None:
             storyboard_spec = await self._run_storyboard(story_spec)
-        
+            self._mark_checkpoint("storyboard")
+
         # HITL Approval Gate after storyboard (configurable)
         import os
-        if storyboard_spec is not None and not os.environ.get("DEEPBLENDER_AUTO_APPROVE", "0") == "1":
+        if (
+            storyboard_spec is not None
+            and "storyboard" not in reusable  # un storyboard repris a déjà été approuvé
+            and not os.environ.get("DEEPBLENDER_AUTO_APPROVE", "0") == "1"
+        ):
             self.production_run.request_approval("storyboard")
             self.event_log.append("approval_requested", {"step": "storyboard", "reason": "Awaiting human approval of storyboard"})
             run.status = "awaiting_approval"
@@ -491,11 +583,25 @@ class PipelineRunner:
                     self._set_context(self.blender.context, "revision_feedback", combined_feedback)
         else:
             # Normal flow: director creates new SceneSpec from story + storyboard
-            scene = await self._plan(brief, story_spec, storyboard_spec)
-        
-        script, script_path = await self._build(scene)
+            if "scene" in reusable:
+                scene = cached["scene"]
+                self._reuse_step("director", {"output": "scene_spec.json"})
+            else:
+                scene = await self._plan(brief, story_spec, storyboard_spec)
+            self._mark_checkpoint("director")
+
+        if "script" in reusable:
+            script, script_path = cached["script"]
+            self._reuse_step("blender", {"output": "script"})
+        else:
+            script, script_path = await self._build(scene)
+        self._mark_checkpoint("blender")
         validation = validate_for_worker(script.code)
-        report = await self._assess(scene, script_path, validation, script)
+        if "report" in reusable:
+            report = cached["report"]
+            self._reuse_step("qa", {"score": report.score})
+        else:
+            report = await self._assess(scene, script_path, validation, script)
 
         revisions = 0
         while not report.passed and revisions < self.max_revisions:
@@ -519,13 +625,20 @@ class PipelineRunner:
         audio_plan = None
         audio_master = None
         composite_spec = None
-        language_packages = []
+        language_packages: list[LanguagePackage] = []
 
         if report.passed:
             # Parallel post-production: render, audio, and localization run concurrently
             # Compositing waits for all three to finish.
 
             async def _run_render_task():
+                # Rendu déjà produit par un run précédent avec le même script :
+                # on le réutilise (étape la plus coûteuse du pipeline).
+                cached_render = self._checkpoint_render(script.code)
+                if cached_render is not None:
+                    self.production_run.mark_step("render", "completed")
+                    self._emit("step_resumed", {"step": "render", "output": cached_render.video_path})
+                    return cached_render
                 if self.enable_parallel_shots and len(scene.shots) > 1:
                     render_out = await self._run_render_parallel_shots(scene, script)
                 else:
@@ -551,13 +664,19 @@ class PipelineRunner:
                     return await self._run_localization(scene)
                 return []
 
-            render_output, audio_result, language_packages = await asyncio.gather(
+            audio_result: tuple[AudioPlan | None, AudioMaster | None] = (None, None)
+            results = await asyncio.gather(
                 _run_render_task(),
                 _run_audio_task(),
                 _run_localization_task(),
             )
+            render_output = results[0]
+            audio_result = results[1] if isinstance(results[1], tuple) else (None, None)
+            language_packages = list(results[2])
 
-            audio_plan, audio_master = audio_result if audio_result[0] is not None else (None, None)
+            audio_plan, audio_master = (
+                audio_result if audio_result[0] is not None else (None, None)
+            )
 
             # Compositing (needs render + audio + localization outputs)
             if self.compositing and self.ffmpeg_plugin:
@@ -565,10 +684,16 @@ class PipelineRunner:
 
             run.status = "completed"
             self.event_log.append("run_completed", {})
+            logger.info("Run %s terminé (status=completed)", run.id)
             self._consume_revision_requests()
         else:
             run.status = "blocked"
             self.event_log.append("run_blocked", {"step": self._target_step(report, validation)})
+            logger.warning(
+                "Run %s bloqué : QA échoué après révisions (step=%s)",
+                run.id,
+                self._target_step(report, validation),
+            )
             self._consume_revision_requests()
 
         return RunOutcome(
@@ -587,6 +712,28 @@ class PipelineRunner:
             language_packages=language_packages,
         )
 
+    async def _with_generation_retry(self, step: str, call_factory: Callable[[], Any]) -> Any:
+        """Rejoue une fois l'appel agent après ``GenerationError``.
+
+        Les 3 tentatives de validation NOOA vivent dans une même génération :
+        si le modèle de secours s'enlise (ex. shots vides répétés malgré le
+        feedback), une génération fraîche — nouvelle session, nouvel
+        échantillonnage — offre une seconde chance au lieu de tuer le run.
+        """
+        try:
+            return await call_factory()
+        except GenerationError as exc:
+            first_line = str(exc).strip().splitlines()[0][:160]
+            logger.warning(
+                "étape %s : génération invalide (%s) → nouvelle tentative "
+                "(génération fraîche)",
+                step,
+                first_line,
+            )
+            self.event_log.append("llm_retry", {"step": step})
+            self._emit("llm_call", {"step": step, "status": "retry"})
+            return await call_factory()
+
     async def _run_story(self, brief: Brief):
         """Exécute StoryAgent -> StorySpec."""
         if self.story is None:
@@ -594,9 +741,11 @@ class PipelineRunner:
         self.production_run.start_step("story")
         self._emit("llm_call", {"step": "story", "agent": "StoryAgent", "status": "started", "model": getattr(self.story, '_get_model_id', lambda: 'unknown')()})
         t0 = time.time()
-        story_spec = await self.story.plan_story(brief)
+        story_spec = await self._with_generation_retry(
+            "story", lambda: self.story.plan_story(brief)
+        )
         elapsed = round(time.time() - t0, 2)
-        self._emit("llm_call", {"step": "story", "agent": "StoryAgent", "status": "completed", "elapsed_s": elapsed, "model": getattr(self.story, '_get_model_id', lambda: 'unknown')()})
+        self._emit("llm_call", {"step": "story", "agent": "StoryAgent", "status": "completed", "elapsed_s": elapsed, **self._reported_llm_meta(self.story)})
         path = self._write_json("story_spec.json", story_spec.to_mapping())
         artifact = self.artifacts.register(
             Artifact(type="story_spec", name="story", path=path, status="spec")
@@ -614,9 +763,16 @@ class PipelineRunner:
         self.production_run.start_step("storyboard")
         self._emit("llm_call", {"step": "storyboard", "agent": "StoryboardAgent", "status": "started", "model": getattr(self.storyboard, '_get_model_id', lambda: 'unknown')()})
         t0 = time.time()
-        storyboard_spec = await self.storyboard.plan_storyboard(story_spec)
+        try:
+            storyboard_spec = await self._with_generation_retry(
+                "storyboard", lambda: self.storyboard.plan_storyboard(story_spec)
+            )
+        except GenerationError:
+            # Deux générations épuisées (modèle de secours récalcitrant sur
+            # l'invariant shots) : synthèse déterministe plutôt que run tué.
+            storyboard_spec = self._synthesize_storyboard(story_spec)
         elapsed = round(time.time() - t0, 2)
-        self._emit("llm_call", {"step": "storyboard", "agent": "StoryboardAgent", "status": "completed", "elapsed_s": elapsed, "model": getattr(self.storyboard, '_get_model_id', lambda: 'unknown')()})
+        self._emit("llm_call", {"step": "storyboard", "agent": "StoryboardAgent", "status": "completed", "elapsed_s": elapsed, **self._reported_llm_meta(self.storyboard)})
         path = self._write_json("storyboard_spec.json", storyboard_spec.to_mapping())
         artifact = self.artifacts.register(
             Artifact(type="storyboard_spec", name="storyboard", path=path, status="spec")
@@ -627,14 +783,260 @@ class PipelineRunner:
         self.production_run.complete_step("storyboard")
         return storyboard_spec
 
+    _SHOT_ANGLE_CYCLE = ("wide", "medium", "closeup")
+    _MAX_SYNTH_SHOTS = 12
+
+    def _synthesize_storyboard(self, story_spec: StorySpec) -> StoryboardSpec:
+        """Filet ultime du storyboard : un plan par beat de l'histoire.
+
+        Déclenché après l'échec de DEUX générations sur l'invariant « shots
+        non vide » (modèle de secours récalcitrant). Transformation
+        mécanique du contenu EXISTANT (beats) — aucune invention narrative.
+        Qualité plate mais structurellement valide ; le repli est tracé en
+        WARNING et via les événements pour revue humaine.
+        """
+        shots: list[StoryboardShot] = []
+        for act in getattr(story_spec, "acts", None) or []:
+            beats = getattr(act, "beats", None) or []
+            for beat in beats:
+                description = (
+                    beat.get("description", "")
+                    if isinstance(beat, dict)
+                    else getattr(beat, "description", "")
+                ).strip()
+                if not description:
+                    continue
+                raw_duration = (
+                    beat.get("duration_estimate", 5.0)
+                    if isinstance(beat, dict)
+                    else getattr(beat, "duration_estimate", 5.0)
+                )
+                try:
+                    duration = float(raw_duration)
+                except (TypeError, ValueError):
+                    duration = 5.0
+                i = len(shots)
+                shots.append(
+                    StoryboardShot(
+                        index=i,
+                        description=description,
+                        duration=min(max(duration if duration > 0 else 5.0, 2.0), 12.0),
+                        camera_angle=self._SHOT_ANGLE_CYCLE[i % len(self._SHOT_ANGLE_CYCLE)],
+                        characters=list(
+                            beat.get("characters", [])
+                            if isinstance(beat, dict)
+                            else getattr(beat, "characters", [])
+                            or []
+                        ),
+                    )
+                )
+                if len(shots) >= self._MAX_SYNTH_SHOTS:
+                    break
+            if len(shots) >= self._MAX_SYNTH_SHOTS:
+                break
+
+        if not shots:
+            # Histoire elle-même vide (modèle faible) : plan d'exposition unique.
+            seed = (story_spec.synopsis or story_spec.logline or "Scène d'exposition").strip()
+            first_sentence = re.split(r"(?<=[.!?])\s+|\n+", seed, maxsplit=1)[0].strip()
+            shots.append(
+                StoryboardShot(
+                    index=0,
+                    description=first_sentence[:200] or "Plan d'exposition",
+                    duration=5.0,
+                    camera_angle="wide",
+                )
+            )
+
+        spec = StoryboardSpec(
+            shots=shots,
+            total_duration=sum(s.duration for s in shots),
+        )
+        logger.warning(
+            "étape storyboard : 2 générations invalides → storyboard SYNTHÉTISÉ "
+            "déterministement depuis les beats (%d plans). Qualité dégradée, "
+            "revue humaine recommandée.",
+            len(shots),
+        )
+        self.event_log.append(
+            "storyboard_synthesized",
+            {"shots": len(shots), "reason": "generation_failed_twice"},
+        )
+        self._emit("llm_call", {"step": "storyboard", "status": "synthesized_fallback"})
+        return spec
+
+    def _synthesize_blender_script(self, scene: SceneSpec) -> BlenderScript:
+        """Filet ultime de l'étape blender : script bpy déterministe.
+
+        Déclenché après l'échec de DEUX générations (log 22:49 : le modèle
+        de secours recopie l'enveloppe d'appel au lieu du résultat). Scène
+        minimale mais réelle — sol, éclairage d'ambiance selon ``lighting_mood``,
+        caméra animée sur la durée totale des plans, repères pour les
+        personnages, volumétrie si pluie — construite uniquement depuis les
+        champs EXISTANTS de la SceneSpec. Qualité plate ; tracé en WARNING
+        et via les événements pour revue humaine.
+        """
+        env = scene.environment
+        render = scene.render
+        shots = scene.shots or []
+        fps = max(int(render.fps) or 24, 1)
+        res_x, res_y = (int(render.resolution[0]), int(render.resolution[1]))
+        total_frames = sum(s.frame_count() for s in shots) or 5 * fps
+        # Sortie ABSOLUE dans le dossier scanné par _run_render (log 00:45 :
+        # un filepath relatif '//' atterrit hors du workdir de rendu).
+        render_dir = self.workdir / "render"
+        render_dir.mkdir(parents=True, exist_ok=True)
+        output_prefix = str((render_dir / "render_synthetisee_").resolve()).replace("\\", "/")
+
+        mood = str(env.lighting_mood or "").strip().lower()
+        mood_world_color = {
+            "sombre": (0.008, 0.010, 0.016),
+            "dark": (0.008, 0.010, 0.016),
+            "neutral": (0.050, 0.050, 0.055),
+            "jour": (0.350, 0.380, 0.450),
+            "day": (0.350, 0.380, 0.450),
+        }.get(mood, (0.050, 0.050, 0.055))
+
+        characters = [c.name for c in scene.characters if getattr(c, "name", "")]
+
+        lines: list[str] = [
+            "import math",
+            "",
+            "import bpy",
+            "",
+            "# Script SYNTHÉTISÉ déterministement par DeepBlender (fallback :",
+            "# deux générations LLM invalides). Qualité dégradée, revue humaine",
+            "# recommandée avant tout rendu définitif.",
+            "bpy.ops.wm.read_factory_settings(use_empty=True)",
+            "scene = bpy.context.scene",
+            f"scene.render.resolution_x = {res_x}",
+            f"scene.render.resolution_y = {res_y}",
+            f"scene.render.fps = {fps}",
+            "scene.frame_start = 0",
+            "scene.frame_end = " + str(total_frames),
+            "",
+            "# --- Sol ---",
+            "bpy.ops.mesh.primitive_plane_add(size=40.0, location=(0.0, 0.0, 0.0))",
+            "ground = bpy.context.active_object",
+            "ground.name = 'SynthGround'",
+            "",
+            "# --- Éclairage ---",
+            "world = bpy.data.worlds.new('SynthWorld')",
+            "scene.world = world",
+            "world.use_nodes = True",
+            "bg = world.node_tree.nodes['Background']",
+            "bg.inputs[0].default_value = "
+            f"({mood_world_color[0]}, {mood_world_color[1]}, {mood_world_color[2]}, 1.0)",
+            "bg.inputs[1].default_value = 1.0",
+            "bpy.ops.object.light_add(type='SUN', location=(6.0, -4.0, 12.0))",
+            "sun = bpy.context.active_object",
+            "sun.name = 'SynthSun'",
+            "sun.data.energy = 2.0",
+            "bpy.ops.object.light_add(type='AREA', location=(0.0, -6.0, 4.0))",
+            "key_light = bpy.context.active_object",
+            "key_light.name = 'SynthKeyLight'",
+            "key_light.data.energy = 400.0",
+            "key_light.rotation_euler = (0.9, 0.0, 0.0)",
+            "",
+        ]
+
+        if env.rain:
+            lines += [
+                "# --- Volumétrie pluie/brume ---",
+                "volume = world.node_tree.nodes.new('ShaderNodeVolumeScatter')",
+                "volume.inputs['Density'].default_value = 0.08",
+                "world.node_tree.links.new(",
+                "    volume.outputs[0], world.node_tree.nodes['World Output'].inputs['Volume'])",
+                "",
+            ]
+
+        for i, name in enumerate(characters[:8]):
+            angle = 2.0 * math.pi * i / max(len(characters[:8]), 1)
+            x = round(2.5 * math.cos(angle), 3)
+            y = round(2.5 * math.sin(angle), 3)
+            safe = re.sub(r"[^A-Za-z0-9_]", "_", name)[:24] or f"Perso{i}"
+            lines += [
+                f"# --- Repère personnage : {name} ---",
+                f"bpy.ops.mesh.primitive_cube_add(size=1.7, location=({x}, {y}, 0.85))",
+                f"bpy.context.active_object.name = 'Marker_{safe}'",
+                "",
+            ]
+
+        lines += [
+            "# --- Caméra animée sur les plans ---",
+            "bpy.ops.object.camera_add(location=(0.0, -8.0, 2.0))",
+            "camera = bpy.context.active_object",
+            "camera.name = 'SynthCamera'",
+            "scene.camera = camera",
+            "camera.data.lens = 35.0",
+            f"segments = {max(len(shots), 1)}",
+            "for i in range(segments):",
+            "    t0 = i / segments",
+            "    t1 = (i + 1) / segments",
+            "    f0 = int(round(t0 * scene.frame_end))",
+            "    f1 = int(round(t1 * scene.frame_end))",
+            "    angle = math.radians(30.0 + 120.0 * t0)",
+            "    radius = 9.0 - 3.0 * t0",
+            "    camera.location = (radius * math.sin(angle), -radius * math.cos(angle), 2.0 + 1.2 * t0)",
+            "    camera.rotation_euler = (math.radians(82.0), 0.0, angle)",
+            "    if i == segments - 1:",
+            "        camera.keyframe_insert(data_path='location', frame=f1)",
+            "        camera.keyframe_insert(data_path='rotation_euler', frame=f1)",
+            "    else:",
+            "        camera.keyframe_insert(data_path='location', frame=max(f1 - 1, f0))",
+            "        camera.keyframe_insert(data_path='rotation_euler', frame=max(f1 - 1, f0))",
+            "",
+            "# --- Sortie : moteur rapide (nom variable selon la version),",
+            "# repli Cycles échantillonné bas ---",
+            "for _engine in ('BLENDER_EEVEE', 'BLENDER_EEVEE_NEXT'):",
+            "    try:",
+            "        scene.render.engine = _engine",
+            "        break",
+            "    except Exception:",
+            "        continue",
+            "else:",
+            "    scene.render.engine = 'CYCLES'",
+            "    try:",
+            "        scene.cycles.samples = 32",
+            "    except Exception:",
+            "        pass",
+            "scene.render.image_settings.file_format = 'FFMPEG'",
+            "scene.render.ffmpeg.format = 'MPEG4'",
+            "scene.render.ffmpeg.codec = 'H264'",
+            f"scene.render.filepath = r'{output_prefix}'",
+            "# Rendu EFFECTIF de l'animation — sans cet appel, aucun média",
+            "# n'est produit et l'étape render échoue (log 00:45).",
+            "bpy.ops.render.render(animation=True)",
+        ]
+        code = "\n".join(lines) + "\n"
+
+        slug_source = (scene.brief or env.description or "scene").strip()
+        slug = re.sub(r"[^a-zA-Z0-9]+", "_", slug_source).strip("_").lower()[:32]
+        scene_name = f"scene_synthetisee_{slug or 'sans_titre'}"
+
+        logger.warning(
+            "étape blender : 2 générations invalides → script bpy SYNTHÉTISÉ "
+            "déterministement depuis la SceneSpec (%d caractères). Qualité "
+            "dégradée, revue humaine recommandée.",
+            len(code),
+        )
+        self.event_log.append(
+            "blender_script_synthesized",
+            {"scene_name": scene_name, "reason": "generation_failed_twice"},
+        )
+        self._emit("llm_call", {"step": "blender", "status": "synthesized_fallback"})
+        return BlenderScript(code=code, scene_name=scene_name)
+
     async def _plan(self, brief: Brief, story_spec=None, storyboard_spec=None) -> SceneSpec:
         self.production_run.start_step("director")
         self._emit("llm_call", {"step": "director", "agent": "DirectorAgent", "status": "started", "model": getattr(self.director, '_get_model_id', lambda: 'unknown')()})
         t0 = time.time()
-        scene = await self.director.plan_scene(brief)
+        scene = await self._with_generation_retry(
+            "director", lambda: self.director.plan_scene(brief)
+        )
         elapsed = round(time.time() - t0, 2)
-        self._emit("llm_call", {"step": "director", "agent": "DirectorAgent", "status": "completed", "elapsed_s": elapsed, "model": getattr(self.director, '_get_model_id', lambda: 'unknown')()})
-        path = self._write_json("scene_spec.json", _to_mapping(scene))
+        self._emit("llm_call", {"step": "director", "agent": "DirectorAgent", "status": "completed", "elapsed_s": elapsed, **self._reported_llm_meta(self.director)})
+        path = self._write_json("scene_spec.json", scene.to_full_dict())
         artifact = self.artifacts.register(
             Artifact(type="scene_spec", name="scene", path=path, status="spec")
         )
@@ -657,12 +1059,35 @@ class PipelineRunner:
         self.production_run.start_step("blender")
         self._emit("llm_call", {"step": "blender", "agent": "BlenderAgent", "status": "started", "model": getattr(self.blender, '_get_model_id', lambda: 'unknown')()})
         t0 = time.time()
-        script = await self.blender.build_script(scene)
+        try:
+            # Injecter le chemin absolu du dossier de rendu dans le contexte
+            # de l'agent pour que le script généré écrive les fichiers au bon endroit.
+            render_dir = str((self.workdir / "render").resolve()).replace("\\", "/")
+            if hasattr(self.blender, "context") and hasattr(self.blender.context, "set"):
+                self.blender.context.set("render_dir", render_dir)
+            script = await self._with_generation_retry(
+                "blender", lambda: self.blender.build_script(scene)
+            )
+        except GenerationError:
+            # Deux générations épuisées (log 22:49 : le modèle recopie
+            # l'enveloppe d'appel au lieu du résultat) : script déterministe
+            # plutôt que run tué après ~8 minutes de calcul.
+            script = self._synthesize_blender_script(scene)
         elapsed = round(time.time() - t0, 2)
-        self._emit("llm_call", {"step": "blender", "agent": "BlenderAgent", "status": "completed", "elapsed_s": elapsed, "model": getattr(self.blender, '_get_model_id', lambda: 'unknown')()})
+        self._emit("llm_call", {"step": "blender", "agent": "BlenderAgent", "status": "completed", "elapsed_s": elapsed, **self._reported_llm_meta(self.blender)})
         path = self.workdir / _safe_name(script.scene_name or "scene") / "script.py"
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(script.code, encoding="utf-8")
+        # Méta du script : permet la reprise (checkpoint blender) sans relire
+        # le nom de scène depuis l'agent.
+        self._write_json(
+            "blender_script.json",
+            {
+                "scene_name": script.scene_name,
+                "version": script.version,
+                "code_sha256": self._script_fingerprint(script.code),
+            },
+        )
         artifact = self.artifacts.register(
             Artifact(type="blender_script", name=script.scene_name or "scene", path=path)
         )
@@ -714,7 +1139,10 @@ class PipelineRunner:
                 issues=[Issue(kind=IssueKind.TECHNICAL, message="script file missing", step="blender")],
             )
         else:
-            report = await self.qa.assess(scene, str(script_path), code=script.code)
+            report = await self._with_generation_retry(
+                "qa",
+                lambda: self.qa.assess(scene, str(script_path), code=script.code),
+            )
         if not validation.ok:
             issues = [
                 Issue(kind=IssueKind.TECHNICAL, message=error, step="blender")
@@ -722,7 +1150,28 @@ class PipelineRunner:
             ]
             report = QAReport(passed=False, score=0.0, issues=issues)
         elapsed = round(time.time() - t0, 2)
-        self._emit("llm_call", {"step": "qa", "agent": "QAAgent", "status": "completed", "elapsed_s": elapsed, "model": getattr(self.qa, '_get_model_id', lambda: 'unknown')(), "score": report.score})
+        self._emit("llm_call", {"step": "qa", "agent": "QAAgent", "status": "completed", "elapsed_s": elapsed, **self._reported_llm_meta(self.qa), "score": report.score})
+        # Checkpoint QA : réutilisable seulement si le rapport a passé ET que le
+        # code courant est exactement celui évalué (empreinte).
+        self._write_json(
+            "qa_report.json",
+            {
+                "script_sha256": self._script_fingerprint(script.code),
+                "passed": report.passed,
+                "score": report.score,
+                "issues": [
+                    {
+                        "kind": issue.kind.value if hasattr(issue.kind, "value") else str(issue.kind),
+                        "message": issue.message,
+                        "step": issue.step,
+                    }
+                    for issue in report.issues
+                ],
+                "recommendations": list(report.recommendations),
+            },
+        )
+        if report.passed:
+            self._mark_checkpoint("qa")
         self._charge("qa", None)
         self.production_run.complete_step("qa")
         return report
@@ -792,7 +1241,8 @@ class PipelineRunner:
                 # Use render settings from SceneSpec
                 total_duration = sum(shot.duration for shot in scene.shots) if scene.shots else 30.0
                 fps = scene.shots[0].fps if scene.shots else 24
-                resolution = getattr(scene.render, "resolution", (1920, 1080))
+                raw_resolution = getattr(scene.render, "resolution", (1920, 1080))
+                resolution: tuple[int, int] = (int(raw_resolution[0]), int(raw_resolution[1]))
                 format_ext = getattr(scene.render, "format", video_path.suffix.lstrip("."))
 
                 render_output = RenderOutput(
@@ -804,6 +1254,15 @@ class PipelineRunner:
                     format=format_ext,
                     version=script.version,
                 )
+                # Checkpoint rendu : le fichier le plus coûteux du pipeline.
+                self._write_json(
+                    "render_output.json",
+                    {
+                        "script_sha256": self._script_fingerprint(script.code),
+                        "render_output": render_output.to_mapping(),
+                    },
+                )
+                self._mark_checkpoint("render")
 
                 # Register artifact
                 artifact = self.artifacts.register(
@@ -929,12 +1388,13 @@ class PipelineRunner:
                     return None
                 video_path = max(new_files, key=lambda p: p.stat().st_mtime)
 
+                raw_resolution = getattr(scene.render, "resolution", (1920, 1080))
                 return RenderOutput(
                     video_path=str(video_path),
                     scene_name=f"{script.scene_name}_shot_{shot_idx}",
                     duration=shot.duration,
                     fps=shot.fps,
-                    resolution=getattr(scene.render, "resolution", (1920, 1080)),
+                    resolution=(int(raw_resolution[0]), int(raw_resolution[1])),
                     format=getattr(scene.render, "format", video_path.suffix.lstrip(".")),
                     version=script.version,
                 )
@@ -985,6 +1445,15 @@ class PipelineRunner:
                 )
 
         self._charge("render", None)
+        # Checkpoint rendu (mode plans parallèles) : vidéo fusionnée réutilisable.
+        self._write_json(
+            "render_output.json",
+            {
+                "script_sha256": self._script_fingerprint(script.code),
+                "render_output": first_output.to_mapping(),
+            },
+        )
+        self._mark_checkpoint("render")
         elapsed = round(time.time() - t0, 2)
         self._emit("step_completed", {"step": "render", "agent": "BlenderBridge", "elapsed_s": elapsed, "mode": "parallel_shots", "shots": len(valid_outputs)})
         self.production_run.complete_step("render")
@@ -1022,7 +1491,7 @@ class PipelineRunner:
         t0 = time.time()
         audio_plan = await self.audio.plan_audio(scene)
         elapsed_llm = round(time.time() - t0, 2)
-        self._emit("llm_call", {"step": "audio", "agent": "AudioAgent", "status": "completed", "elapsed_s": elapsed_llm, "model": getattr(self.audio, '_get_model_id', lambda: 'unknown')()})
+        self._emit("llm_call", {"step": "audio", "agent": "AudioAgent", "status": "completed", "elapsed_s": elapsed_llm, **self._reported_llm_meta(self.audio)})
 
         # Generate audio tracks via plugin
         workdir = self.workdir / "audio"
@@ -1075,7 +1544,7 @@ class PipelineRunner:
         t0 = time.time()
         composite_spec = await self.compositing.plan_compositing(scene)
         elapsed_llm = round(time.time() - t0, 2)
-        self._emit("llm_call", {"step": "compositing", "agent": "CompositingAgent", "status": "completed", "elapsed_s": elapsed_llm, "model": getattr(self.compositing, '_get_model_id', lambda: 'unknown')()})
+        self._emit("llm_call", {"step": "compositing", "agent": "CompositingAgent", "status": "completed", "elapsed_s": elapsed_llm, **self._reported_llm_meta(self.compositing)})
 
         workdir = self.workdir / "compositing"
         workdir.mkdir(parents=True, exist_ok=True)
@@ -1254,17 +1723,22 @@ class PipelineRunner:
         return targets
 
     async def _run_localization(self, scene: SceneSpec) -> list[LanguagePackage]:
-        """Exécute LocalizationAgent -> SubtitlePlugin/TTSPlugin pour chaque langue."""
+        """Exécute LocalizationAgent -> SubtitlePlugin/TTSPlugin pour chaque langue.
+
+        Les langues sont indépendantes : la planification LLM, les sous-titres
+        et les voix sont produits en parallèle (sémaphore ``_llm_semaphore``
+        partagé avec les autres appels LLM parallèles, pour ménager les quotas).
+        """
         self.production_run.start_step("localization")
         self._emit("llm_call", {"step": "localization", "agent": "LocalizationAgent", "status": "started", "model": getattr(self.localization, '_get_model_id', lambda: 'unknown')()})
         t0 = time.time()
-        language_packages = []
         targets = self._target_languages_for(scene)
 
-        for lang in targets:
-            package = await self.localization.plan_localization(scene, lang, languages=targets)
+        async def _produce_language(lang: str) -> LanguagePackage | None:
+            async with self._llm_semaphore:
+                package = await self.localization.plan_localization(scene, lang, languages=targets)
             if package is None:
-                continue
+                return None
 
             workdir = self.workdir / "localization" / lang
             workdir.mkdir(parents=True, exist_ok=True)
@@ -1305,11 +1779,14 @@ class PipelineRunner:
             if self._director_art:
                 self.provenance.record(self._director_art, package_artifact.id)
 
-            language_packages.append(package)
             self._charge("localization", package_artifact)
+            return package
+
+        results = await asyncio.gather(*(_produce_language(lang) for lang in targets))
+        language_packages = [package for package in results if package is not None]
 
         elapsed = round(time.time() - t0, 2)
-        self._emit("llm_call", {"step": "localization", "agent": "LocalizationAgent", "status": "completed", "elapsed_s": elapsed, "model": getattr(self.localization, '_get_model_id', lambda: 'unknown')(), "languages": targets})
+        self._emit("llm_call", {"step": "localization", "agent": "LocalizationAgent", "status": "completed", "elapsed_s": elapsed, **self._reported_llm_meta(self.localization), "languages": targets})
         self.production_run.complete_step("localization")
         return language_packages
 
@@ -1460,6 +1937,184 @@ class PipelineRunner:
         if self.budget is not None:
             self.budget.add_llm(cost)
         self.event_log.append("cost_recorded", {"step": step, "cost": cost})
+
+    # ------------------------------------------------- reprise (checkpoints)
+
+    def _brief_fingerprint(self, brief: Brief) -> str:
+        """Empreinte du brief : change ⇒ tous les checkpoints sont invalidés."""
+        return hashlib.sha256(brief.text.encode("utf-8")).hexdigest()
+
+    def _script_fingerprint(self, code: str) -> str:
+        """Empreinte du code généré : lie rapports/rendus à leur script exact."""
+        return hashlib.sha256(code.encode("utf-8")).hexdigest()
+
+    def _load_resume_state(self) -> dict[str, Any]:
+        try:
+            data = json.loads((self.workdir / "run_state.json").read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            return {}
+        return data if isinstance(data, dict) else {}
+
+    def _mark_checkpoint(self, step: str) -> None:
+        """Marque une étape fraîchement complétée comme « reprise possible »."""
+        if self._current_brief_sha is None:
+            return
+        state = self._load_resume_state()
+        previous = {s for s in state.get("steps", []) if isinstance(s, str)}
+        self._write_json(
+            "run_state.json",
+            {"brief_sha256": self._current_brief_sha, "steps": sorted(previous | {step})},
+        )
+
+    def _read_checkpoint_file(self, filename: str) -> Any | None:
+        path = self.workdir / filename
+        if not path.is_file():
+            return None
+        try:
+            return json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            return None
+
+    def _reuse_step(self, name: str, payload: dict[str, Any] | None = None) -> None:
+        """Étape servie depuis un checkpoint : marquée complétée sans ré-exécution."""
+        self.production_run.mark_step(name, "completed")
+        logger.info("[%s] étape %s reprise depuis un checkpoint", self.production_run.id, name)
+        event = {"step": name, **(payload or {})}
+        self._emit("step_resumed", event)
+        self.event_log.append("step_resumed", event)
+
+    def _checkpoint_story(self) -> StorySpec | None:
+        data = self._read_checkpoint_file("story_spec.json")
+        if not isinstance(data, dict):
+            return None
+        try:
+            return StorySpec.from_mapping(data)
+        except Exception:  # noqa: BLE001 - checkpoint corrompu : on repart à zéro
+            return None
+
+    def _checkpoint_storyboard(self) -> StoryboardSpec | None:
+        data = self._read_checkpoint_file("storyboard_spec.json")
+        if not isinstance(data, dict):
+            return None
+        try:
+            return StoryboardSpec.from_mapping(data)
+        except Exception:  # noqa: BLE001
+            return None
+
+    def _checkpoint_scene(self) -> SceneSpec | None:
+        data = self._read_checkpoint_file("scene_spec.json")
+        if not isinstance(data, dict) or "schema_version" not in data:
+            return None
+        try:
+            return SceneSpec.from_full_dict(data)
+        except Exception:  # noqa: BLE001
+            return None
+
+    def _checkpoint_script(self) -> tuple[BlenderScript, Path] | None:
+        meta = self._read_checkpoint_file("blender_script.json")
+        if not isinstance(meta, dict):
+            return None
+        scene_name = str(meta.get("scene_name") or "")
+        if not scene_name:
+            return None
+        path = self.workdir / _safe_name(scene_name) / "script.py"
+        try:
+            code = path.read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError):
+            return None
+        if not code.strip():
+            return None
+        version = int(meta.get("version", 1) or 1)
+        return BlenderScript(code=code, scene_name=scene_name, version=version), path
+
+    def _checkpoint_report(self, script_code: str) -> QAReport | None:
+        wrapper = self._read_checkpoint_file("qa_report.json")
+        if not isinstance(wrapper, dict) or not wrapper.get("passed"):
+            return None
+        if wrapper.get("script_sha256") != self._script_fingerprint(script_code):
+            return None
+        try:
+            issues = [
+                Issue(kind=i["kind"], message=i["message"], step=i.get("step", ""))
+                for i in wrapper.get("issues", [])
+                if isinstance(i, dict)
+            ]
+            recommendations = [str(r) for r in wrapper.get("recommendations", [])]
+            return QAReport(
+                passed=True,
+                score=float(wrapper.get("score", 0.0)),
+                issues=issues,
+                recommendations=recommendations,
+            )
+        except Exception:  # noqa: BLE001
+            return None
+
+    def _checkpoint_render(self, script_code: str) -> RenderOutput | None:
+        wrapper = self._read_checkpoint_file("render_output.json")
+        if not isinstance(wrapper, dict):
+            return None
+        if wrapper.get("script_sha256") != self._script_fingerprint(script_code):
+            return None
+        data = wrapper.get("render_output")
+        if not isinstance(data, dict) or not data.get("video_path"):
+            return None
+        video_path = Path(str(data["video_path"]))
+        if not video_path.is_file():
+            return None
+        try:
+            return RenderOutput(
+                video_path=str(video_path),
+                scene_name=str(data.get("scene_name", "")),
+                duration=float(data.get("duration", 0.0)),
+                fps=int(data.get("fps", 24)),
+                resolution=(int(data["resolution"][0]), int(data["resolution"][1])),
+                format=str(data.get("format", "mp4")),
+                version=int(data.get("version", 1)),
+            )
+        except Exception:  # noqa: BLE001
+            return None
+
+    def _load_checkpoints(self, brief: Brief) -> dict[str, Any]:
+        """Chaîne de checkpoints valides : s'arrête au premier maillon manquant.
+
+        Clés retournées (préfixe de la chaîne) : ``story``, ``storyboard``,
+        ``scene``, ``script`` (tuple ``(BlenderScript, Path)``), ``report``
+        et l'optionnel ``render`` (ne casse pas la chaîne).
+        """
+        state = self._load_resume_state()
+        same_brief = state.get("brief_sha256") == self._brief_fingerprint(brief)
+        done = (
+            {s for s in state.get("steps", []) if isinstance(s, str)}
+            if same_brief
+            else set()
+        )
+
+        out: dict[str, Any] = {}
+        # Les maillons amont ne comptent que si l'agent correspondant est actif :
+        # un pipeline sans StoryAgent démarre sa chaîne au storyboard/directeur.
+        if self.story is not None:
+            if "story" not in done or (story := self._checkpoint_story()) is None:
+                return out
+            out["story"] = story
+        if self.storyboard is not None:
+            if (
+                "storyboard" not in done
+                or (storyboard := self._checkpoint_storyboard()) is None
+            ):
+                return out
+            out["storyboard"] = storyboard
+        if "director" not in done or (scene := self._checkpoint_scene()) is None:
+            return out
+        out["scene"] = scene
+        if "blender" not in done or (script := self._checkpoint_script()) is None:
+            return out
+        out["script"] = script
+        if "qa" in done and (rep := self._checkpoint_report(script[0].code)) is not None:
+            out["report"] = rep
+        # Le rendu est optionnel : son absence ne casse pas la chaîne.
+        if "render" in done and (ro := self._checkpoint_render(script[0].code)) is not None:
+            out["render"] = ro
+        return out
 
     def _write_json(self, filename: str, data: Any) -> Path:
         path = self.workdir / _safe_name(filename)

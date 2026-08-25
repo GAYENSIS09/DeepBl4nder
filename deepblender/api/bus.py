@@ -17,7 +17,7 @@ class AsyncEventBus:
     """Pub/sub mémoire pour le SSE : historique borné + flux live."""
 
     def __init__(self, history_size: int = 500) -> None:
-        self._queues: list[asyncio.Queue[dict[str, Any]]] = []
+        self._queues: list[tuple[asyncio.Queue[dict[str, Any]], str | None]] = []
         self._history: list[dict[str, Any]] = []
         self._history_size = history_size
         self._seq = 0
@@ -35,12 +35,11 @@ class AsyncEventBus:
             if after is not None and event.get("seq", 0) <= after:
                 continue
             queue.put_nowait(event)
-        self._queues.append(queue)
+        self._queues.append((queue, production_id))
         return queue
 
     async def unsubscribe(self, queue: asyncio.Queue[dict[str, Any]]) -> None:
-        if queue in self._queues:
-            self._queues.remove(queue)
+        self._queues = [(q, pid) for q, pid in self._queues if q is not queue]
 
     def publish_nowait(self, event: dict[str, Any]) -> None:
         self._seq += 1
@@ -48,7 +47,10 @@ class AsyncEventBus:
         self._history.append(event)
         if len(self._history) > self._history_size:
             self._history[:] = self._history[-self._history_size :]
-        for queue in self._queues:
+        event_pid = event.get("production_id")
+        for queue, sub_pid in self._queues:
+            if sub_pid is not None and event_pid is not None and sub_pid != event_pid:
+                continue
             queue.put_nowait(event)
 
     async def publish(self, event: dict[str, Any]) -> None:

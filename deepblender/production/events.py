@@ -46,12 +46,15 @@ class EventLog:
 
     def __post_init__(self) -> None:
         self.path.parent.mkdir(parents=True, exist_ok=True)
+        self._cached_last_seq: int | None = None
 
     def append(self, kind: str, payload: dict[str, Any] | None = None) -> ProductionEvent:
-        event = ProductionEvent(seq=self._last_seq() + 1, kind=kind, ts=time.time(), payload=payload or {})
+        seq = self._last_seq() + 1
+        event = ProductionEvent(seq=seq, kind=kind, ts=time.time(), payload=payload or {})
         with self.path.open("a", encoding="utf-8") as handle:
             handle.write(event.to_json() + "\n")
             handle.flush()
+        self._cached_last_seq = seq
         return event
 
     def load(self) -> list[ProductionEvent]:
@@ -71,9 +74,12 @@ class EventLog:
         return events
 
     def _last_seq(self) -> int:
+        if self._cached_last_seq is not None:
+            return self._cached_last_seq
         seq = 0
         for event in self.load():
             seq = max(seq, event.seq)
+        self._cached_last_seq = seq
         return seq
 
     def last_seq(self) -> int:

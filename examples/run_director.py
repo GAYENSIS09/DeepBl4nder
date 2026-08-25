@@ -16,7 +16,7 @@ async def main() -> None:
     from deepblender.llm import build_llm
 
     llm = build_llm()
-    print(f"Modèle : {llm.model()}")
+    print(f"Modèle : {llm.model}")
     director = DirectorAgent(llm=llm)
     brief = Brief(
         text=(

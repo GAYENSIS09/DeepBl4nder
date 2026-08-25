@@ -46,7 +46,7 @@ class BlenderAgent(BaseAgent, DefaultsMixin):
     - animation: keyframes, fcurves, drivers, NLA
     - camera: lenses, DOF, motion blur, stereo
     - lighting: HDRI, area/spot/sun lights, cycles/eevee
-    - rendering: settings, passes, denoising, output
+    - rendering: settings, passes, denoising, output, FILEPATH
     - compositing: nodes, passes, grading, effects
     - simulation: rigid body, cloth, fluid, particles
     - texturing: UV, baking, painting, procedural
@@ -60,6 +60,24 @@ class BlenderAgent(BaseAgent, DefaultsMixin):
     - Inspect before destructive operations.
     - Output MUST be a valid BlenderScript (validated via output_model).
     - The generated code will be validated by AST validator (CodePolicy) before execution.
+
+    ## CRITICAL: Output file path
+    - The context variable ``render_dir`` contains the ABSOLUTE path where
+      output files MUST be written (e.g. ``C:/runs/abc/render``).
+    - ALWAYS set ``scene.render.filepath`` to an ABSOLUTE path inside
+      ``render_dir``. Example:
+      ``scene.render.filepath = render_dir + "/output.mp4"``
+    - NEVER use relative paths with ``//`` prefix — they resolve to the
+      .blend file location which does not exist in headless mode.
+    - The runner scans ``render_dir`` for new media files after execution.
+      If the file is written outside this directory, the render will fail
+      with "No media file produced by Blender script".
+    - For animations: set filepath to a prefix (no extension), e.g.
+      ``scene.render.filepath = render_dir + "/frame_"`` then call
+      ``bpy.ops.render.render(animation=True)``.
+    - For stills: set filepath to a full path with extension, e.g.
+      ``scene.render.filepath = render_dir + "/still.png"`` then call
+      ``bpy.ops.render.render(write_still=True)``.
 
     ## CRITICAL: String formatting in generated code
     - Keep ALL string literals SHORT (max 80 chars).
@@ -85,15 +103,21 @@ class BlenderAgent(BaseAgent, DefaultsMixin):
     async def build_script(self, spec: SceneSpec) -> BlenderScript:  # type: ignore[return]
         """Turn the scene spec into a deterministic Blender Python script.
 
+        The context variable ``render_dir`` contains the ABSOLUTE path where
+        output files MUST be written. ALWAYS set
+        ``scene.render.filepath = render_dir + "/<filename>"`` before calling
+        ``bpy.ops.render.render(...)``. NEVER use relative ``//`` paths.
+
         Steps:
         1. Load core skill summaries for context
         2. Analyze SceneSpec: environment, characters, shots
-        3. Load relevant skills (blender-python, modeling, shading, lighting, camera, animation) as needed
+        3. Load relevant skills (blender-python, modeling, shading, lighting, camera, rendering, animation) as needed
         4. Generate Python code that:
            - Clears scene, sets render settings (fps, resolution, engine)
            - Creates environment (HDRI, ground plane, rain particles if needed)
            - Creates characters (imports assets or generates primitives)
            - For each shot: sets camera, lighting, animates characters/objects
+           - Sets scene.render.filepath to an ABSOLUTE path inside render_dir
            - Sets up render passes for compositing
         5. Return BlenderScript with code, scene_name, version
         """
@@ -102,7 +126,7 @@ class BlenderAgent(BaseAgent, DefaultsMixin):
         # Load skills relevant to this spec
         self._load_skills(
             "blender-python",
-            "modeling", "shading", "lighting", "camera",
+            "modeling", "shading", "lighting", "camera", "rendering",
         )
         if any(s.animation.description for s in spec.shots):
             self._load_skill("animation")
@@ -145,6 +169,11 @@ class BlenderAgent(BaseAgent, DefaultsMixin):
     ) -> BlenderScript: # type: ignore[return]
         """Revise a generated Blender script from QA feedback.
 
+        The context variable ``render_dir`` contains the ABSOLUTE path where
+        output files MUST be written. ALWAYS set
+        ``scene.render.filepath = render_dir + "/<filename>"`` before calling
+        ``bpy.ops.render.render(...)``. NEVER use relative ``//`` paths.
+
         Steps:
         1. Load core skills and the revision feedback (kind, step, message)
         2. Identify which shot/object the feedback targets
@@ -155,7 +184,7 @@ class BlenderAgent(BaseAgent, DefaultsMixin):
         self._load_core_skills()
         self._load_skills(
             "blender-python", "blender-api-reference",
-            "modeling", "shading", "lighting", "camera",
+            "modeling", "shading", "lighting", "camera", "rendering",
         )
         self.context.set("revision_feedback", revision_feedback)
         self.context.set("script_version", str(version))

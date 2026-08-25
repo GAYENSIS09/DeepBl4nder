@@ -7,6 +7,7 @@ tie-break santé et cooldown simple).
 from __future__ import annotations
 
 import asyncio
+from typing import Any
 
 import httpx
 import litellm
@@ -25,8 +26,13 @@ _LLM_ENV_VARS = [
 
 
 @pytest.fixture(autouse=True)
-def _reset_router() -> None:
-    """Le singleton routeur est recréé avant/après chaque test (.env isolé)."""
+def _reset_router(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Le singleton routeur est recréé avant/après chaque test (.env isolé).
+
+    La découverte réseau des modèles est désactivée par défaut : aucun test
+    ne doit dépendre du réseau ; les tests dédiés la réactivent explicitement.
+    """
+    monkeypatch.setenv("DEEPBLENDER_DISCOVER_MODELS", "off")
     llm.reset_router()
     yield
     llm.reset_router()
@@ -96,7 +102,7 @@ def test_get_provider_unknown_raises() -> None:
 def test_provider_model_fixed_in_registry() -> None:
     """Le modèle actif est celui du registre : plus de surcharge .env."""
     assert llm.PROVIDERS["gemini"].model() == "gemini/gemini-3.6-flash"
-    assert llm.PROVIDERS["groq"].model() == "groq/llama-3.3-70b-versatile"
+    assert llm.PROVIDERS["groq"].model() == "groq/openai/gpt-oss-120b"
 
 
 def test_provider_api_key_uses_dedicated_env(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -292,7 +298,18 @@ def test_router_models_for_single_active_model(monkeypatch: pytest.MonkeyPatch) 
     monkeypatch.setenv("GEMINI_API_KEY", "k1")
     router = llm.LLMRouter(provider_ids=["gemini"])
     assert router.models_for(llm.PROVIDERS["gemini"]) == ["gemini/gemini-3.6-flash"]
-    assert router.model() == "gemini/gemini-3.6-flash"
+    assert router.model == "gemini/gemini-3.6-flash"
+
+
+def test_router_model_is_string_attribute(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Nooa lit ``llm_client.model`` et l'injecte dans LLMComplete(model_name=...)
+    qui exige un str : le routeur doit exposer un attribut, pas une méthode."""
+    _clear_llm_env(monkeypatch)
+    monkeypatch.setenv("GEMINI_API_KEY", "k1")
+    router = llm.LLMRouter(provider_ids=["gemini"])
+    assert isinstance(router.model, str)
+    assert not callable(router.model)
+    assert llm.model_name_of(router) == "gemini/gemini-3.6-flash"
 
 
 def test_router_no_rotation_strategy(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -317,6 +334,26 @@ def test_router_majority_answer_wins(monkeypatch: pytest.MonkeyPatch) -> None:
     stats = {p["id"]: p for p in router.routing_stats()["providers"]}
     assert stats["gemini"]["successes"] == 1
     assert stats["groq"]["successes"] == 1
+
+
+def test_router_tracks_actual_last_decision(monkeypatch: pytest.MonkeyPatch) -> None:
+    """last_provider_id / last_model reflètent le vainqueur réel du vote,
+    pas la config statique du pool (sinon le front affiche un faux modèle)."""
+    _clear_llm_env(monkeypatch)
+    monkeypatch.setenv("GEMINI_API_KEY", "k1")
+    monkeypatch.setenv("GROQ_API_KEY", "k2")
+    registry = {"gemini/gemini-3.6-flash": [RuntimeError("429 rate limit")]}
+    router = llm.LLMRouter(
+        client_factory=lambda model, **kw: _StubClient(model, registry.get(model))
+    )
+    # Avant tout appel : pas de décision.
+    assert router.last_provider_id is None
+    assert router.last_model is None
+    # Gemini échoue (429) → groq répond seul et gagne le vote.
+    router.call([{"role": "user", "content": "a"}])
+    assert router.last_provider_id == "groq"
+    assert router.last_model == "groq/openai/gpt-oss-120b"
+    assert router.model == "gemini/gemini-3.6-flash"  # config statique inchangée
 
 
 def test_router_all_providers_vote_every_call(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -347,7 +384,7 @@ def test_router_failed_provider_lets_others_vote(monkeypatch: pytest.MonkeyPatch
         client_factory=lambda model, **kw: _StubClient(model, registry.get(model))
     )
     result = router.call([{"role": "user", "content": "a"}])
-    assert result["model"] == "groq/llama-3.3-70b-versatile"
+    assert result["model"] == "groq/openai/gpt-oss-120b"
     stats = {p["id"]: p for p in router.routing_stats()["providers"]}
     assert stats["gemini"]["failures"] == 1
     assert stats["gemini"]["last_error"] == "429 rate limit"
@@ -372,7 +409,7 @@ def test_router_credit_error_lets_others_vote(monkeypatch: pytest.MonkeyPatch) -
         clock=lambda: clock[0],
     )
     result = router.call([{"role": "user", "content": "a"}])
-    assert result["model"] == "groq/llama-3.3-70b-versatile"
+    assert result["model"] == "groq/openai/gpt-oss-120b"
     gemini_stats = router.provider_stats(router.providers()[0])
     assert gemini_stats["failures"] == 1
     assert gemini_stats["cooldown_remaining_s"] == pytest.approx(10.0)
@@ -395,7 +432,7 @@ def test_router_context_error_on_one_provider_others_still_vote(
         client_factory=lambda model, **kw: _StubClient(model, registry.get(model))
     )
     result = router.call([{"role": "user", "content": "a"}])
-    assert result["model"] == "groq/llama-3.3-70b-versatile"
+    assert result["model"] == "groq/openai/gpt-oss-120b"
     gemini_stats = router.provider_stats(router.providers()[0])
     assert gemini_stats["failures"] == 1
 
@@ -438,7 +475,7 @@ def test_router_failover_survives_cp1252_console(monkeypatch: pytest.MonkeyPatch
         client_factory=lambda model, **kw: _StubClient(model, registry.get(model))
     )
     result = router.call([{"role": "user", "content": "a"}])
-    assert result["model"] == "groq/llama-3.3-70b-versatile"
+    assert result["model"] == "groq/openai/gpt-oss-120b"
 
 
 def test_router_cooldown_skips_provider_then_recovers(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -456,18 +493,18 @@ def test_router_cooldown_skips_provider_then_recovers(monkeypatch: pytest.Monkey
     )
     # Appel 1 : gemini échoue (429) -> cooldown 10 s, groq l'emporte.
     result = router.call([{"role": "user", "content": "a"}])
-    assert result["model"] == "groq/llama-3.3-70b-versatile"
+    assert result["model"] == "groq/openai/gpt-oss-120b"
     gemini_stats = router.provider_stats(router.providers()[0])
     assert gemini_stats["cooldown_remaining_s"] == pytest.approx(10.0)
     # Appel 2 : gemini en cooldown -> exclu du vote, seul groq répond.
     result = router.call([{"role": "user", "content": "b"}])
-    assert result["model"] == "groq/llama-3.3-70b-versatile"
+    assert result["model"] == "groq/openai/gpt-oss-120b"
     assert router.provider_stats(router.providers()[0])["successes"] == 0
     # Appel 3 : cooldown expiré -> gemini vote de nouveau (sa santé remonte).
     clock[0] = 2000.0
     result = router.call([{"role": "user", "content": "c"}])
     assert router.provider_stats(router.providers()[0])["successes"] == 1
-    assert result["model"] == "groq/llama-3.3-70b-versatile"
+    assert result["model"] == "groq/openai/gpt-oss-120b"
 
 
 def test_router_cooldown_uniform_across_error_kinds(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -501,7 +538,7 @@ def test_router_tie_break_favors_most_voted_provider(monkeypatch: pytest.MonkeyP
         router._record_win(groq.id)
     router._record_win(gemini.id)
     result = router.call([{"role": "user", "content": "a"}])
-    assert result["model"] == "groq/llama-3.3-70b-versatile"
+    assert result["model"] == "groq/openai/gpt-oss-120b"
 
 
 def test_router_acall_vote_async(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -513,7 +550,7 @@ def test_router_acall_vote_async(monkeypatch: pytest.MonkeyPatch) -> None:
         client_factory=lambda model, **kw: _StubClient(model, registry.get(model))
     )
     result = asyncio.run(router.acall([{"role": "user", "content": "a"}]))
-    assert result["model"] == "groq/llama-3.3-70b-versatile"
+    assert result["model"] == "groq/openai/gpt-oss-120b"
 
 
 def test_router_stats_shape(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -581,3 +618,442 @@ def test_router_stats_shape_includes_model_breakdown(monkeypatch: pytest.MonkeyP
     assert "models" in provider
     assert provider["models"][0]["model"] == "gemini/gemini-3.6-flash"
     assert "api_key" not in provider
+
+
+# ------------------------------------------------------------ mode fallback
+
+
+def test_fallback_mode_calls_single_healthy_provider(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Mode production : un seul fournisseur sain sollicité par appel (quotas)."""
+    _clear_llm_env(monkeypatch)
+    monkeypatch.setenv("GEMINI_API_KEY", "k1")
+    monkeypatch.setenv("GROQ_API_KEY", "k2")
+
+    calls: list[str] = []
+
+    def factory(model: str, **kw: object) -> Any:
+        class _Healthy:
+            async def acall(self, messages, tools=None, output_model=None, **kw2):
+                calls.append(model)
+                return {"model": model}
+
+        return _Healthy()
+
+    router = llm.LLMRouter(client_factory=factory, mode="fallback")
+    router.call([{"role": "user", "content": "a"}])
+    router.call([{"role": "user", "content": "b"}])
+    assert calls == [
+        "gemini/gemini-3.6-flash",
+        "gemini/gemini-3.6-flash",
+    ]  # groq jamais consulté
+    assert router.routing_stats()["rotation"] == "fallback"
+
+
+def test_fallback_mode_moves_to_next_provider_on_failure(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Échec du premier fournisseur → suivant de la liste ; cooldown respecté."""
+    _clear_llm_env(monkeypatch)
+    monkeypatch.setenv("GEMINI_API_KEY", "k1")
+    monkeypatch.setenv("GROQ_API_KEY", "k2")
+
+    def factory(model: str, **kw: object) -> Any:
+        class _Flaky:
+            async def acall(self, messages, tools=None, output_model=None, **kw2):
+                if model.startswith("gemini"):
+                    raise RuntimeError("429 resource exhausted")
+                return {"model": model}
+
+        return _Flaky()
+
+    router = llm.LLMRouter(client_factory=factory, mode="fallback")
+    result = router.call([{"role": "user", "content": "a"}])
+    assert str(result["model"]).startswith("groq/")
+    assert router.last_provider_id == "groq"
+    stats = {p["id"]: p for p in router.routing_stats()["providers"]}
+    assert stats["gemini"]["failures"] == 1
+    assert stats["groq"]["successes"] == 1
+
+    # Deuxième appel : gemini est en cooldown → groq directement.
+    result2 = router.call([{"role": "user", "content": "b"}])
+    assert str(result2["model"]).startswith("groq/")
+
+
+# ------------------------------------------------- correctifs audit 2026-08
+
+
+def test_nvidia_default_model_is_live_llama() -> None:
+    """deepseek-r1 est décommissionné chez NVIDIA (404 en direct) ; le modèle
+    par défaut du pool doit être llama-3.3-70b, vérifié actif."""
+    assert llm.PROVIDERS["nvidia"].default_model() == "nvidia_nim/meta/llama-3.3-70b-instruct"
+    assert all("deepseek" not in m for m in llm.PROVIDERS["nvidia"].models)
+
+
+@pytest.mark.parametrize(
+    ("message", "expected"),
+    [
+        (
+            'AiError: you have used up your daily free allocation of 10,000 neurons, '
+            "please upgrade to Cloudflare's Workers Paid plan",
+            "rate_limit",
+        ),
+        (
+            "litellm.APIConnectionError: CloudflareException - "
+            '{"errors":[{"message":"AiError: monthly free allocation exceeded"}]}',
+            "rate_limit",
+        ),
+    ],
+)
+def test_cloudflare_daily_quota_is_rate_limit(message: str, expected: str) -> None:
+    """Le quota quotidien Cloudflare arrive enveloppé dans APIConnectionError :
+    il doit être classé rate_limit (état du compte), pas transient (réseau)."""
+    assert llm._classify_error(RuntimeError(message)) == expected
+
+
+class _AffordStub:
+    """Client qui refuse max_tokens trop grand puis accepte le plafond.
+
+    ``afford=None`` : aucun refus (fournisseur sain quel que soit max_tokens).
+    """
+
+    def __init__(self, model: str, afford: int | None) -> None:
+        self.model = model
+        self._afford = afford
+        self.max_tokens_seen: list[int | None] = []
+
+    async def acall(self, messages, tools=None, output_model=None, **kwargs):
+        self.max_tokens_seen.append(kwargs.get("max_tokens"))
+        requested = kwargs.get("max_tokens")
+        if self._afford is not None and requested is not None and requested > self._afford:
+            raise RuntimeError(
+                f"This request requires more credits. You requested up to "
+                f"{requested} tokens, but can only afford {self._afford}. "
+                "To increase, visit https://openrouter.ai/settings/credits"
+            )
+        return {"model": self.model}
+
+
+def test_afford_cap_parses_provider_message() -> None:
+    # Formulation réelle d'OpenRouter (contient le marqueur "requires more
+    # credits" qui la classe rate_limit).
+    err = RuntimeError(
+        'APIError: OpenrouterException - {"error":{"message":"This request '
+        "requires more credits, or fewer max_tokens. You requested up to 16384 "
+        'tokens, but can only afford 516."}}'
+    )
+    assert llm._afford_cap(err) == 516
+    # Non applicable hors erreur de quota/billing.
+    assert llm._afford_cap(RuntimeError("connection reset")) is None
+    assert llm._afford_cap(RuntimeError("context length exceeded, can only afford 10")) is None
+
+
+def test_fallback_downgrades_max_tokens_within_credit_budget(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """OpenRouter : max_tokens=16384 > solde → une nouvelle tentative à la
+    valeur annoncée ('can only afford N') au lieu d'exclure le fournisseur."""
+    _clear_llm_env(monkeypatch)
+    monkeypatch.setenv("GEMINI_API_KEY", "k1")
+    monkeypatch.setenv("OPENROUTER_API_KEY", "k2")
+    stubs: dict[str, _AffordStub] = {}
+
+    def factory(model: str, **kw: object) -> Any:
+        # Gemini sain (aucun plafond), OpenRouter limité à 2048 tokens.
+        afford = None if model.startswith("gemini") else 2048
+        stub = _AffordStub(model, afford=afford)
+        stubs[model] = stub
+        return stub
+
+    router = llm.LLMRouter(client_factory=factory, mode="fallback")
+    result = router.call([{"role": "user", "content": "a"}], max_tokens=16384)
+    gemini_stub = stubs["gemini/gemini-3.6-flash"]
+    openrouter_stub: _AffordStub | None = stubs.get("openrouter/meta-llama/llama-3.3-70b-instruct")
+    # Gemini sain répond au premier essai sans repli.
+    assert result["model"] == "gemini/gemini-3.6-flash"
+    assert gemini_stub.max_tokens_seen == [16384]
+    # OpenRouter jamais consulté (aucun client instancié).
+    assert openrouter_stub is None
+
+
+def test_fallback_downgrade_retries_openrouter_at_affordable_budget(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _clear_llm_env(monkeypatch)
+    monkeypatch.setenv("OPENROUTER_API_KEY", "k1")
+
+    def factory(model: str, **kw: object) -> Any:
+        return _AffordStub(model, afford=4096)
+
+    router = llm.LLMRouter(client_factory=factory, mode="fallback")
+    result = router.call([{"role": "user", "content": "a"}], max_tokens=16384)
+    assert result["model"] == "openrouter/meta-llama/llama-3.3-70b-instruct"
+
+
+def test_fallback_no_downgrade_below_min_tokens(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Plafond annoncé < _MIN_DOWNGRADE_TOKENS : sortie tronquée inutilisable
+    → on abandonne le fournisseur plutôt que de produire du contenu cassé."""
+    _clear_llm_env(monkeypatch)
+    monkeypatch.setenv("OPENROUTER_API_KEY", "k1")
+
+    def factory(model: str, **kw: object) -> Any:
+        return _AffordStub(model, afford=516)
+
+    router = llm.LLMRouter(client_factory=factory, mode="fallback")
+    with pytest.raises(RuntimeError, match="can only afford"):
+        router.call([{"role": "user", "content": "a"}], max_tokens=16384)
+
+
+# ------------------------------------------ découverte dynamique des modèles
+
+
+class _FakeResponse:
+    def __init__(self, payload: dict[str, Any]) -> None:
+        self._payload = payload
+
+    def raise_for_status(self) -> None:
+        return None
+
+    def json(self) -> dict[str, Any]:
+        return self._payload
+
+
+def test_select_models_rules_filter_and_rank() -> None:
+    rule = llm.MODEL_SELECTION_RULES["gemini"]
+    raw = [
+        "models/gemini-2.0-flash",
+        "models/text-embedding-004",
+        "models/gemini-1.5-pro",
+        "models/imagen-3.0-generate-002",
+        "models/gemini-2.5-flash",
+    ]
+    chosen = llm.select_models(raw, rule)
+    # Flash d'abord (préférence n°0), versions récentes avant anciennes,
+    # préfixe natif "models/" retiré, embeddings/imagen exclus.
+    assert chosen == (
+        "gemini-2.5-flash",
+        "gemini-2.0-flash",
+        "gemini-1.5-pro",
+    )
+
+
+def test_select_models_prefers_newest_within_same_tier() -> None:
+    """Même rang de préférence → génération la plus récente d'abord : les
+    listings annoncent des modèles fermés aux nouveaux comptes (2.5) alors
+    que la génération courante (3.6) reste servie."""
+    rule = llm.MODEL_SELECTION_RULES["gemini"]
+    raw = [
+        "models/gemini-2.5-flash",
+        "models/gemini-3.1-flash-lite",
+        "models/gemini-3.6-flash",
+    ]
+    assert llm.select_models(raw, rule)[0] == "gemini-3.6-flash"
+
+
+def test_nvidia_rules_drop_dead_deepseek_route() -> None:
+    rule = llm.MODEL_SELECTION_RULES["nvidia"]
+    raw = [
+        "deepseek-ai/deepseek-r1",
+        "meta/llama-3.3-70b-instruct",
+        "meta/llama-3.1-405b-instruct",
+        "nvidia/nv-embedqa-e5-v5",
+    ]
+    assert llm.select_models(raw, rule) == ("meta/llama-3.3-70b-instruct",)
+
+
+def test_discover_models_parses_openai_payload(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("GROQ_API_KEY", raising=False)
+    provider = llm.PROVIDERS["groq"]
+    captured: dict[str, Any] = {}
+
+    def fake_get(url: str, headers=None, timeout=None) -> llm.httpx.Response:
+        captured["url"] = url
+        return _FakeResponse(
+            {
+                "data": [
+                    {"id": "groq/openai/gpt-oss-120b"},
+                    {"id": ""},
+                    {"nope": True},
+                ]
+            }
+        )
+
+    monkeypatch.setattr(llm.httpx, "get", fake_get)
+    ids = llm.discover_models(provider)
+    assert ids == ("groq/openai/gpt-oss-120b",)
+    assert captured["url"].endswith("/models")
+
+
+def test_discover_models_failure_returns_none(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("GEMINI_API_KEY", raising=False)
+
+    def boom(url: str, headers=None, timeout=None) -> llm.httpx.Response:
+        raise llm.httpx.ConnectError("network down")
+
+    monkeypatch.setattr(llm.httpx, "get", boom)
+    assert llm.discover_models(llm.PROVIDERS["gemini"]) is None
+
+
+def test_router_uses_discovered_models(monkeypatch: pytest.MonkeyPatch) -> None:
+    """La découverte remplace la liste statique (modèle décommissionné inclus)
+    et recompose les identifiants natifs au format litellm."""
+    _clear_llm_env(monkeypatch)
+    monkeypatch.setenv("GEMINI_API_KEY", "k1")
+
+    def fake_get(url: str, headers=None, timeout=None) -> llm.httpx.Response:
+        return _FakeResponse(
+            {
+                "data": [
+                    {"id": "models/gemini-x-flash"},
+                    {"id": "models/gemini-y-pro"},
+                    {"id": "models/text-embedding-1"},
+                ]
+            }
+        )
+
+    monkeypatch.setattr(llm.httpx, "get", fake_get)
+
+    seen_models: list[str] = []
+
+    def factory(model: str, **kw: object) -> Any:
+        seen_models.append(model)
+        return _StubClient(model)
+
+    router = llm.LLMRouter(client_factory=factory, discover=True)
+    # Le statique gemini/gemini-3.6-flash est absent de la découverte →
+    # remplacé ; le préfixe "models/" natif est retiré puis re-préfixé litellm.
+    assert router.model == "gemini/gemini-x-flash"
+    router.call([{"role": "user", "content": "a"}])
+    assert seen_models == ["gemini/gemini-x-flash"]
+    stats = router.routing_stats()["providers"][0]
+    assert stats["model"] == "gemini/gemini-x-flash"
+    assert stats["models_source"] == "découverte"
+
+
+def test_discover_models_cloudflare_uses_search_route(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Cloudflare : le listing vit sous /client/v4/accounts/{id}/ai/models
+    search (clé 'result', champ 'name'), pas sur /ai/v1/models (405)."""
+    monkeypatch.delenv("CLOUDFLARE_API_KEY", raising=False)
+    monkeypatch.setenv("CLOUDFLARE_ACCOUNT_ID", "acct-42")
+    calls: list[str] = []
+
+    class _Resp:
+        def __init__(self, payload: dict[str, Any]) -> None:
+            self._payload = payload
+
+        def raise_for_status(self) -> None:
+            return None
+
+        def json(self) -> dict[str, Any]:
+            return self._payload
+
+    def fake_get(url: str, headers=None, timeout=None) -> llm.httpx.Response:
+        calls.append(url)
+        return _Resp({"result": [{"name": "@cf/meta/llama-3.3-70b-instruct"}]})
+
+    monkeypatch.setattr(llm.httpx, "get", fake_get)
+    ids = llm.discover_models(llm.PROVIDERS["cloudflare"])
+    assert ids == ("@cf/meta/llama-3.3-70b-instruct",)
+    assert len(calls) == 1
+    assert calls[0].endswith("/accounts/acct-42/ai/models/search")
+
+
+def test_compose_litellm_ids_prefixes_native_ids() -> None:
+    provider = llm.PROVIDERS["nvidia"]
+    rule = selection_rule = llm.selection_rule_for("nvidia")
+    composed = llm.compose_litellm_ids(
+        provider, ("meta/llama-3.3-70b-instruct",), rule
+    )
+    assert composed == ("nvidia_nim/meta/llama-3.3-70b-instruct",)
+
+
+def test_router_falls_back_to_static_when_discovery_fails(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Réseau mort au démarrage : les listes statiques prennent le relais."""
+    _clear_llm_env(monkeypatch)
+    monkeypatch.setenv("GEMINI_API_KEY", "k1")
+
+    def boom(url: str, headers=None, timeout=None) -> llm.httpx.Response:
+        raise llm.httpx.ConnectError("offline")
+
+    monkeypatch.setattr(llm.httpx, "get", boom)
+    router = llm.LLMRouter(client_factory=lambda m, **kw: _StubClient(m), discover=True)
+    assert router.model == "gemini/gemini-3.6-flash"
+    stats = router.routing_stats()["providers"][0]
+    assert stats["models_source"] == "statique"
+
+
+# ------------------------------------------ rotation intra-fournisseur
+
+
+def test_fallback_rotates_to_next_candidate_on_transient(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """3.7-flash saturé (503) → le fournisseur essaie son candidat suivant
+    AVANT de basculer chez un autre fournisseur."""
+    _clear_llm_env(monkeypatch)
+    monkeypatch.setenv("GEMINI_API_KEY", "k1")
+    monkeypatch.setenv("GROQ_API_KEY", "k2")
+    seen: list[str] = []
+
+    def factory(model: str, **kw: object) -> Any:
+        seen.append(model)
+
+        class _Client:
+            async def acall(self, messages, tools=None, output_model=None, **kw2):
+                if model == "gemini/a":
+                    raise RuntimeError(
+                        "ServiceUnavailableError: 503 high demand, try again later"
+                    )
+                return {"model": model}
+
+        return _Client()
+
+    router = llm.LLMRouter(client_factory=factory, mode="fallback")
+    router._active_models["gemini"] = ("gemini/a", "gemini/b")  # candidats découverts
+
+    result = router.call([{"role": "user", "content": "a"}])
+    # Rotation interne : les deux candidats gemini essayés, groq épargné.
+    assert seen == ["gemini/a", "gemini/b"]
+    assert result["model"] == "gemini/b"
+    assert router.last_provider_id == "gemini"
+
+
+def test_fallback_no_rotation_on_account_level_errors(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Quota/TPM : les autres modèles du même compte échoueraient pareil →
+    passage direct au fournisseur suivant sans gaspiller d'essais."""
+    _clear_llm_env(monkeypatch)
+    monkeypatch.setenv("GEMINI_API_KEY", "k1")
+    monkeypatch.setenv("GROQ_API_KEY", "k2")
+    seen: list[str] = []
+
+    def factory(model: str, **kw: object) -> Any:
+        seen.append(model)
+
+        class _Client:
+            async def acall(self, messages, tools=None, output_model=None, **kw2):
+                if model.startswith("gemini"):
+                    raise RuntimeError(
+                        "RateLimitError: Request too large, TPM limit 8000, "
+                        "please reduce your message size"
+                    )
+                return {"model": model}
+
+        return _Client()
+
+    router = llm.LLMRouter(client_factory=factory, mode="fallback")
+    router._active_models["gemini"] = ("gemini/a", "gemini/b")
+
+    result = router.call([{"role": "user", "content": "a"}])
+    # Un seul essai gemini (erreur de compte) puis bascule groq immédiate.
+    assert seen == ["gemini/a", "groq/openai/gpt-oss-120b"]
+    assert router.last_provider_id == "groq"
+    assert result["model"] == "groq/openai/gpt-oss-120b"

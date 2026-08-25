@@ -81,9 +81,9 @@ class DirectorAgent(BaseAgent, DefaultsMixin):
 
         # Make story and storyboard available in context
         if story_spec:
-            self._set_dynamic("story_spec", str(story_spec.to_mapping()))
+            self._set_context("story_spec", str(story_spec.to_mapping()))
         if storyboard_spec:
-            self._set_dynamic("storyboard_spec", str(storyboard_spec.to_mapping()))
+            self._set_context("storyboard_spec", str(storyboard_spec.to_mapping()))
 
         # The CodeActStrategy will generate Python code to build the SceneSpec
         # Output is validated against SceneSpec type annotation

@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 import os
 import secrets
 import time
@@ -20,10 +21,11 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, AsyncGenerator
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, StreamingResponse
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 
 from deepblender import __version__
 from deepblender.api.bus import AsyncEventBus
@@ -41,13 +43,14 @@ from deepblender.api.deps import (
     scoped_project,
     scoped_workspace,
 )
-from deepblender.api.models import Membership, Organization, Production, Project, User, Workspace, Sequence, Scene, Shot, Patch, ArtifactRecord
+from deepblender.api.models import Membership, Organization, Production, Project, User, Workspace, Sequence, Scene, Patch, ArtifactRecord, RefreshToken
 from deepblender.api.pipeline import run_production
 from deepblender.api.schemas import (
     ArtifactOut,
     ArtifactRecordOut,
     ArtifactRecordsOut,
     LoginRequest,
+    LogoutRequest,
     MeOut,
     MemberAdd,
     MemberOut,
@@ -59,6 +62,7 @@ from deepblender.api.schemas import (
     ProductionOut,
     ProjectCreate,
     ProjectOut,
+    RefreshTokenRequest,
     RegisterRequest,
     RevisionRequest,
     RoutingProviderOut,
@@ -77,16 +81,62 @@ from deepblender.api.schemas import (
     SceneOut,
     ShotOut,
 )
-from deepblender.api.security import create_token, hash_password, verify_password
+from deepblender.api.security import create_token, create_refresh_token, hash_password, hash_token, verify_password
 from deepblender.api.state import WorkerStatus, configure, get_secret_key, get_session_factory
-from deepblender.llm import get_router as get_llm_router
+from deepblender.llm import routing_stats as llm_routing_stats
+from deepblender.logging_setup import setup_logging
+
+logger = logging.getLogger("deepblender.api")
+
+
+class _RateLimitMiddleware:
+    """Rate limiter mémoire simple : tokens bucket par clé (IP ou user)."""
+
+    def __init__(self, app: FastAPI, max_requests: int = 60, window_seconds: int = 60) -> None:
+        self._app = app
+        self._max = max_requests
+        self._window = window_seconds
+        self._buckets: dict[str, list[float]] = {}
+
+    def __call__(self, scope, receive, send):  # type: ignore[no-untyped-def]
+        return self._app(scope, receive, send)
+
+    def is_rate_limited(self, key: str) -> bool:
+        import time as _time
+        now = _time.time()
+        bucket = self._buckets.setdefault(key, [])
+        cutoff = now - self._window
+        bucket[:] = [t for t in bucket if t > cutoff]
+        if len(bucket) >= self._max:
+            return True
+        bucket.append(now)
+        return False
+
+
+_rate_limit_buckets: dict[str, list[float]] = {}
+_RATE_LIMIT_MAX = int(os.environ.get("DEEPBLENDER_RATE_LIMIT_MAX", "60"))
+_RATE_LIMIT_WINDOW = int(os.environ.get("DEEPBLENDER_RATE_LIMIT_WINDOW", "60"))
+
+
+def _check_rate_limit(request: Request) -> None:
+    """Vérifie le rate limit par IP. Lève 429 si dépassé."""
+    import time as _time
+    client_ip = request.client.host if request.client else "unknown"
+    key = f"global:{client_ip}"
+    now = _time.time()
+    bucket = _rate_limit_buckets.setdefault(key, [])
+    cutoff = now - _RATE_LIMIT_WINDOW
+    bucket[:] = [t for t in bucket if t > cutoff]
+    if len(bucket) >= _RATE_LIMIT_MAX:
+        raise HTTPException(status_code=429, detail="rate limit exceeded")
+    bucket.append(now)
 
 
 def _default_secret_key() -> str:
     configured = os.environ.get("DEEPBLENDER_SECRET_KEY")
     if configured:
         return configured
-    print("WARNING: DEEPBLENDER_SECRET_KEY non définie — clé aléatoire (jetons perdus au redémarrage).")
+    logger.warning("DEEPBLENDER_SECRET_KEY non définie — clé aléatoire (jetons perdus au redémarrage).")
     return secrets.token_hex(32)
 
 
@@ -165,9 +215,42 @@ async def _launch_tracked_run(
         )
         status.finish(production_id)
     except asyncio.CancelledError:
+        logger.warning("[run %s] tâche annulée (arrêt serveur ?)", production_id)
         status.finish(production_id, failed=True)
     except Exception:  # noqa: BLE001
+        # JAMAIS silencieux : l'échec d'arrière-plan est tracé intégralement.
+        logger.exception("[run %s] échec inattendu du pipeline", production_id)
         status.finish(production_id, failed=True)
+
+
+def _run_alembic_upgrade(url: str) -> None:
+    """Exécute les migrations Alembic sur la base donnée."""
+    import tempfile
+    from pathlib import Path as _Path
+
+    from alembic import command
+    from alembic.config import Config as AlembicConfig
+
+    alembic_dir = _Path(__file__).resolve().parent.parent.parent / "alembic"
+    if not alembic_dir.is_dir():
+        logger.debug("Répertoire alembic non trouvé, fallback sur create_all")
+        return
+
+    ini_path = alembic_dir.parent / "alembic.ini"
+    if not ini_path.is_file():
+        logger.debug("alembic.ini non trouvé, fallback sur create_all")
+        return
+
+    alembic_cfg = AlembicConfig(str(ini_path))
+    alembic_cfg.set_main_option("script_location", str(alembic_dir))
+    alembic_cfg.set_main_option("sqlalchemy.url", url)
+
+    try:
+        command.upgrade(alembic_cfg, "head")
+        logger.info("Migrations Alembic appliquées avec succès")
+    except Exception:
+        logger.exception("Échec des migrations Alembic — fallback sur create_all")
+        raise
 
 
 def create_app(
@@ -176,12 +259,27 @@ def create_app(
     data_dir: str | None = None,
 ) -> FastAPI:
     """Fabrique l'application FastAPI avec son moteur SQLAlchemy."""
+    setup_logging()
     url = database_url or os.environ.get("DEEPBLENDER_DB", "deepblender.db")
     engine = create_engine_for(url)
-    Base.metadata.create_all(engine)
+
+    # Essayer Alembic en priorité ; fallback sur create_all (tests / dev)
+    try:
+        _run_alembic_upgrade(url)
+    except Exception:
+        logger.info("Fallback sur create_all (premier démarrage ou tests)")
+        Base.metadata.create_all(engine)
+
     configure(engine, create_session_factory(engine), secret_key or _default_secret_key())
 
-    app = FastAPI(title="DeepBlender API", version=__version__)
+    app = FastAPI(
+        title="DeepBlender API",
+        description="AI-powered audiovisual production platform. Transform text prompts into complete animations/videos.",
+        version=__version__,
+        docs_url="/api/docs",
+        redoc_url="/api/redoc",
+        openapi_url="/api/openapi.json",
+    )
     origins = [
         o.strip()
         for o in os.environ.get("DEEPBLENDER_CORS_ORIGINS", "http://localhost:3000").split(",")
@@ -204,8 +302,16 @@ def create_app(
 
 
 def _register_routes(app: FastAPI) -> None:
+
+    @app.get("/api/health", tags=["health"])
+    def health_check() -> dict[str, Any]:
+        """Health check endpoint for load balancers and monitoring."""
+        from deepblender import __version__ as ver
+        return {"status": "ok", "version": ver, "timestamp": time.time()}
+
     @app.post("/api/auth/register", response_model=TokenResponse, status_code=201)
-    def register(payload: RegisterRequest, db: DbSession) -> TokenResponse:
+    def register(payload: RegisterRequest, db: DbSession, request: Request) -> TokenResponse:
+        _check_rate_limit(request)
         existing = db.scalar(select(User).where(User.email == payload.email))
         if existing is not None and existing.is_active:
             raise HTTPException(status_code=409, detail="email already registered")
@@ -216,7 +322,11 @@ def _register_routes(app: FastAPI) -> None:
                 full_name=payload.full_name,
             )
             db.add(user)
-            db.flush()
+            try:
+                db.flush()
+            except IntegrityError:
+                db.rollback()
+                raise HTTPException(status_code=409, detail="email already registered")
         else:
             user = existing
             user.password_hash = hash_password(payload.password)
@@ -229,15 +339,78 @@ def _register_routes(app: FastAPI) -> None:
             db.flush()
             db.add(Membership(user_id=user.id, organization_id=organization.id, role="owner"))
             db.add(Workspace(organization_id=organization.id, name="Default"))
-        db.commit()
-        return TokenResponse(access_token=create_token(user.id, get_secret_key()))
+        secret = get_secret_key()
+        access = create_token(user.id, secret)
+        refresh = create_refresh_token(user.id, secret)
+        _store_refresh_token(db, user.id, refresh)
+        return TokenResponse(access_token=access, refresh_token=refresh)
 
     @app.post("/api/auth/login", response_model=TokenResponse)
-    def login(payload: LoginRequest, db: DbSession) -> TokenResponse:
+    def login(payload: LoginRequest, db: DbSession, request: Request) -> TokenResponse:
+        _check_rate_limit(request)
         user = db.scalar(select(User).where(User.email == payload.email))
         if user is None or not verify_password(payload.password, user.password_hash) or not user.is_active:
             raise HTTPException(status_code=401, detail="invalid credentials")
-        return TokenResponse(access_token=create_token(user.id, get_secret_key()))
+        secret = get_secret_key()
+        access = create_token(user.id, secret)
+        refresh = create_refresh_token(user.id, secret)
+        _store_refresh_token(db, user.id, refresh)
+        return TokenResponse(access_token=access, refresh_token=refresh)
+
+    def _store_refresh_token(db: DbSession, user_id: str, refresh_token: str) -> None:
+        """Stocke le hash du refresh token en base pour la révocation."""
+        from datetime import timedelta
+        db.add(RefreshToken(
+            user_id=user_id,
+            token_hash=hash_token(refresh_token),
+            expires_at=datetime.now(timezone.utc) + timedelta(days=7),
+        ))
+
+    @app.post("/api/auth/refresh", response_model=TokenResponse)
+    def refresh_token(payload: RefreshTokenRequest, db: DbSession, request: Request) -> TokenResponse:
+        """Échange un refresh token contre de nouveaux access + refresh tokens (rotation)."""
+        _check_rate_limit(request)
+        secret = get_secret_key()
+        payload_data = decode_token_full(payload.refresh_token, secret)
+        if payload_data is None or payload_data.get("type") != "refresh":
+            raise HTTPException(status_code=401, detail="invalid refresh token")
+        user_id = payload_data.get("sub")
+        if user_id is None:
+            raise HTTPException(status_code=401, detail="invalid refresh token")
+        # Vérifier que le token existe en base et n'est pas révoqué
+        token_hash = hash_token(payload.refresh_token)
+        db_token = db.scalar(
+            select(RefreshToken).where(
+                RefreshToken.token_hash == token_hash,
+                RefreshToken.revoked == False,
+            )
+        )
+        if db_token is None:
+            raise HTTPException(status_code=401, detail="refresh token revoked or not found")
+        # Vérifier l'expiration
+        if db_token.expires_at.replace(tzinfo=timezone.utc) < datetime.now(timezone.utc):
+            raise HTTPException(status_code=401, detail="refresh token expired")
+        user = db.get(User, user_id)
+        if user is None or not user.is_active:
+            raise HTTPException(status_code=401, detail="user not found or inactive")
+        # Révoquer l'ancien refresh token (rotation)
+        db_token.revoked = True
+        # Générer de nouveaux tokens
+        new_access = create_token(user.id, secret)
+        new_refresh = create_refresh_token(user.id, secret)
+        _store_refresh_token(db, user.id, new_refresh)
+        return TokenResponse(access_token=new_access, refresh_token=new_refresh)
+
+    @app.post("/api/auth/logout", status_code=204)
+    def logout(payload: LogoutRequest, db: DbSession) -> None:
+        """Révoque un refresh token (déconnexion)."""
+        secret = get_secret_key()
+        token_hash = hash_token(payload.refresh_token)
+        db_token = db.scalar(
+            select(RefreshToken).where(RefreshToken.token_hash == token_hash)
+        )
+        if db_token is not None:
+            db_token.revoked = True
 
     @app.get("/api/me", response_model=MeOut)
     def me(user: CurrentUser, db: DbSession) -> MeOut:
@@ -253,23 +426,22 @@ def _register_routes(app: FastAPI) -> None:
 
     @app.get("/api/organizations", response_model=list[OrgOut])
     def list_organizations(user: CurrentUser, db: DbSession) -> list[OrgOut]:
+        from sqlalchemy.orm import joinedload
         memberships = db.scalars(
-            select(Membership).where(Membership.user_id == user.id).order_by(Membership.organization_id)
+            select(Membership)
+            .options(joinedload(Membership.organization))
+            .where(Membership.user_id == user.id)
+            .order_by(Membership.organization_id)
         ).all()
-        organization_ids = [m.organization_id for m in memberships]
-        organizations = [
-            org for org_id in organization_ids if (org := db.get(Organization, org_id)) is not None
-        ]
-        roles = {m.organization_id: m.role for m in memberships}
         return [
             OrgOut(
-                id=org.id,
-                name=org.name,
-                owner_id=org.owner_id,
-                created_at=org.created_at,
-                role=roles.get(org.id, ""),
+                id=m.organization.id,
+                name=m.organization.name,
+                owner_id=m.organization.owner_id,
+                created_at=m.organization.created_at,
+                role=m.role,
             )
-            for org in organizations
+            for m in memberships
         ]
 
     @app.post("/api/organizations", response_model=OrgOut, status_code=201)
@@ -279,7 +451,6 @@ def _register_routes(app: FastAPI) -> None:
         db.flush()
         db.add(Membership(user_id=user.id, organization_id=organization.id, role="owner"))
         db.add(Workspace(organization_id=organization.id, name="Default"))
-        db.commit()
         return OrgOut(
             id=organization.id,
             name=organization.name,
@@ -294,22 +465,24 @@ def _register_routes(app: FastAPI) -> None:
         user: CurrentUser,
         db: DbSession,
     ) -> OrgDetailOut:
+        from sqlalchemy.orm import joinedload
         organization = get_organization(db, organization_id)
         membership = require_membership(db, organization.id, user)
         require_role(membership, *ROLE_READ)
         memberships = db.scalars(
-            select(Membership).where(Membership.organization_id == organization.id)
+            select(Membership)
+            .options(joinedload(Membership.user))
+            .where(Membership.organization_id == organization.id)
         ).all()
         members: list[MemberOut] = []
         for m in memberships:
-            member_user = db.get(User, m.user_id)
-            if member_user is None:
+            if m.user is None:
                 continue
             members.append(
                 MemberOut(
-                    user_id=member_user.id,
-                    email=member_user.email,
-                    full_name=member_user.full_name,
+                    user_id=m.user.id,
+                    email=m.user.email,
+                    full_name=m.user.full_name,
                     role=m.role,
                 )
             )
@@ -324,22 +497,24 @@ def _register_routes(app: FastAPI) -> None:
 
     @app.get("/api/organizations/{organization_id}/members", response_model=list[MemberOut])
     def list_members(organization_id: str, user: CurrentUser, db: DbSession) -> list[MemberOut]:
+        from sqlalchemy.orm import joinedload
         organization = get_organization(db, organization_id)
         membership = require_membership(db, organization.id, user)
         require_role(membership, *ROLE_READ)
         memberships = db.scalars(
-            select(Membership).where(Membership.organization_id == organization.id)
+            select(Membership)
+            .options(joinedload(Membership.user))
+            .where(Membership.organization_id == organization.id)
         ).all()
         members: list[MemberOut] = []
         for m in memberships:
-            member_user = db.get(User, m.user_id)
-            if member_user is None:
+            if m.user is None:
                 continue
             members.append(
                 MemberOut(
-                    user_id=member_user.id,
-                    email=member_user.email,
-                    full_name=member_user.full_name,
+                    user_id=m.user.id,
+                    email=m.user.email,
+                    full_name=m.user.full_name,
                     role=m.role,
                 )
             )
@@ -372,7 +547,6 @@ def _register_routes(app: FastAPI) -> None:
         )
         if existing is not None:
             existing.role = payload.role
-            db.commit()
             return MemberOut(
                 user_id=member_user.id,
                 email=member_user.email,
@@ -380,7 +554,6 @@ def _register_routes(app: FastAPI) -> None:
                 role=existing.role,
             )
         db.add(Membership(user_id=member_user.id, organization_id=organization.id, role=payload.role))
-        db.commit()
         return MemberOut(
             user_id=member_user.id,
             email=member_user.email,
@@ -412,7 +585,7 @@ def _register_routes(app: FastAPI) -> None:
         require_role(membership, *ROLE_WRITE)
         workspace = Workspace(organization_id=organization.id, name=payload.name)
         db.add(workspace)
-        db.commit()
+        db.flush()
         return WorkspaceOut.model_validate(workspace)
 
     # ----- Projets -----
@@ -443,7 +616,7 @@ def _register_routes(app: FastAPI) -> None:
             created_by=user.id,
         )
         db.add(project)
-        db.commit()
+        db.flush()
         return ProjectOut.model_validate(project)
 
     @app.get("/api/projects/{project_id}", response_model=ProjectOut)
@@ -463,7 +636,6 @@ def _register_routes(app: FastAPI) -> None:
             status.finish(production.id, failed=True)
             db.delete(production)
         db.delete(project)
-        db.commit()
 
     # ----- Productions -----
 
@@ -494,7 +666,7 @@ def _register_routes(app: FastAPI) -> None:
             created_by=user.id,
         )
         db.add(production)
-        db.commit()
+        db.flush()
         return ProductionOut.model_validate(production)
 
     @app.get("/api/productions/{production_id}", response_model=ProductionOut)
@@ -505,21 +677,21 @@ def _register_routes(app: FastAPI) -> None:
 
     @app.get("/api/productions/{production_id}/timeline", response_model=TimelineOut)
     def get_production_timeline(production_id: str, user: CurrentUser, db: DbSession) -> TimelineOut:
+        from sqlalchemy.orm import selectinload
         production, membership = scoped_production(db, user, production_id)
         require_role(membership, *ROLE_READ)
         sequences = db.scalars(
-            select(Sequence).where(Sequence.production_id == production.id).order_by(Sequence.order_index)
-        ).all()
+            select(Sequence)
+            .options(
+                selectinload(Sequence.scenes).selectinload(Scene.shots)
+            )
+            .where(Sequence.production_id == production.id)
+            .order_by(Sequence.order_index)
+        ).unique().all()
         seq_outs: list[SequenceOut] = []
         for seq in sequences:
-            scenes = db.scalars(
-                select(Scene).where(Scene.sequence_id == seq.id).order_by(Scene.order_index)
-            ).all()
             scene_outs: list[SceneOut] = []
-            for scene in scenes:
-                shots = db.scalars(
-                    select(Shot).where(Shot.scene_id == scene.id).order_by(Shot.index)
-                ).all()
+            for scene in seq.scenes:
                 shot_outs = [
                     ShotOut(
                         id=s.id,
@@ -530,7 +702,7 @@ def _register_routes(app: FastAPI) -> None:
                         action=s.action,
                         status=s.status,
                     )
-                    for s in shots
+                    for s in scene.shots
                 ]
                 scene_outs.append(SceneOut(
                     id=scene.id,
@@ -575,7 +747,6 @@ def _register_routes(app: FastAPI) -> None:
             created_at=datetime.now(timezone.utc),
         )
         db.add(patch)
-        db.commit()
         
         # Publish event for real-time updates
         app.state.bus.publish_nowait({
@@ -857,9 +1028,12 @@ def _register_routes(app: FastAPI) -> None:
         rotation = "adaptive"
         routing: list[RoutingProviderOut] = []
         try:
-            stats = get_llm_router().routing_stats()
-            rotation = stats["rotation"]
-            routing = [RoutingProviderOut(**prov) for prov in stats["providers"]]
+            # routing_stats() module : ne construit PAS le routeur en effet de
+            # bord d'un simple GET de statut (renvoie "uninitialized" sinon).
+            stats = llm_routing_stats()
+            if stats["pool"]:
+                rotation = stats["rotation"]
+                routing = [RoutingProviderOut(**prov) for prov in stats["providers"]]
         except Exception:  # noqa: BLE001 - routeur non configuré : on reste sans détail
             routing = []
         return WorkerOut(
@@ -887,17 +1061,38 @@ def _register_routes(app: FastAPI) -> None:
     @app.get("/api/usage", response_model=UsageOut)
     def usage(user: CurrentUser, db: DbSession) -> UsageOut:
         """Consommation et quotas de l'utilisateur courant (billing-ready)."""
+        from sqlalchemy import func
         memberships = db.scalars(select(Membership).where(Membership.user_id == user.id)).all()
         organization_ids = [m.organization_id for m in memberships]
-        productions = db.scalars(
-            select(Production).where(Production.organization_id.in_(organization_ids))
-        ).all()
-        total_cost = sum(p.cost or 0.0 for p in productions)
-        runs = sum(1 for p in productions if p.status != "draft")
+        if not organization_ids:
+            return UsageOut(
+                productions=0, runs=0, total_cost=0.0,
+                quotas=UsageQuotas(
+                    productions=_env_int("DEEPBLENDER_QUOTA_PRODUCTIONS"),
+                    cost=_env_float("DEEPBLENDER_QUOTA_COST"),
+                ),
+            )
+        total_cost = db.scalar(
+            select(func.coalesce(func.sum(Production.cost), 0.0))
+            .where(Production.organization_id.in_(organization_ids))
+        )
+        runs = db.scalar(
+            select(func.count())
+            .select_from(Production)
+            .where(
+                Production.organization_id.in_(organization_ids),
+                Production.status != "draft",
+            )
+        )
+        prod_count = db.scalar(
+            select(func.count())
+            .select_from(Production)
+            .where(Production.organization_id.in_(organization_ids))
+        )
         return UsageOut(
-            productions=len(productions),
-            runs=runs,
-            total_cost=total_cost,
+            productions=prod_count or 0,
+            runs=runs or 0,
+            total_cost=float(total_cost or 0.0),
             quotas=UsageQuotas(
                 productions=_env_int("DEEPBLENDER_QUOTA_PRODUCTIONS"),
                 cost=_env_float("DEEPBLENDER_QUOTA_COST"),
@@ -950,6 +1145,10 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--port", type=int, default=int(os.environ.get("DEEPBLENDER_PORT", "8000")))
     parser.add_argument("--db", default=os.environ.get("DEEPBLENDER_DB", "deepblender.db"))
     args = parser.parse_args(argv)
+    # Journal complet (console + fichier rotatif data/logs/deepblender.log) :
+    # étapes pipeline, appels/votes/échecs LLM, découvertes de modèles.
+    log_path = setup_logging()
+    logger.info("Journal arrière-plan : %s", log_path)
     app = create_app(database_url=args.db)
     uvicorn.run(app, host=args.host, port=args.port)
     return 0

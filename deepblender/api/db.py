@@ -37,22 +37,41 @@ def _as_sqlalchemy_url(url: str) -> str:
 
 def create_engine_for(url: str) -> Engine:
     """Crée un moteur SQLAlchemy pour l'URL donnée (SQLite inclus)."""
+    from sqlalchemy import event as sa_event
+
     kwargs: dict[str, Any] = {}
     url = _as_sqlalchemy_url(url)
     if url.startswith("sqlite"):
         kwargs["connect_args"] = {"check_same_thread": False, "timeout": 30}
-    return create_engine(url, **kwargs)
+    engine = create_engine(url, **kwargs)
+
+    if url.startswith("sqlite"):
+        @sa_event.listens_for(engine, "connect")
+        def _set_sqlite_pragma(dbapi_conn, connection_record):  # type: ignore[no-untyped-def]
+            cursor = dbapi_conn.cursor()
+            cursor.execute("PRAGMA journal_mode=WAL")
+            cursor.execute("PRAGMA foreign_keys=ON")
+            cursor.close()
+
+    return engine
 
 
 def create_session_factory(engine: Engine) -> sessionmaker[Session]:
-    return sessionmaker(bind=engine, expire_on_commit=False)
+    return sessionmaker(bind=engine, expire_on_commit=True)
 
 
 def get_db() -> Iterator[Session]:
-    """Dépendance FastAPI : session SQLAlchemy par requête."""
+    """Dépendance FastAPI : session SQLAlchemy par requête.
+
+    Auto-commit après yield ; rollback sur exception.
+    """
     session = get_session_factory()()
     try:
         yield session
+        session.commit()
+    except Exception:
+        session.rollback()
+        raise
     finally:
         session.close()
 

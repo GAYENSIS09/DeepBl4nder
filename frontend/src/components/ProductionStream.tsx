@@ -11,6 +11,7 @@ import { useProductionTree } from '@/hooks/useProductionTree';
 import type { SSEEvent, SSEStatus } from '@/lib/sse';
 import type { ArtifactOut, TimelineOut } from '@/lib/api';
 import { Badge, Button, Card, CardBody, CardHeader, EmptyState, Field, Select, Skeleton, Spinner, TextArea, Tabs, TabList, TabTrigger, TabContent } from '@/components/ui';
+import { AudioPlayer, CodeViewer, ImagePlayer, JsonViewer, VideoPlayer } from '@/components/ArtifactViewers';
 import { fmtCost, fmtSize } from '@/lib/format';
 
 const EVENT_META: Record<string, { label: string; tone: 'green' | 'amber' | 'red' | 'blue' | 'acid' | 'muted' }> = {
@@ -20,6 +21,7 @@ const EVENT_META: Record<string, { label: string; tone: 'green' | 'amber' | 'red
   run_failed: { label: 'Run échoué', tone: 'red' },
   step_started: { label: 'Étape démarrée', tone: 'blue' },
   step_completed: { label: 'Étape terminée', tone: 'green' },
+  step_resumed: { label: 'Étape reprise (checkpoint)', tone: 'acid' },
   step_failed: { label: 'Étape échouée', tone: 'red' },
   approval_requested: { label: 'Approbation requise', tone: 'amber' },
   approval_granted: { label: 'Approbation accordée', tone: 'green' },
@@ -59,7 +61,11 @@ function eventSummary(event: SSEEvent): string {
   if (typeof event.agent === 'string') parts.push(event.agent);
   if (typeof event.model === 'string') {
     const modelShort = event.model.split('/').pop() ?? event.model;
-    parts.push(modelShort);
+    // Le backend rapporte le vainqueur réel du vote routeur (`provider`) ;
+    // sans lui, on retombe sur le modèle seul.
+    parts.push(typeof event.provider === 'string' ? `${event.provider} · ${modelShort}` : modelShort);
+  } else if (typeof event.provider === 'string') {
+    parts.push(event.provider);
   }
   if (typeof event.elapsed_s === 'number') parts.push(`${event.elapsed_s}s`);
   if (typeof event.score === 'number') parts.push(`score ${(event.score * 100).toFixed(0)}%`);
@@ -347,7 +353,16 @@ function ArtifactViewer({
                   ? 'bash'
                   : 'text';
 
-  const lineCount = textContent ? textContent.split('\n').length : 0;
+  const jsonData = useMemo<unknown | null | undefined>(() => {
+    if (langHint !== 'json' || textContent === null) return null;
+    try {
+      return JSON.parse(textContent) as unknown;
+    } catch {
+      return undefined; // JSON invalide -> repli code
+    }
+  }, [langHint, textContent]);
+
+  const isJson = langHint === 'json' && jsonData !== null && jsonData !== undefined;
 
   return (
     <div
@@ -361,10 +376,10 @@ function ArtifactViewer({
         <div className="flex items-center justify-between border-b border-border px-3 py-2 sm:px-4 sm:py-3 shrink-0 gap-2">
           <div className="flex items-center gap-2 min-w-0">
             <p className="truncate font-mono text-sm text-off-white">{artifact.name}</p>
-            <Badge tone="muted" className="hidden sm:inline-flex">{langHint}</Badge>
+            <Badge tone="muted" className="hidden sm:inline-flex">{isJson ? 'json · interactif' : langHint}</Badge>
           </div>
           <div className="flex items-center gap-1.5 shrink-0">
-            {viewType === 'text' && textContent !== null ? (
+            {viewType === 'text' && textContent !== null && !isJson ? (
               <Button variant="outline" className="px-2 py-1 text-xs" onClick={() => void handleCopy()}>
                 {copied ? 'Copié !' : 'Copier'}
               </Button>
@@ -375,35 +390,23 @@ function ArtifactViewer({
             </Button>
           </div>
         </div>
-        <div className="flex-1 overflow-auto p-2 sm:p-4 min-h-0">
+        <div className="flex-1 overflow-auto p-2 sm:p-4 min-h-0 flex flex-col">
           {loading ? (
             <div className="flex items-center justify-center py-12">
               <Spinner className="border-t-acid h-8 w-8" />
             </div>
           ) : viewType === 'text' && textContent !== null ? (
-            <div className="relative h-full">
-              <div className="absolute top-0 right-0 text-xs text-muted pr-1 pt-1">
-                {lineCount} ligne{lineCount !== 1 ? 's' : ''}
-              </div>
-              <pre className="h-full overflow-auto rounded-lg bg-black/50 p-3 sm:p-4 font-mono text-xs sm:text-sm leading-relaxed text-off-white/90">
-                <code>{textContent}</code>
-              </pre>
-            </div>
+            isJson ? (
+              <JsonViewer data={jsonData} filename={artifact.name} />
+            ) : (
+              <CodeViewer content={textContent} />
+            )
           ) : viewType === 'video' && blobUrl ? (
-            <div className="flex items-center justify-center h-full">
-              <video src={blobUrl} controls autoPlay className="max-h-full max-w-full" />
-            </div>
+            <VideoPlayer url={blobUrl} filename={artifact.name} />
           ) : viewType === 'audio' && blobUrl ? (
-            <div className="flex flex-col items-center justify-center gap-4 py-8">
-              <div className="text-4xl">🎵</div>
-              <audio src={blobUrl} controls autoPlay className="w-full max-w-sm" />
-              <p className="text-xs text-muted">{artifact.name}</p>
-            </div>
+            <AudioPlayer url={blobUrl} filename={artifact.name} />
           ) : viewType === 'image' && blobUrl ? (
-            <div className="flex items-center justify-center h-full">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={blobUrl} alt={artifact.name} className="max-h-full max-w-full object-contain" />
-            </div>
+            <ImagePlayer url={blobUrl} filename={artifact.name} />
           ) : (
             <p className="py-12 text-center text-sm text-muted">Aperçu non supporté pour ce type de fichier.</p>
           )}

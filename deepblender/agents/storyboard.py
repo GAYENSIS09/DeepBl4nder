@@ -7,7 +7,7 @@ from typing import Any
 from nooa import CodeActStrategy, strategy
 from nooa.config.strategy_config import CodeActConfig
 
-from deepblender.agents.base import BaseAgent, DefaultsMixin
+from deepblender.agents.base import BaseAgent, DefaultsMixin, storyboard_spec_postcondition
 from deepblender.domain.narrative import StorySpec, StoryboardSpec
 from deepblender.skills.registry import SkillRegistry
 
@@ -42,7 +42,7 @@ class StoryboardAgent(BaseAgent, DefaultsMixin):
         super().__init__(*args, skill_registry=skill_registry, **kwargs)
 
     @strategy(CodeActStrategy(config=CodeActConfig(
-        postconditions=[lambda s: s is not None and len(s.shots) > 0],
+        postconditions=[storyboard_spec_postcondition],
         max_tokens=16384,
     )))
     async def plan_storyboard(self, story: StorySpec) -> StoryboardSpec:  # type: ignore[return]
@@ -50,12 +50,12 @@ class StoryboardAgent(BaseAgent, DefaultsMixin):
         self._load_core_skills()
         self._load_skills("cinematography", "storyboard", "composition")
         
-        self._set_dynamic("story", str(story.to_mapping()))
+        self._set_context("story", str(story.to_mapping()))
         ...
 
 
     @strategy(CodeActStrategy(config=CodeActConfig(
-        postconditions=[lambda s: s is not None and len(s.shots) > 0],
+        postconditions=[storyboard_spec_postcondition],
         max_tokens=16384,
     )))
     async def revise_storyboard(self, storyboard: StoryboardSpec, revision_feedback: str) -> StoryboardSpec:  # type: ignore[return]
@@ -63,5 +63,5 @@ class StoryboardAgent(BaseAgent, DefaultsMixin):
         self._load_core_skills()
         self._load_skills("cinematography", "storyboard")
         self.context.set("revision_feedback", revision_feedback)
-        self._set_dynamic("current_storyboard", str(storyboard.to_mapping()))
+        self._set_context("current_storyboard", str(storyboard.to_mapping()))
         ...

@@ -7,7 +7,11 @@ from typing import Any
 from nooa import CodeActStrategy, strategy
 from nooa.config.strategy_config import CodeActConfig
 
-from deepblender.agents.base import BaseAgent, DefaultsMixin
+from deepblender.agents.base import (
+    BaseAgent,
+    DefaultsMixin,
+    story_spec_postcondition,
+)
 from deepblender.domain.narrative import StorySpec
 from deepblender.skills.registry import SkillRegistry
 
@@ -45,7 +49,7 @@ class StoryAgent(BaseAgent, DefaultsMixin):
         super().__init__(*args, skill_registry=skill_registry, **kwargs)
 
     @strategy(CodeActStrategy(config=CodeActConfig(
-        postconditions=[lambda s: s is not None and hasattr(s, "logline")],
+        postconditions=[story_spec_postcondition],
         max_tokens=16384,
     )))
     async def plan_story(self, brief: Any) -> StorySpec:  # type: ignore[return]
@@ -54,12 +58,12 @@ class StoryAgent(BaseAgent, DefaultsMixin):
         self._load_skills("storytelling", "dialogue", "cinematography")
         
         brief_text = brief.text if hasattr(brief, "text") else str(brief)
-        self._set_dynamic("brief", brief_text)
+        self._set_context("brief", brief_text)
         ...
 
 
     @strategy(CodeActStrategy(config=CodeActConfig(
-        postconditions=[lambda s: s is not None and hasattr(s, "logline")],
+        postconditions=[story_spec_postcondition],
         max_tokens=16384,
     )))
     async def revise_story(self, story: StorySpec, revision_feedback: str) -> StorySpec:  # type: ignore[return]
@@ -67,5 +71,5 @@ class StoryAgent(BaseAgent, DefaultsMixin):
         self._load_core_skills()
         self._load_skills("storytelling", "dialogue")
         self.context.set("revision_feedback", revision_feedback)
-        self._set_dynamic("current_story", str(story.to_mapping()))
+        self._set_context("current_story", str(story.to_mapping()))
         ...

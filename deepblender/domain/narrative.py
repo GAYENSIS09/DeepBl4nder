@@ -2,13 +2,26 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import asdict, dataclass, field, is_dataclass
 from typing import Any
 from uuid import uuid4
 
 
 def _new_id() -> str:
-    return uuid4().hex[:8]
+    return uuid4().hex
+
+
+def _plain(value: Any) -> Any:
+    """Sérialise dataclass OU dict brut tel quel.
+
+    NOOA construit les specs sans conversion récursive : quand le modèle
+    renvoie du JSON, les listes imbriquées (acts, shots, dialogues…) peuvent
+    contenir des dicts au lieu des dataclass du domaine. Les sérialiseurs
+    doivent tolérer les deux.
+    """
+    if is_dataclass(value) and not isinstance(value, type):
+        return asdict(value)
+    return value
 
 
 @dataclass
@@ -67,35 +80,9 @@ class StorySpec:
             "genre": self.genre,
             "tone": self.tone,
             "target_audience": self.target_audience,
-            "acts": [
-                {
-                    "name": act.name,
-                    "order": act.order,
-                    "beats": [
-                        {
-                            "description": beat.description,
-                            "characters": beat.characters,
-                            "location": beat.location,
-                            "mood": beat.mood,
-                            "duration_estimate": beat.duration_estimate,
-                        }
-                        for beat in act.beats
-                    ],
-                }
-                for act in self.acts
-            ],
+            "acts": [_plain(a) for a in self.acts],
             "characters": self.characters,
-            "dialogues": [
-                {
-                    "character": d.character,
-                    "text": d.text,
-                    "emotion": d.emotion,
-                    "language": d.language,
-                    "start_time": d.start_time,
-                    "end_time": d.end_time,
-                }
-                for d in self.dialogues
-            ],
+            "dialogues": [_plain(d) for d in self.dialogues],
             "themes": self.themes,
         }
 
@@ -170,22 +157,7 @@ class StoryboardSpec:
     def to_mapping(self) -> dict[str, Any]:
         return {
             "schema_version": self.schema_version,
-            "shots": [
-                {
-                    "index": s.index,
-                    "description": s.description,
-                    "duration": s.duration,
-                    "camera_angle": s.camera_angle,
-                    "camera_movement": s.camera_movement,
-                    "characters": s.characters,
-                    "action": s.action,
-                    "dialogue_refs": s.dialogue_refs,
-                    "transition": s.transition,
-                    "visual_notes": s.visual_notes,
-                    "order": s.order,
-                }
-                for s in self.shots
-            ],
+            "shots": [_plain(s) for s in self.shots],
             "total_duration": self.total_duration,
         }
 

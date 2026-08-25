@@ -12,14 +12,17 @@ par défaut ce sont les vrais agents NOOA sur le LLM configuré (ou FakeLLM via
 
 from __future__ import annotations
 
+import logging
 import time
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable
 
 from deepblender.agents import (
+    AnimatorAgent,
     AudioAgent,
     BlenderAgent,
+    CharacterDesignerAgent,
     CompositingAgent,
     DirectorAgent,
     LocalizationAgent,
@@ -34,6 +37,8 @@ from deepblender.production.budget import BudgetTracker
 from deepblender.production.runner import PipelineRunner
 
 EventHook = Callable[[str, dict[str, Any]], None]
+
+logger = logging.getLogger("deepblender.api.pipeline")
 
 # Coûts estimés par étape (USD) — basés sur les prix LLM typiques
 _STEP_COSTS: dict[str, float] = {
@@ -56,7 +61,7 @@ def _utcnow() -> datetime:
     return datetime.now(timezone.utc)
 
 
-def build_agents() -> tuple[Any, Any, Any, Any, Any, Any, Any, Any]:
+def build_agents() -> tuple[Any, Any, Any, Any, Any, Any, Any, Any, Any, Any]:
     """Construit les agents NOOA (story, storyboard, directeur, Blender, QA + post-production)."""
     llm = build_llm()
     return (
@@ -68,6 +73,8 @@ def build_agents() -> tuple[Any, Any, Any, Any, Any, Any, Any, Any]:
         AudioAgent(llm=llm),
         LocalizationAgent(llm=llm),
         CompositingAgent(llm=llm),
+        CharacterDesignerAgent(llm=llm),
+        AnimatorAgent(llm=llm),
     )
 
 
@@ -100,6 +107,9 @@ class RunTracker:
                 production.version = (production.version or 1) + 1
             production.updated_at = _utcnow()
             session.commit()
+        except Exception:
+            session.rollback()
+            raise
         finally:
             session.close()
 
@@ -112,6 +122,9 @@ class RunTracker:
             production.cost = (production.cost or 0.0) + amount
             production.updated_at = _utcnow()
             session.commit()
+        except Exception:
+            session.rollback()
+            raise
         finally:
             session.close()
 
@@ -178,11 +191,11 @@ async def run_production(
     bus: Any = None,
     session_factory: Any = None,
     budget_limit: float = 1.0,
-    total_steps: int = 9,  # story + storyboard + director + blender + qa + render + audio + localization + compositing
-    agents: tuple[Any, Any, Any, Any, Any, Any, Any, Any] | None = None,
+    total_steps: int = 11,  # story + storyboard + director + character_design + animation + blender + qa + render + audio + localization + compositing
+    agents: tuple[Any, Any, Any, Any, Any, Any, Any, Any, Any, Any] | None = None,
 ) -> None:
     """Lance le pipeline en tâche de fond et tient DB + bus à jour."""
-    story, storyboard, director, blender, qa, audio, localization, compositing = agents or build_agents()
+    story, storyboard, director, blender, qa, audio, localization, compositing, character_designer, animator = agents or build_agents()
     workdir.mkdir(parents=True, exist_ok=True)
     budget = BudgetTracker(budget=budget_limit, run_id=production_id)
 
@@ -212,6 +225,8 @@ async def run_production(
         audio=audio,
         localization=localization,
         compositing=compositing,
+        character_designer=character_designer,
+        animator=animator,
         workdir=workdir,
         budget=budget,
         event_hook=tracker.on_event,
@@ -226,4 +241,5 @@ async def run_production(
     try:
         await runner.run(Brief(text=brief))
     except Exception as exc:  # noqa: BLE001
+        logger.exception("Pipeline %s interrompue : %s", production_id, exc)
         tracker.on_error(f"{type(exc).__name__}: {exc}")

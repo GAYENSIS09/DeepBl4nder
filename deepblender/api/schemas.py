@@ -37,12 +37,20 @@ class RegisterRequest(BaseModel):
 
 
 class LoginRequest(BaseModel):
-    email: str
-    password: str
+    email: str = Field(min_length=3, max_length=320)
+    password: str = Field(min_length=1, max_length=128)
+
+    @field_validator("email")
+    @classmethod
+    def _valid_email(cls, value: str) -> str:
+        if not _EMAIL_RE.match(value):
+            raise ValueError("invalid email address")
+        return value.lower()
 
 
 class TokenResponse(BaseModel):
     access_token: str
+    refresh_token: str
     token_type: str = "bearer"
 
 
@@ -299,3 +307,11 @@ class ArtifactRecordOut(BaseModel):
 
 class ArtifactRecordsOut(BaseModel):
     records: list[ArtifactRecordOut]
+
+
+class RefreshTokenRequest(BaseModel):
+    refresh_token: str = Field(min_length=10, max_length=2048)
+
+
+class LogoutRequest(BaseModel):
+    refresh_token: str = Field(min_length=10, max_length=2048)

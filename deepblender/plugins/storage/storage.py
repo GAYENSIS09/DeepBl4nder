@@ -21,13 +21,17 @@ class StoragePlugin(Plugin):
         return True
 
     def store(self, artifact: Path, key: str) -> Path:
-        destination = self.root / key
+        destination = (self.root / key).resolve()
+        if not str(destination).startswith(str(self.root.resolve())):
+            raise PluginError(f"key escapes storage root: {key}")
         destination.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(artifact, destination)
         return destination
 
     def retrieve(self, key: str) -> Path:
-        path = self.root / key
+        path = (self.root / key).resolve()
+        if not str(path).startswith(str(self.root.resolve())):
+            raise PluginError(f"key escapes storage root: {key}")
         if not path.is_file():
             raise PluginError(f"artifact not found: {key}")
         return path

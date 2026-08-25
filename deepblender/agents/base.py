@@ -18,10 +18,21 @@ from typing import Any
 
 from nooa import Agent, CodeActStrategy, Context, EventQuery, strategy
 from nooa.agentdoc import hidden
+from nooa.errors import GenerationError
 from nooa.skill import TextSkill
 from nooa.strategy_validation import InvariantError
 
+# Ré-export neutre : les couches NOOA-free (production…) interceptent
+# GenerationError SANS importer nooa directement (règle de découplage).
+__all__ = ["GenerationError", "InvariantError"]
+
+from deepblender.llm import model_name_of
+from deepblender.nooa_compat import install as install_nooa_compat
 from deepblender.skills.registry import SkillRegistry, get_default_registry
+
+# Normalisation étendue des return_result (enveloppes non standard des
+# modèles de secours) — voir deepblender/nooa_compat.py. Idempotent.
+install_nooa_compat()
 
 _TRACING_ENABLED = False
 _SENTINEL = object()
@@ -116,7 +127,12 @@ def scene_spec_postcondition(agent: Any, result: Any, call: Any) -> None:
     if not isinstance(result, SceneSpec):
         return
     if not getattr(result, "shots", None):
-        raise InvariantError("SceneSpec doit contenir au moins un plan (shots non vide).")
+        raise InvariantError(
+            'SceneSpec doit contenir au moins un plan : appelez return_result '
+            'avec shots=[{"description": "plan large de la ruelle sous la '
+            'pluie", "camera": {"focal_length_mm": 35.0}}] — la liste shots '
+            "ne doit pas être vide."
+        )
 
 
 def blender_script_postcondition(agent: Any, result: Any, call: Any) -> None:
@@ -127,6 +143,35 @@ def blender_script_postcondition(agent: Any, result: Any, call: Any) -> None:
         return
     if not (result.code or "").strip():
         raise InvariantError("BlenderScript.code ne doit pas être vide.")
+
+
+def story_spec_postcondition(agent: Any, result: Any, call: Any) -> None:
+    """Invariant : une StorySpec produite doit porter une logline."""
+    from deepblender.domain.narrative import StorySpec
+
+    if not isinstance(result, StorySpec):
+        return
+    if not (result.logline or "").strip():
+        raise InvariantError(
+            "StorySpec.logline ne doit pas être vide : une phrase unique qui "
+            "résume toute l'histoire, ex. « Une hackeuse découvre que ses "
+            "souvenirs ont été vendus au plus offrant »."
+        )
+
+
+def storyboard_spec_postcondition(agent: Any, result: Any, call: Any) -> None:
+    """Invariant : un StoryboardSpec produit doit contenir au moins un plan."""
+    from deepblender.domain.narrative import StoryboardSpec
+
+    if not isinstance(result, StoryboardSpec):
+        return
+    if not getattr(result, "shots", None):
+        raise InvariantError(
+            "StoryboardSpec doit contenir au moins un plan : appelez "
+            'return_result avec shots=[{"description": "plan large du '
+            'laboratoire", "camera_angle": "wide", "camera_movement": "dolly"}]'
+            " — la liste shots ne doit pas être vide."
+        )
 
 
 def codeact_with_sandbox(config: Any = None) -> CodeActStrategy:
@@ -207,8 +252,18 @@ class BaseAgent(Agent):
 
     @hidden
     def _set_dynamic(self, key: str, expr: str) -> None:
-        """Contexte dynamique : expression réévaluée au début de chaque tour LLM."""
+        """Contexte dynamique : expression Python réévaluée au début de chaque tour LLM.
+
+        Réserver aux vraies expressions (ex. ``self._compute()``) : un texte
+        libre passé ici serait compilé comme du Python et planterait sur la
+        moindre apostrophe.
+        """
         self.context[key] = Context(expr=expr)
+
+    @hidden
+    def _set_context(self, key: str, value: str) -> None:
+        """Contexte statique : contenu littéral, jamais évalué comme du Python."""
+        self.context[key] = value
 
     def memory_skill(self) -> Any:
         """Skill mémoire attaché (nooa-memory) ou None."""
@@ -258,10 +313,25 @@ class BaseAgent(Agent):
         llm = getattr(self, "_llm", None)
         if llm is not None:
             try:
-                return llm.model()
+                return model_name_of(llm)
             except Exception:  # noqa: BLE001 - modèle non exposé : on reste générique
                 return "unknown"
         return "unknown"
+
+    @hidden
+    def _get_last_call_info(self) -> dict[str, str]:
+        """Fournisseur + modèle réellement utilisés par le dernier appel LLM.
+
+        Renseigné quand le client est un routeur multi-fournisseurs exposant
+        ``last_provider_id`` / ``last_model`` (vainqueur réel du vote) ;
+        dict vide sinon — l'appelant retombe alors sur ``_get_model_id``.
+        """
+        llm = getattr(self, "_llm", None)
+        provider = getattr(llm, "last_provider_id", None)
+        model = getattr(llm, "last_model", None)
+        if provider and model:
+            return {"provider": str(provider), "model": str(model)}
+        return {}
 
 
 class DefaultsMixin:

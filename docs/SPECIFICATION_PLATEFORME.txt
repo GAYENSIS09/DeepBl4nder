@@ -1,0 +1,1053 @@
+================================================================================
+  DEEPBLENDER — SPECIFICATION TECHNIQUE COMPLETE
+  Plateforme de Production Video/Animation par Agents IA
+  Version 2.0 — Aout 2026
+================================================================================
+
+  « La premiere plateforme qui gere le flux de travail complet d'un createur
+    professionnel — de l'idee au film final — avec des agents IA specialises
+    qui collaborent comme une vraie equipe de production. »
+
+================================================================================
+  TABLE DES MATIERES
+================================================================================
+
+  PARTIE I    — VISION & POSITIONNEMENT
+  PARTIE II   — ARCHITECTURE TECHNIQUE
+  PARTIE III  — SYSTEME D'AGENTS
+  PARTIE IV   — SKILLS & CONNAISSANCES
+  PARTIE V    — PIPELINE DE PRODUCTION
+  PARTIE VI   — MOTEURS DE GENERATION
+  PARTIE VII  — INTERFACE UTILISATEUR
+  PARTIE VIII — OBSERVABILITE & QUALITE
+  PARTIE IX   — DEPLOIEMENT & INFRASTRUCTURE
+  PARTIE X    — SECURITE & CONFORMITE
+  PARTIE XI   — ROADMAP DE DEVELOPPEMENT
+  PARTIE XII  — MODELE ECONOMIQUE
+
+
+================================================================================
+PARTIE I — VISION & POSITIONNEMENT
+================================================================================
+
+1.1  QU'EST-CE QUE DEEPBLENDER ?
+----------------------------------
+
+DeepBlender est une plateforme SaaS qui transforme un prompt textuel en
+production video/animation complete : scenario, storyboard, rendu 3D,
+audio, musique, voix, sous-titres, et compositing final.
+
+L'utilisateur decrit ce qu'il veut. Le systeme d'agents se charge de tout.
+
+1.2  CAS D'UTILISATION CIBLES
+-------------------------------
+
+  Categorie            Exemple
+  --------------------  ------------------------------------------------
+  Films d'animation     Court-metrage 2D/3D, pilote de serie
+  Publicites           Spot TV 30s, video produit, pub reseaux sociaux
+  Contenu educatif     Tutoriel anime, explainer video
+  Storytelling          Scene de manga animee, bande dessinee vivante
+  Jeux video           Cinematiques, cutscenes, trails
+  Contenu social       Clips TikTok/Reels animes, intros
+  Prototypage rapide   Storyboard anime, animatic, previz
+
+1.3  DIFFERENTIATEURS CLES
+
+  a) Un seul prompt -> production complete (pas de tools separes)
+  b) Agents IA qui collaborent comme une vraie equipe (scenariste,
+     directeur, chef operateur, comedien, monteur...)
+  c) Generation de musique originale (pas de copie, pas de royalties)
+  d) Iteration en temps reel (l'utilisateur voit et modifie en cours)
+  e) Observabilite totale (chaque decision est tracee et expliquee)
+  f) Multi-moteur : Blender, Unreal Engine, Godot (extensible)
+  g) Format VRM pour avatars cross-platform
+
+1.4  PRINCIPES FONDATEURS
+
+  P1. L'utilisateur est un createur, pas un technicien.
+  P2. Chaque production est unique — jamais de templates generiques.
+  P3. Transparence totale : l'utilisateur comprend chaque decision IA.
+  P4. Iteratif par design : on peut toujours revenir en arriere.
+  P5. Qualite professionnelle des le depart, pas un MVP.
+  P6. Open-source d'abord pour les composants critiques.
+
+
+================================================================================
+PARTIE II — ARCHITECTURE TECHNIQUE
+================================================================================
+
+2.1  STACK TECHNOLOGIQUE
+
+  COUCHE                 TECHNOLOGIE
+  ---------------------  --------------------------------------------------
+  Frontend               Next.js 14+ (App Router), TypeScript, Tailwind
+                         Three.js + React Three Fiber (3D preview)
+                         Zustand (state), SWR (data fetching)
+  Backend API            Python 3.12+ / FastAPI
+                         SQLAlchemy 2.0 + Alembic
+                         PostgreSQL (prod) / SQLite (dev)
+                         Redis (cache, queues, pub/sub)
+                         Celery + Redis (task queue async)
+  Orchestration          NOOA 0.0.8+ (agents IA)
+                         Custom pipeline runner
+                         asyncio + Celery workers
+  LLM Routing            LiteLLM (self-hosted proxy)
+                         OpenRouter (overflow)
+                         Portkey (guardrails optionnels)
+  Moteurs 3D             Blender 4.x (principal)
+                         Unreal Engine 5 (cinematiques haute fidelite)
+                         Godot 4 (legere, web-ready)
+  Generation video       CogVideoX / Wan2.1 (AI video)
+                         FFmpeg + MoviePy (compositing)
+                         Stable Video Diffusion (animation 2D->3D)
+  Audio & Musique        Bark / CosyVoice (TTS, voix)
+                         ACE-Step / Stable Audio (musique)
+                         AudioCraft/SFX (bruitages)
+                         ElevenLabs (fallback commercial)
+  Personnages            VRM 1.0 (format standard)
+                         Ready Player Me (creation d'avatars)
+                         Mixamo/Quaternius (animations libres)
+                         Cascadeur (animee assistee par IA)
+  Assets 3D              Poly Haven API (CC0, gratuit)
+                         ambientCG (CC0, textures PBR)
+                         Kenney (CC0, stylise)
+                         Bibliotheque locale (assets configures)
+  Observabilite          Langfuse (self-hosted, tracing LLM)
+                         OpenTelemetry GenAI (spans standardises)
+                         Grafana (dashboards unifies)
+  Deploiement            Docker + Docker Compose
+                         Kubernetes (production)
+                         GitHub Actions (CI/CD)
+                         MinIO/S3 (stockage assets)
+
+2.2  ARCHITECTURE MACRO
+
+                       +--------------------------+
+                       |    FRONTEND (Next.js)    |
+                       |  3D Preview (R3F)        |
+                       |  Real-time Stream         |
+                       |  Production Editor        |
+                       +------------+--------------+
+                                    | REST + SSE + WebSocket
+                       +------------v--------------+
+                       |    API GATEWAY (FastAPI)  |
+                       |  Auth (JWT+RBAC)          |
+                       |  Rate Limiting             |
+                       |  Request Validation        |
+                       +------------+--------------+
+                                    |
+              +---------------------+---------------------+
+              |                     |                     |
+    +---------v--------+  +--------v--------+  +---------v--------+
+    | PRODUCTION RUNNER |  |   LLM ROUTER    |  |   TASK QUEUE     |
+    | (Pipeline Core)   |  |   (LiteLLM)     |  | (Celery+Redis)   |
+    |  Story Agent      |  |  Gemini/Groq    |  |  Render/Audio    |
+    |  Storyboard       |  |  NVIDIA/OpenRtr |  |  Composite       |
+    |  Director         |  |  Local          |  |  Export          |
+    |  Blender/QA       |  |                 |  |                  |
+    |  Audio/Loc/Comp   |  |                 |  |                  |
+    +---------+--------+  +-----------------+  +---------+--------+
+              |                                           |
+    +---------v-------------------------------------------v--------+
+    |                        WORKERS                               |
+    |  Blender Headless | UE5/Godot | AI Video (CogVideoX)       |
+    |  TTS/Bark         | MusicGen  | FFmpeg                      |
+    +--------------------------------------------------------------+
+              |
+    +---------v----------------------------------------------------+
+    |                     DATA LAYER                                |
+    |  PostgreSQL  |  Redis  |  MinIO/S3  |  Langfuse              |
+    +--------------------------------------------------------------+
+
+2.3  MODULARITE DES MOTEURS DE RENDU
+
+  Le systeme supporte multiple moteurs via une interface unifiee :
+
+  Interface RenderingEngine
+    +-- BlenderEngine     (blender -b -P script.py)
+    +-- UnrealEngine      (UE5 -ExecutePythonScript + MRQ)
+    +-- GodotEngine       (godot --headless --script)
+    +-- AIVideoEngine     (CogVideoX / Wan2.1 pipeline)
+    +-- HybridEngine      (Blender base + AI enhancement)
+
+  Chaque moteur implemente :
+    - generate_script(spec) -> str
+    - execute(script, workdir) -> Result
+    - inspect(workdir) -> SceneInfo
+    - capabilities() -> Capabilities
+
+  Le pipeline choisit le moteur selon :
+    - La complexite de la scene
+    - La qualite requise
+    - Le budget GPU disponible
+    - Les preferences utilisateur
+
+
+================================================================================
+PARTIE III — SYSTEME D'AGENTS
+================================================================================
+
+3.1  HIERARCHIE DES AGENTS
+
+  L'architecture suit un modele de collaboration inspire des vraies
+  equipes de production cinematographique :
+
+  ORCHESTRATEUR (PipelineRunner)
+    Coordonne l'ensemble, gere les dependances, le parallelisme
+    |
+    +-- AGENTS DE PRE-PRODUCTION
+    |     StoryAgent (Scenariste) -> StorySpec
+    |     StoryboardAgent (Storyboard) -> StoryboardSpec
+    |     DirectorAgent (Realisateur) -> SceneSpec
+    |
+    +-- AGENTS DE PRODUCTION
+    |     CharacterDesigner* -> CharacterSpec[]
+    |     EnvironmentArtist* -> Environment3D
+    |     BlenderAgent (Chef Ope.) -> BlenderScript
+    |     QAAgent (Directeur artistique) -> QAReport
+    |     AnimatorAgent* -> AnimationClip[]
+    |     Render (BlenderBridge) -> RenderOutput
+    |
+    +-- AGENTS DE POST-PRODUCTION
+          AudioAgent (Musique & SFX) -> AudioPlan
+          MusicComposer* -> MusicPlan
+          SoundDesigner* -> SoundDesignPlan
+          LocalizationAgent (Traduction & Voix) -> LanguagePackage[]
+          CompositingAgent (Montage) -> CompositeSpec
+          ReviewAgent* -> FinalReviewReport
+
+  * = nouvel agent a implementer
+
+3.2  NOUVEAUX AGENTS A IMPLEMENTER
+
+  Agent              Role
+  -----------------  ------------------------------------------------
+  CharacterDesigner  Concevoir les personnages (look, poses, expressions)
+                     Input: CharacterSpec -> Output: VRMModel
+  AnimatorAgent      Animer les personnages (keyframes, contraintes,
+                     lip sync, expressions faciales)
+                     Input: ShotSpec + VRMModel -> AnimationClip
+  EnvironmentArtist  Creer les environnements detailles
+                     (modelisation, texture, eclairage HDRI)
+                     Input: EnvironmentSpec -> Environment3D
+  SoundDesigner      Conception sonore detaillee (foley, ambiances
+                     spatiales, mixage)
+                     Input: AudioPlan -> SoundDesignPlan
+  MusicComposer      Composition musicale originale
+                     (theme, leitmotiv, orchestrations)
+                     Input: StorySpec -> MusicPlan
+  ReviewAgent        Revue technique et artistique automatisee
+                     (continuite, coherence, qualite)
+                     Input: Production -> ReviewReport
+
+3.3  COMMUNICATION ENTRE AGENTS
+
+  Les agents communiquent via un systeme de messages cotes :
+
+  MESSAGE BUS (EventBus)
+    StoryAgent --publish(StorySpec)--> StoryboardAgent
+    StoryboardAgent --publish(StoryboardSpec)--> DirectorAgent
+    DirectorAgent --publish(SceneSpec)--> BlenderAgent
+    BlenderAgent --publish(BlenderScript)--> QAAgent
+    QAAgent --publish(QAReport)--> [RevisionRequest | Render]
+
+  Chaque message est :
+    - Type (schema Pydantic valide)
+    - Trace (event_id, timestamp, agent_source)
+    - Persiste (EventLog JSONL pour crash recovery)
+    - Observable (SSE stream vers le frontend)
+
+  Pattern de communication :
+
+    # Publier un resultat
+    event_bus.publish("story_completed", {
+        "production_id": "abc-123",
+        "agent": "StoryAgent",
+        "output": story_spec.to_mapping(),
+        "elapsed_s": 12.5,
+        "model_used": "gemini-3.6-flash",
+        "cost": 0.003
+    })
+
+    # S'abonner (pour orchestration)
+    event_bus.subscribe("story_completed", handler=run_storyboard)
+
+    # Revision ciblee
+    event_bus.publish("revision_request", {
+        "production_id": "abc-123",
+        "target_agent": "BlenderAgent",
+        "feedback": "La camera doit etre plus dynamique",
+        "failed_steps": ["qa_visual"]
+    })
+
+3.4  MODELE D'ITERATION ITERATIVE
+
+  L'utilisateur peut a tout moment :
+
+  1. VOIR l'etat en temps reel (SSE stream)
+  2. MODIFIER un patch structure (cible, pas de regeneration totale)
+  3. REJETER et re-iterer un step specifique
+  4. APPROUVER et avancer
+
+  Exemple de flux de revision :
+
+    Utilisateur : "La camera est trop statique"
+      -> Patch(target="shot[2].camera.movement",
+               old="static", new="travelling")
+      -> DirectorAgent re-emet SceneSpec
+        -> BlenderAgent regenere le script
+          -> Render
+
+    Utilisateur : "Refais la musique, trop triste"
+      -> Patch(target="audio.music.mood",
+               old="melancholic", new="epic")
+      -> AudioAgent regenere l'AudioPlan
+
+  Le systeme de patches EST DEJA IMPLEMENTE dans :
+    - deepblender/domain/patch.py
+    - deepblender/api/app.py (POST /productions/{id}/patches)
+    - deepblender/production/runner.py (revision loop)
+
+
+================================================================================
+PARTIE IV — SKILLS & CONNAISSANCES
+================================================================================
+
+4.1  CATALOGUE COMPLET DES SKILLS
+
+  Les 27 skills existants couvrent deja un large spectre.
+  Voici les ajouts necessaires :
+
+  SKILL EXISTANT       CE QUI MANQUE
+  --------------------  --------------------------------------------------
+  animation             Complet (keyframes, fcurves, NLA)
+  assets                Import OBJ/FBX/glTF documente mais pas de workflow
+                        de telechargement automatique
+  blender-python        Complet
+  camera                Complet
+  cinematography        Complet
+  compositing           Complet
+  composition           Complet
+  continuity            Complet
+  dialogue              Complet
+  feasibility           Complet
+  lighting              Complet
+  modeling              Manque : sculptage avance, remesh, topology optimisation
+  music                 Manque : composition originale, orchestration,
+                        stems separation
+  qa                    Complet
+  rendering             Complet (apres fix filepath)
+  rigging               Manque : weight painting auto, IK/FK switching,
+                        motion capture retarget
+  shading               Complet
+  simulation            Manque : guide particles, fluid sim, cloth sim,
+                        rigid body chains
+  sound-design          Manque : spatial audio, foley auto, mixage multi-pistes
+  storyboard            Complet
+  storytelling          Complet
+  subtitles             Complet
+  texturing             Manque : UDIM avance, texture painting
+  translation           Complet
+  uv                    Complet
+  voice                 Manque : ADR, lip sync, emotions
+
+  NOUVEAUX SKILLS A CREER :
+
+  Skill              Contenu
+  -----------------  --------------------------------------------------
+  character-design   Conception de personnages, pipelines de production
+                     (Marvel, Disney, anime), proportionnalite,
+                     expressions faciales
+  vrm-pipeline       Creation, import, export de modeles VRM,
+                     retargeting d'animation, morph targets
+  ai-video           Utilisation de CogVideoX, Wan2.1, AnimateDiff
+                     pour la generation video IA
+  unreal-engine      Scripting UE5 via Python, MRQ automation,
+                     level sequencing, material creation
+  godot-engine       GDScript, scenes, signaux, physically-based
+                     rendering, export WebGL
+  poly-haven         API Poly Haven, telechargement auto d'HDRI,
+                     textures, modeles (CC0, pas de licence)
+  motion-capture     Import BVH/FBX mocap, retargeting sur
+                     squelettes VRM, nettoyage, blendshapes
+  post-production    Color grading avance, LUT, film grain,
+                     lens flare, motion blur post-render
+
+4.2  SYSTEME DE KNOWLEDGE BASE EXTERNE
+
+  Les agents doivent pouvoir acceder a des connaissances externes :
+
+  Source               Methode d'acces
+  --------------------  --------------------------------------------------
+  Documentation Blender Fichier SKILL.md (statique, mise a jour)
+  Docs Unreal Engine    WebFetch + cache
+  Docs Godot            WebFetch + cache
+  Poly Haven API        REST API (pas d'auth, CC0)
+  Sketchfab             REST API (OAuth, licences mixtes)
+  GitHub repos          Git clone + indexation
+  Stack Overflow        WebSearch (fallback)
+  Papers arXiv          PDF parse (pour techniques avancees)
+
+  Implementation :
+
+  class KnowledgeProvider:
+      def __init__(self):
+          self._cache = {}  # TTL cache
+          self._providers = {
+              "polyhaven": PolyHavenProvider(),
+              "sketchfab": SketchfabProvider(),
+              "blender_docs": BlenderDocsProvider(),
+              "web": WebSearchProvider(),
+          }
+
+      async def query(self, topic: str, context: str) -> str:
+          # 1. Chercher en cache
+          # 2. Interroger les fournisseurs pertinents
+          # 3. Retourner le contexte enrichi
+
+  Integration : Les skills contiennent des metadonnees indiquant
+  quels providers externes sont necessaires. Le SkillRegistry resout
+  automatiquement les dependances.
+
+
+================================================================================
+PARTIE V — PIPELINE DE PRODUCTION
+================================================================================
+
+5.1  PIPELINE COMPLET (22 ETAPES)
+
+  Le pipeline actuel (9 etapes) doit etre etendu a 22 :
+
+  ETAPE  AGENT/PROCESSUS           SORTIE
+  -----  -------------------------  --------------------------------
+   1     StoryAgent                 StorySpec
+   2     StoryboardAgent            StoryboardSpec
+   3     [HITL] Approbation         Approved / Revision
+   4     DirectorAgent              SceneSpec
+   5     CharacterDesigner*         CharacterSpec[]
+   6     EnvironmentArtist*         Environment3D
+   7     BlenderAgent               BlenderScript
+   8     QAAgent (script)           QAReport
+   9     [Revision si needed]       Refined Script
+  10     AnimatorAgent*             AnimationClip[]
+  11     Render (BlenderBridge)     RenderOutput (video brute)
+  12     [HITL] Preview             Approved / Revision
+  13     QAAgent (render)           VisualQAReport
+  14     MusicComposer*             MusicPlan
+  15     SoundDesigner*             SoundDesignPlan
+  16     AudioAgent                 AudioPlan (SFX, ambiances)
+  17     LocalizationAgent          LanguagePackage[]
+  18     TTS/Voix                   VoiceTracks[]
+  19     CompositingAgent           CompositeSpec
+  20     FFmpeg merge               Video + Audio + Subs
+  21     ReviewAgent*               FinalReviewReport
+  22     Export                     FinalOutput (mp4, mov, exr)
+
+  * = nouvel agent a implementer
+
+  PARALLELISME :
+    Etapes 14-18 s'executent en parallèle (audio, musique, voix, localization).
+    Etapes 5-6 peuvent tourner en parallele avec 7 si CharacterSpec et
+    Environment3D sont prets.
+
+5.2  CHECKPOINT & RESUME
+
+  Chaque etape ecrit un checkpoint JSON :
+
+  {
+      "step": "blender",
+      "status": "completed",
+      "output_hash": "sha256:...",
+      "output_path": "data/runs/{id}/blender_script.json",
+      "elapsed_s": 45.2,
+      "cost": 0.012,
+      "model_used": "gemini-3.6-flash",
+      "timestamp": "2026-08-24T23:00:00Z"
+  }
+
+  En cas de crash, le pipeline reprend au dernier checkpoint valide.
+  DEJA IMPLEMENTE dans runner.py.
+
+5.3  GESTION DES ERREURS & FALLBACK
+
+  NIVEAU 1 : Retry immediat
+    - Erreur reseau -> retry 1x avec backoff
+    - Rate limit LLM -> pas de retry, fallback provider
+
+  NIVEAU 2 : Self-repair (ReflexionStrategy)
+    - Script invalide -> le LLM corrige avec le message d'erreur
+    - QA echoue -> feedback injecte, regeneration ciblee
+
+  NIVEAU 3 : Fallback deterministe
+    - 2 echecs LLM -> script synthetise (qualite basique)
+    - Moteur indisponible -> moteur alternatif
+
+  NIVEAU 4 : Arret propre
+    - Budget depasse -> arret avec etat sauvegarde
+    - Erreur fatale -> arret, notification utilisateur
+
+
+================================================================================
+PARTIE VI — MOTEURS DE GENERATION
+================================================================================
+
+6.1  MOTEUR 3D : BLENDER (Principal)
+
+  Etat actuel : Fonctionnel mais scripts LLM mal formats (filepath).
+  Fix applique : render_dir injecte dans le contexte agent.
+
+  Ce qui manque pour la production :
+
+  a) ASSETS 3D :
+     - Integrer Poly Haven API (HDRI, textures, modeles CC0)
+     - Creer une bibliotheque locale de assets de base
+     - Supporter l'import OBJ/FBX/glTF dans les scripts LLM
+     - Ajouter un AssetManager plugin qui gere le cache
+
+  b) PERSONNAGES :
+     - Integrer des templates de personnages VRM
+     - Supporter les armatures et le rigging automatique
+     - Ajouter les blendshapes pour les expressions faciales
+     - Supporter le lip sync via phoneme->blendshape
+
+  c) ANIMATION :
+     - Templates d'animations (marche, course, combat, gestes)
+     - Retargeting d'animations sur nouveaux squelettes
+     - Animation procedurale (IK, contraintes, drivers)
+     - Motion blur et physics-driven animation
+
+  d) QUALITE DE RENDU :
+     - Denoising automatique
+     - Volumetrics avancees (fog, god rays)
+     - Reflections/refractions realistes
+     - Post-process (bloom, DOF, tone mapping)
+
+6.2  MOTEUR 3D : UNREAL ENGINE 5 (Haute Fidelite)
+
+  Pour les scenes necessitant une qualite cinematographique :
+
+  Integration UE5 :
+    1. Script Python -> envoie commande via REST API au serveur UE5
+    2. UE5 execute : level creation, material setup, lighting
+    3. MRQ (Movie Render Queue) rend hors-screen
+    4. Sortie : sequence d'images ou video H264/ProRes
+
+  Avantages :
+    - Nanite (geometrie haute densite sans polycount)
+    - Lumen (eclairage global en temps reel)
+    - MetaHuman (personnages realistes)
+    - Chaos (physique avancee)
+
+  Limites :
+    - GPU requis (pas de CPU rendering)
+    - Licence EULA (gratuit < $1M revenue)
+    - Plus lent que Blender pour les scenes simples
+
+  Quand utiliser UE5 :
+    - Personnages realistes (MetaHuman)
+    - Environnements photorealistes
+    - Effets speciaux complexes (explosions, fluides)
+    - Cinematiques de haute qualite
+
+6.3  MOTEUR IA : COGVIDEX / WAN2.1 (Generation Directe)
+
+  Pour les scenes ou la generation 3D est trop couteuse :
+
+  Pipeline AI Video :
+    Input : Prompt textuel + optional reference image
+      -> CogVideoX (5B model, 16GB VRAM)
+      -> ou Wan2.1 (14B model, 24GB+ VRAM)
+
+  Sortie : Sequence video 4-8 secondes
+
+  Usage :
+    - Brouillons rapides (avant rendu 3D complet)
+    - Effets speciaux (explosions, meteo, particules)
+    - Transitions et interludes
+    - Contenu social (clips courts)
+
+  Integration :
+    - GPU worker dedie (CUDA/ROCm)
+    - API REST interne : POST /gpu/render-ai
+    - Cache des generations (seed + prompt -> video)
+
+6.4  HYBRIDE : BLENDER + AI
+
+  Le mode le plus puissant :
+
+  1. Blender cree la scene de base (geometrie, camera, lighting)
+  2. AI genere les textures procedurales (Stable Diffusion)
+  3. AI enrichit les details (fog, particles, reflections)
+  4. AI post-traite le rendu (upscaling, style transfer)
+  5. FFmpeg compositing final
+
+  Ce workflow combine la precision de Blender avec la creativite de l'IA.
+
+
+================================================================================
+PARTIE VII — INTERFACE UTILISATEUR
+================================================================================
+
+7.1  PRINCIPES UX
+
+  1. MINIMALISME : L'interface ne montre que l'essentiel
+  2. PROGRESSION : On revele la complexite au fur et a mesure
+  3. FEEDBACK : Chaque action a une consequence visible
+  4. CONTROLE : L'utilisateur peut toujours interrompre/modifier
+  5. ESTHETIQUE : Le design reflete la creativite de la plateforme
+
+7.2  PAGES PRINCIPALES
+
+  PAGE                 DESCRIPTION
+  -------------------  --------------------------------------------------
+  / (Dashboard)        Vue d'ensemble : productions en cours,
+                       statistiques, notifications
+  /new                 Creation : formulaire brief + preview
+                       temps reel des etapes
+  /production/[id]     Production : vue detaillee avec :
+                         - Timeline des etapes
+                         - Preview 3D/video en cours
+                         - Chat avec les agents
+                         - Controles (pause, reprise, patch)
+  /library             Bibliotheque : assets, templates,
+                       productions sauvegardees
+  /settings            Parametres : modele LLM, moteur 3D,
+                       qualite, budget, notifications
+  /billing             Abonnement : plans, facturation, usage
+
+7.3  PAGE DE PRODUCTION (COEUR DE L'EXPERIENCE)
+
+  +---------------------------------------------------------------+
+  |  HEADER : Nom de la production | Statut | Actions            |
+  +---------------------------------------------------------------+
+  |                                                               |
+  | +-------------------------+  +-----------------------------+ |
+  | |                         |  | PANEL D'ETAPES              | |
+  | |  PREVIEW 3D/VIDEO       |  |                             | |
+  | |  (Three.js / video)     |  | 1. Scenario         2.3s   | |
+  | |                         |  | 2. Storyboard       1.8s   | |
+  | |  [RENDER EN COURS...]   |  | 3. Direction        3.1s   | |
+  | |                         |  | 4. Blender          45.2s  | |
+  | |  [Pause] [Reprendre]    |  | 5. QA               ---    | |
+  | |                         |  | 6. Audio            ---    | |
+  | +-------------------------+  | 7. Compositing      ---    | |
+  |                             |                             | |
+  |                             | [Voir details] [Patcher]   | |
+  |                             +-----------------------------+ |
+  |                                                               |
+  | +-----------------------------------------------------------+ |
+  | | CHAT / FEEDBACK                                            | |
+  | | "La camera doit etre plus dynamique sur la scene 2"        | |
+  | | -> Patch cree : shot[2].camera.movement = "travelling"     | |
+  | | -> BlenderAgent regenere le script...                      | |
+  | +-----------------------------------------------------------+ |
+  |                                                               |
+  | +-----------------------------------------------------------+ |
+  | | METADONNEES                                                | |
+  | | Coute: $0.042 | Tokens: 12,847 | Modele: gemini-3.6-flash | |
+  | | FPS: 24 | Resolution: 1920x1080 | Format: MP4 H264       | |
+  | +-----------------------------------------------------------+ |
+  +---------------------------------------------------------------+
+
+7.4  PREVISUALISATION 3D TEMPS REEL
+
+  Three.js + React Three Fiber pour :
+
+  a) AVANT LE RENDU :
+     - Apercu de la scene 3D en basse resolution
+     - Positionnement camera interactif
+     - Apercu de l'eclairage
+     - Simulation de mouvement (play/pause)
+
+  b) PENDANT LE RENDU :
+     - Progression frame par frame (WebSocket)
+     - Apercu des frames rendues
+     - Estimation du temps restant
+
+  c) APRES LE RENDU :
+     - Lecture video integree
+     - Comparaison avant/apres
+     - Telechargement haute resolution
+
+  Implementation :
+
+    // frontend/src/components/ScenePreview.tsx
+    import { Canvas } from '@react-three/fiber'
+    import { OrbitControls, Environment } from '@react-three/drei'
+
+    export function ScenePreview({ sceneUrl }) {
+        // Charge le .glb/.gltf rendu par Blender
+        // Affiche en temps reel
+        // Controles orbitaux
+    }
+
+7.5  SYSTEME DE NOTIFICATIONS
+
+  - Toast notifications pour les evenements critiques
+  - Email/webhook pour les productions terminees
+  - Push browser (via service worker)
+  - In-app notification center
+
+
+================================================================================
+PARTIE VIII — OBSERVABILITE & QUALITE
+================================================================================
+
+8.1  TRACING LLM
+
+  Chaque appel LLM est trace :
+
+  {
+      "trace_id": "abc-123",
+      "agent": "BlenderAgent",
+      "step": "build_script",
+      "model": "gemini-3.6-flash",
+      "provider": "gemini",
+      "input_tokens": 2847,
+      "output_tokens": 1203,
+      "latency_ms": 4520,
+      "cost_usd": 0.003,
+      "success": true,
+      "cache_hit": false,
+      "timestamp": "2026-08-24T23:00:00Z"
+  }
+
+  Outils :
+  - Langfuse (self-hosted) pour le dashboard LLM
+  - OpenTelemetry GenAI pour les spans standardises
+  - Custom EventLog (JSONL) pour la recovery
+
+8.2  QUALITE PAR ETAPE
+
+  ETAPE           METRIQUES
+  ---------------  --------------------------------------------------
+  Story            Nombre de beats, coherence narrative, longueur
+  Storyboard       Nombre de shots, diversite des angles
+  Director         Nombre de personnages, complexite de la scene
+  Blender          Nombre d'objets, materiaux, fps, resolution
+  QA               Score (0-100), nombre d'issues, criticite
+  Render           Resolution, fps, duree, taille fichier
+  Audio            Nombre de pistes, duree, dynamique
+  Composite        Nombre de passes, effets, qualite
+
+8.3  DASHBOARDS GRAFANA
+
+  Panels recommends :
+
+  1. Production Overview : productions en cours/terminees/echouees
+  2. LLM Performance : latence par provider, taux de succes, cout
+  3. Render Pipeline : temps par etape, retry rate, fallback rate
+  4. Cost Analysis : cout par production, par agent, par modele
+  5. Error Tracking : erreurs frequentes, patterns d'echec
+  6. User Activity : productions/jour, features utilisees
+
+8.4  METRIQUES CLES A SUIVRE
+
+  Metrique                        Cible
+  -------------------------------  ---------------------------
+  Taux de succes pipeline          > 85%
+  Temps moyen de production        < 5 minutes
+  Taux de fallback LLM             < 15%
+  Taux de retry render             < 10%
+  Score QA moyen                   > 75/100
+  Cout moyen par production        < $0.50
+  Satisfaction utilisateur         > 4/5
+
+
+================================================================================
+PARTIE IX — DEPLOIEMENT & INFRASTRUCTURE
+================================================================================
+
+9.1  ARCHITECTURE DE DEPLOIEMENT
+
+  PRODUCTION (Kubernetes)
+
+  +------------------+  +------------------+  +------------------+
+  | API Pod          |  | API Pod          |  | API Pod          |  (HPA)
+  +--------+---------+  +--------+---------+  +--------+---------+
+           |                     |                     |
+           +---------------------+---------------------+
+                                 |
+                          +------+------+
+                          |    Redis    |  (cache + queue + pub/sub)
+                          +------+------+
+           +---------------------+---------------------+
+  +--------v---------+  +--------v---------+  +--------v---------+
+  | Celery Worker 1  |  | Celery Worker 2  |  | Celery Worker 3  |
+  +------------------+  +------------------+  +------------------+
+  +------------------+  +------------------+  +------------------+
+  | GPU Pod (Blender)|  | GPU Pod (CogVid) |  | GPU Pod (TTS)    |
+  +------------------+  +------------------+  +------------------+
+  +------------------+  +------------------+  +------------------+
+  | PostgreSQL       |  | MinIO            |  | Langfuse         |
+  +------------------+  +------------------+  +------------------+
+
+9.2  VARIABLES D'ENVIRONNEMENT CLES
+
+  # LLM
+  DEEPBLENDER_LLM_MODE=fallback
+  GEMINI_API_KEY=...
+  GROQ_API_KEY=...
+  NVIDIA_API_KEY=...
+  OPENROUTER_API_KEY=...
+
+  # Blender
+  BLENDER_EXE=/usr/bin/blender
+  DEEPBLENDER_MAX_RENDER_RETRIES=2
+
+  # AI Video (optionnel)
+  COGVIDEX_MODEL_PATH=/models/cogvideox-5b
+  WAN21_MODEL_PATH=/models/wan2.1-14b
+
+  # Audio
+  BARK_MODEL_PATH=/models/bark
+  TTS_BINARY=/usr/local/bin/piper
+
+  # Storage
+  DEEPBLENDER_STORAGE_BACKEND=s3
+  S3_BUCKET=deepblender-assets
+  S3_ENDPOINT=https://minio.example.com
+
+  # Observability
+  LANGFUSE_SECRET_KEY=...
+  LANGFUSE_PUBLIC_KEY=...
+  OTEL_ENDPOINT=http://otel-collector:4317
+
+  # Budget
+  DEEPBLENDER_BUDGET=1.0
+  DEEPBLENDER_RATE_LIMIT_MAX=60
+
+9.3  DOCKER COMPOSE (DEV)
+
+  services:
+    api:
+      build: .
+      ports: ["8000:8000"]
+      env_file: .env
+      depends_on: [db, redis]
+
+    worker:
+      build: .
+      target: worker
+      env_file: .env
+      deploy:
+        resources:
+          reservations:
+            devices:
+              - capabilities: [gpu]
+
+    db:
+      image: postgres:16-alpine
+      volumes: [pgdata:/var/lib/postgresql/data]
+
+    redis:
+      image: redis:7-alpine
+
+    minio:
+      image: minio/minio
+      command: server /data
+      ports: ["9000:9000"]
+
+    langfuse:
+      image: langfuse/langfuse
+      ports: ["3001:3000"]
+
+  volumes:
+    pgdata:
+
+9.4  SCALING
+
+  - API : Horizontal pod autoscaler (CPU > 70%)
+  - Workers : Queue-based scaling (Redis queue depth)
+  - GPU : GPU node pool with NVIDIA device plugin
+  - Storage : S3-compatible (MinIO -> AWS S3 en prod)
+  - Database : Read replicas PostgreSQL
+
+
+================================================================================
+PARTIE X — SECURITE & CONFORMITE
+================================================================================
+
+10.1  AUTHENTIFICATION & AUTORISATION
+
+  - JWT HS256 (access tokens, 1h TTL)
+  - Refresh tokens (7 jours, rotation, revocation)
+  - RBAC : owner / admin / editor / viewer
+  - Multi-tenant : isolation par organization
+  - Rate limiting : 60 req/min par IP
+
+10.2  SECURITE DES SCRIPTS
+
+  - AST validation (CodePolicy) : fail-closed
+  - Imports autorises : bpy, math, mathutils, random, json
+  - Builtins interdits : exec, eval, compile, open, input
+  - Timeout subprocess : 300s (configurable)
+  - Pas d'acces reseau depuis les scripts Blender
+
+10.3  PROTECTION DES DONNEES
+
+  - Chiffrement au repos (PostgreSQL TDE)
+  - Chiffrement en transit (TLS 1.3)
+  - Secrets dans Vault (pas en .env en prod)
+  - Audit log (qui a fait quoi, quand)
+  - RGPD : droit a l'effacement, export de donnees
+
+10.4  CONFORMITE LICENCES
+
+  - Assets CC0 (Poly Haven, Kenney) : pas de restrictions
+  - MusicGen : CC BY-NC 4.0 -> pas commercialisable directement
+  - Bark/Tortoise : MIT/Apache -> OK pour usage commercial
+  - Blender : GPL -> OK (execute en subprocess, pas de linking)
+  - UE5 : EULA gratuit (< $1M revenue)
+  - CogVideoX/Wan2.1 : Apache 2.0 -> OK
+
+
+================================================================================
+PARTIE XI — ROADMAP DE DEVELOPPEMENT
+================================================================================
+
+  Phase 1 : STABILISATION (Semaines 1-4)
+  ---------------------------------------
+  [x] Fix NOOA DynamicContext bug ( ReflexionStrategy )
+  [x] Fix Blender filepath ( render_dir injection )
+  [x] Refresh tokens + token revocation
+  [x] Alembic migrations
+  [x] Tests frontend (Vitest + React Testing Library)
+  [x] Documentation API (OpenAPI/Swagger → /api/docs, /api/redoc)
+  [x] Monitoring base (health checks → /api/health)
+  [ ] Integration LiteLLM (skipped - custom router works well)
+
+  Phase 2 : ASSETS & PERSONNAGES (Semaines 5-8)
+  -----------------------------------------------
+  [x] Integration Poly Haven API (assets CC0)
+  [x] Support import OBJ/FBX/glTF (skills assets + blender-python)
+  [x] CharacterDesigner agent
+  [x] AnimatorAgent (keyframes + lip sync)
+  [x] Skill character-design
+  [x] Skill vrm-pipeline
+  [x] Skill ai-video
+  [ ] Bibliotheque locale de assets de base
+  [ ] Templates de personnages VRM (fonctionnels)
+  [ ] Skill vrm-pipeline
+
+  Phase 3 : QUALITE & ITERATION (Semaines 9-12)
+  -----------------------------------------------
+  [ ] Preview 3D temps reel (Three.js + R3F)
+  [ ] Systeme de patches enrichi (UI drag-and-drop)
+  [ ] QA avance (continuite, coherence visuelle)
+  [ ] ReviewAgent
+  [ ] Color grading post-render
+  [ ] Export multi-format (4K, ProRes, DNxHD)
+  [ ] Historique de versions (git-like)
+
+  Phase 4 : AUDIO & MUSIQUE (Semaines 13-16)
+  --------------------------------------------
+  [ ] MusicComposer agent
+  [ ] SoundDesigner agent
+  [ ] Integration Bark/CosyVoice (TTS)
+  [ ] Integration ACE-Step (musique originale)
+  [ ] Audio spatial (ambisonics)
+  [ ] Mixage automatique
+  [ ] Lip sync avance (phonemes -> blendshapes)
+
+  Phase 5 : MOTEURS AVANCES (Semaines 17-20)
+  --------------------------------------------
+  [ ] Integration Unreal Engine 5 (MRQ)
+  [ ] Integration Godot 4 (headless)
+  [ ] AI Video (CogVideoX / Wan2.1)
+  [ ] Mode hybride (Blender + AI)
+  [ ] Render farm distribue
+  [ ] GPU auto-scaling
+
+  Phase 6 : PRODUCTION (Semaines 21-24)
+  ---------------------------------------
+  [ ] Kubernetes deployment
+  [ ] CI/CD pipeline (GitHub Actions)
+  [ ] Langfuse (observabilite LLM)
+  [ ] Grafana (dashboards)
+  [ ] Billing integration (Stripe)
+  [ ] Onboarding utilisateur
+  [ ] Documentation utilisateur
+  [ ] Beta publique
+
+
+================================================================================
+PARTIE XII — MODELE ECONOMIQUE
+================================================================================
+
+12.1  PLANS D'ABONNEMENT
+
+  Plan          Prix/mois   Credits    Features
+  ------------  ----------  ---------  --------------------------------
+  Free          $0          50 credits 3 productions/mois, qualite basique
+  Starter       $19         500 credits 20 productions/mois, qualite HD
+  Pro           $49         2000 credits 100 productions/mois, 4K, UE5
+  Studio        $199        10000 credits Illimite, priority GPU, support
+
+12.2  COUTS PAR CREDIT
+
+  Action                          Credits
+  ----------------------------    --------
+  Production (scenario+rendu)     10 credits
+  Revision ciblee                 2 credits
+  Generation audio                3 credits
+  Generation musique              5 credits
+  Export 4K                       2 credits
+  Preview 3D temps reel           1 credit
+
+12.3  SOURCES DE REVENU
+
+  1. Abonnements SaaS (revenu recurrent)
+  2. Credits supplementaires (a la carte)
+  3. API pour developpeurs (pay-per-call)
+  4. Marketplace de templates/assets (commission 20%)
+  5. Enterprise (deployment sur mesure)
+
+12.4  PROJECTIONS
+
+  Mois 6  : 1000 utilisateurs, $5K MRR
+  Mois 12 : 5000 utilisateurs, $25K MRR
+  Mois 18 : 15000 utilisateurs, $100K MRR
+  Mois 24 : 50000 utilisateurs, $400K MRR
+
+
+================================================================================
+ANNEXES
+================================================================================
+
+ANNEXE A — FICHIERS CLES A MODIFIER
+
+  Fichier                          Changements
+  --------------------------------  ----------------------------------------
+  deepblender/agents/blender.py     + render_dir context, + rendering skill
+  deepblender/agents/base.py        + reflexion fix (strategy_instructions)
+  deepblender/production/runner.py  + 22-step pipeline, + new agents
+  deepblender/llm.py                + LiteLLM integration
+  deepblender/api/app.py            + new endpoints (preview, patches)
+  deepblender/domain/scene.py       + CharacterSpec, AnimationClip
+  deepblender/domain/media.py       + MusicPlan, SoundDesignPlan
+  deepblender/plugins/rendering/    + UE5Engine, GodotEngine, AIVideoEngine
+  deepblender/skills/               + 8 new skills
+  frontend/src/app/                 + new pages (preview, library)
+  frontend/src/components/          + ScenePreview, PatchEditor
+
+ANNEXE B — DEPENDANCES PYTHON A AJOUTER
+
+  litellm>=1.50.0          # LLM routing (remplace le custom)
+  langfuse>=2.0.0          # LLM observability
+  opentelemetry-api>=1.25  # Tracing standardise
+  moviepy>=2.0.0           # Video compositing
+  trimesh>=4.0.0           # 3D mesh processing
+  open3d>=0.18.0           # 3D data processing
+  celery>=5.4.0            # Task queue
+  redis>=5.0.0             # Cache + queue
+
+ANNEXE C — DEPENDANCES NPM A AJOUTER
+
+  @react-three/fiber      # Three.js React integration
+  @react-three/drei       # Three.js helpers
+  three                   # Three.js core
+  zustand                 # State management
+  @stripe/stripe-js       # Billing
+  recharts                # Charts (dashboards)

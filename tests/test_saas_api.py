@@ -324,6 +324,20 @@ class _StubStoryboard:
         return StoryboardSpec(shots=[])
 
 
+class _StubCharacterDesigner:
+    async def design_characters(self, scene):
+        from deepblender.agents.character_designer import CharacterDesignResult, CharacterModel
+        return CharacterDesignResult(characters=[
+            CharacterModel(name="Hero", description="Main character", geometry_type="primitive"),
+        ])
+
+class _StubAnimator:
+    async def generate_animations(self, scene):
+        from deepblender.agents.animator import AnimationResult, AnimationClip
+        return AnimationResult(clips=[
+            AnimationClip(character_name="Hero", shot_index=0, duration=1.0),
+        ])
+
 def _stub_agents():
     return (
         _StubStory(),
@@ -334,6 +348,8 @@ def _stub_agents():
         _StubAudio(),
         _StubLocalization(),
         _StubCompositing(),
+        _StubCharacterDesigner(),
+        _StubAnimator(),
     )
 
 
@@ -594,7 +610,7 @@ def test_worker_status_reports_runs(client: TestClient, monkeypatch: pytest.Monk
     assert payload["status"] in ("idle", "online")
     assert payload["processed"] >= 0
     assert payload["failed"] >= 0
-    assert payload["rotation"] in ("random", "adaptive", "vote")
+    assert payload["rotation"] in ("random", "adaptive", "vote", "fallback")
     assert isinstance(payload["routing"], list)
     for provider in payload["routing"]:
         assert provider["id"]

@@ -112,19 +112,29 @@ scene.render.ffmpeg.ffmpeg_preset = 'GOOD'
 
 ## Patterns courants
 
+### CRITICAL: Output file path
+
+**Always use ABSOLUTE paths** for `scene.render.filepath`. The context variable `render_dir` provides the correct directory.
+
+```python
+import os
+render_dir = os.environ.get("DEEPBLENDER_RENDER_DIR", ".")  # or use the injected variable
+scene.render.filepath = render_dir + "/output.mp4"
+```
+
+NEVER use relative paths with `//` prefix — they resolve to the .blend file location which does not exist in headless mode. This causes "No media file produced by Blender script" errors.
+
 ### Render still (image unique)
 
 ```python
-bpy.ops.render.render(write_still=True)
-# Ou pour un path spécifique :
-scene.render.filepath = "//renders/still_001.png"
+scene.render.filepath = render_dir + "/still_001.png"
 bpy.ops.render.render(write_still=True)
 ```
 
 ### Render animation
 
 ```python
-scene.render.filepath = "//renders/frame_"
+scene.render.filepath = render_dir + "/frame_"
 bpy.ops.render.render(animation=True)
 ```
 
@@ -138,7 +148,7 @@ orig_res = scene.render.resolution_percentage
 # Configurer pour test
 scene.cycles.samples = 32
 scene.render.resolution_percentage = 25
-scene.render.filepath = "//test_render.png"
+scene.render.filepath = render_dir + "/test_render.png"
 bpy.ops.render.render(write_still=True)
 
 # Restaurer
@@ -151,7 +161,7 @@ scene.render.resolution_percentage = orig_res
 1. **Oublier `resolution_percentage = 100`** : rendu en demi-résolution par défaut
 2. **Samples trop élevés pour Eevee** : Eevee n'utilise pas les samples de la même façon
 3. **Pas de denoising** : images bruitées aux faibles samples
-4. **Filepath relatif cassé** : toujours utiliser `//` pour le relatif au .blend
+4. **Filepath relatif cassé** : utiliser un chemin ABSOLU dans `render_dir`, jamais `//` (résout vers le .blend qui n'existe pas en headless)
 5. **Oublier `animation=True`** : ne rend qu'une frame au lieu de toute la séquence
 6. **AgX inexistant sur Blender < 4.0** : vérifier la version avant d'utiliser
 

@@ -10,12 +10,19 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from uuid import uuid4
 
-from sqlalchemy import Boolean, DateTime, Float, ForeignKey, String, Text, UniqueConstraint
+from sqlalchemy import Boolean, CheckConstraint, DateTime, Float, ForeignKey, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from deepblender.api.db import Base
 
 Role = str  # "owner" | "admin" | "editor" | "viewer"
+
+_STATUSES = (
+    "draft", "queued", "running", "waiting_approval",
+    "revising", "completed", "failed", "cancelled", "blocked",
+)
+_SHOT_STATUSES = ("planned", "in_progress", "completed", "failed")
+_ROLES = ("owner", "admin", "editor", "viewer")
 
 
 def _now() -> datetime:
@@ -23,7 +30,7 @@ def _now() -> datetime:
 
 
 def _uuid() -> str:
-    return uuid4().hex[:12]
+    return uuid4().hex
 
 
 class User(Base):
@@ -50,7 +57,7 @@ class Organization(Base):
 
     id: Mapped[str] = mapped_column(String(32), primary_key=True, default=_uuid)
     name: Mapped[str] = mapped_column(String(120))
-    owner_id: Mapped[str] = mapped_column(ForeignKey("users.id"))
+    owner_id: Mapped[str] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
 
     memberships: Mapped[list["Membership"]] = relationship(
@@ -62,11 +69,14 @@ class Membership(Base):
     """Lien User <-> Organization avec un rôle (RBAC)."""
 
     __tablename__ = "memberships"
-    __table_args__ = (UniqueConstraint("user_id", "organization_id"),)
+    __table_args__ = (
+        UniqueConstraint("user_id", "organization_id"),
+        CheckConstraint("role IN ('owner', 'admin', 'editor', 'viewer')", name="ck_membership_role"),
+    )
 
     id: Mapped[str] = mapped_column(String(32), primary_key=True, default=_uuid)
-    user_id: Mapped[str] = mapped_column(ForeignKey("users.id"), index=True)
-    organization_id: Mapped[str] = mapped_column(ForeignKey("organizations.id"), index=True)
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    organization_id: Mapped[str] = mapped_column(ForeignKey("organizations.id", ondelete="CASCADE"), index=True)
     role: Mapped[Role] = mapped_column(String(20), default="viewer")
 
     user: Mapped[User] = relationship(back_populates="memberships")
@@ -79,7 +89,7 @@ class Workspace(Base):
     __tablename__ = "workspaces"
 
     id: Mapped[str] = mapped_column(String(32), primary_key=True, default=_uuid)
-    organization_id: Mapped[str] = mapped_column(ForeignKey("organizations.id"), index=True)
+    organization_id: Mapped[str] = mapped_column(ForeignKey("organizations.id", ondelete="CASCADE"), index=True)
     name: Mapped[str] = mapped_column(String(120))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
 
@@ -90,11 +100,11 @@ class Project(Base):
     __tablename__ = "projects"
 
     id: Mapped[str] = mapped_column(String(32), primary_key=True, default=_uuid)
-    workspace_id: Mapped[str] = mapped_column(ForeignKey("workspaces.id"), index=True)
-    organization_id: Mapped[str] = mapped_column(ForeignKey("organizations.id"), index=True)
+    workspace_id: Mapped[str] = mapped_column(ForeignKey("workspaces.id", ondelete="CASCADE"), index=True)
+    organization_id: Mapped[str] = mapped_column(ForeignKey("organizations.id", ondelete="CASCADE"), index=True)
     name: Mapped[str] = mapped_column(String(120))
     description: Mapped[str] = mapped_column(Text, default="")
-    created_by: Mapped[str] = mapped_column(ForeignKey("users.id"))
+    created_by: Mapped[str] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
 
 
@@ -102,10 +112,16 @@ class Production(Base):
     """Production audiovisuelle d'un projet (un brief, des versions)."""
 
     __tablename__ = "productions"
+    __table_args__ = (
+        CheckConstraint(
+            "status IN ('draft','queued','running','waiting_approval','revising','completed','failed','cancelled','blocked')",
+            name="ck_production_status",
+        ),
+    )
 
     id: Mapped[str] = mapped_column(String(32), primary_key=True, default=_uuid)
-    project_id: Mapped[str] = mapped_column(ForeignKey("projects.id"), index=True)
-    organization_id: Mapped[str] = mapped_column(ForeignKey("organizations.id"), index=True)
+    project_id: Mapped[str] = mapped_column(ForeignKey("projects.id", ondelete="CASCADE"), index=True)
+    organization_id: Mapped[str] = mapped_column(ForeignKey("organizations.id", ondelete="CASCADE"), index=True)
     name: Mapped[str] = mapped_column(String(120))
     brief: Mapped[str] = mapped_column(Text)
     status: Mapped[str] = mapped_column(String(24), default="draft")
@@ -114,7 +130,7 @@ class Production(Base):
     cost: Mapped[float] = mapped_column(Float, default=0.0)
     version: Mapped[int] = mapped_column(default=1)
     error: Mapped[str] = mapped_column(Text, default="")
-    created_by: Mapped[str] = mapped_column(ForeignKey("users.id"))
+    created_by: Mapped[str] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
     started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), default=None)
@@ -132,8 +148,8 @@ class Sequence(Base):
     __tablename__ = "sequences"
 
     id: Mapped[str] = mapped_column(String(32), primary_key=True, default=_uuid)
-    production_id: Mapped[str] = mapped_column(ForeignKey("productions.id"), index=True)
-    organization_id: Mapped[str] = mapped_column(ForeignKey("organizations.id"), index=True)
+    production_id: Mapped[str] = mapped_column(ForeignKey("productions.id", ondelete="CASCADE"), index=True)
+    organization_id: Mapped[str] = mapped_column(ForeignKey("organizations.id", ondelete="CASCADE"), index=True)
     name: Mapped[str] = mapped_column(String(120))
     order_index: Mapped[int] = mapped_column(default=0)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
@@ -148,10 +164,16 @@ class Scene(Base):
     """Scène d'une séquence (spécification complète + statut)."""
 
     __tablename__ = "scenes"
+    __table_args__ = (
+        CheckConstraint(
+            "status IN ('planned','in_progress','completed','failed')",
+            name="ck_scene_status",
+        ),
+    )
 
     id: Mapped[str] = mapped_column(String(32), primary_key=True, default=_uuid)
-    sequence_id: Mapped[str] = mapped_column(ForeignKey("sequences.id"), index=True)
-    organization_id: Mapped[str] = mapped_column(ForeignKey("organizations.id"), index=True)
+    sequence_id: Mapped[str] = mapped_column(ForeignKey("sequences.id", ondelete="CASCADE"), index=True)
+    organization_id: Mapped[str] = mapped_column(ForeignKey("organizations.id", ondelete="CASCADE"), index=True)
     name: Mapped[str] = mapped_column(String(120))
     order_index: Mapped[int] = mapped_column(default=0)
     scene_spec_json: Mapped[str] = mapped_column(Text, default="{}")
@@ -170,10 +192,16 @@ class Shot(Base):
     """Plan d'une scène (paramètres caméra, durée, action, statut)."""
 
     __tablename__ = "shots"
+    __table_args__ = (
+        CheckConstraint(
+            "status IN ('planned','in_progress','completed','failed')",
+            name="ck_shot_status",
+        ),
+    )
 
     id: Mapped[str] = mapped_column(String(32), primary_key=True, default=_uuid)
-    scene_id: Mapped[str] = mapped_column(ForeignKey("scenes.id"), index=True)
-    organization_id: Mapped[str] = mapped_column(ForeignKey("organizations.id"), index=True)
+    scene_id: Mapped[str] = mapped_column(ForeignKey("scenes.id", ondelete="CASCADE"), index=True)
+    organization_id: Mapped[str] = mapped_column(ForeignKey("organizations.id", ondelete="CASCADE"), index=True)
     index: Mapped[int] = mapped_column(default=0)
     start: Mapped[float] = mapped_column(Float, default=0.0)
     end: Mapped[float] = mapped_column(Float, default=0.0)
@@ -192,13 +220,13 @@ class Patch(Base):
     __tablename__ = "patches"
 
     id: Mapped[str] = mapped_column(String(32), primary_key=True, default=_uuid)
-    production_id: Mapped[str] = mapped_column(ForeignKey("productions.id"), index=True)
-    organization_id: Mapped[str] = mapped_column(ForeignKey("organizations.id"), index=True)
+    production_id: Mapped[str] = mapped_column(ForeignKey("productions.id", ondelete="CASCADE"), index=True)
+    organization_id: Mapped[str] = mapped_column(ForeignKey("organizations.id", ondelete="CASCADE"), index=True)
     target: Mapped[str] = mapped_column(Text)  # JSON pointer style path
     old_value: Mapped[str] = mapped_column(Text, default="")
     new_value: Mapped[str] = mapped_column(Text)
     rationale: Mapped[str] = mapped_column(Text, default="")
-    author_id: Mapped[str] = mapped_column(ForeignKey("users.id"))
+    author_id: Mapped[str] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
     applied: Mapped[bool] = mapped_column(default=False)
     applied_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), default=None)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
@@ -212,8 +240,8 @@ class ArtifactRecord(Base):
     __tablename__ = "artifact_records"
 
     id: Mapped[str] = mapped_column(String(32), primary_key=True, default=_uuid)
-    production_id: Mapped[str] = mapped_column(ForeignKey("productions.id"), index=True)
-    organization_id: Mapped[str] = mapped_column(ForeignKey("organizations.id"), index=True)
+    production_id: Mapped[str] = mapped_column(ForeignKey("productions.id", ondelete="CASCADE"), index=True)
+    organization_id: Mapped[str] = mapped_column(ForeignKey("organizations.id", ondelete="CASCADE"), index=True)
     type: Mapped[str] = mapped_column(String(64))
     name: Mapped[str] = mapped_column(String(120))
     version: Mapped[int] = mapped_column(default=1)
@@ -222,4 +250,17 @@ class ArtifactRecord(Base):
     status: Mapped[str] = mapped_column(String(24), default="generated")
     cost: Mapped[float] = mapped_column(Float, default=0.0)
     parent_ids: Mapped[str] = mapped_column(Text, default="[]")  # JSON list
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+
+
+class RefreshToken(Base):
+    """Refresh token persists for revocation support and rotation."""
+
+    __tablename__ = "refresh_tokens"
+
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=_uuid)
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    token_hash: Mapped[str] = mapped_column(String(64), unique=True, index=True)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    revoked: Mapped[bool] = mapped_column(Boolean, default=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)

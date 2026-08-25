@@ -6,7 +6,7 @@ brief transformé directement en script Python (Roadmap B §11).
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import asdict, dataclass, field
 from typing import Any
 
 
@@ -36,8 +36,9 @@ class RenderSpec:
 
     @classmethod
     def from_mapping(cls, data: dict[str, Any]) -> "RenderSpec":
+        raw_resolution = data.get("resolution", (1920, 1080))
         return cls(
-            resolution=tuple(data.get("resolution", (1920, 1080))),
+            resolution=(int(raw_resolution[0]), int(raw_resolution[1])),
             fps=data.get("fps", 24),
             format=data.get("format", "mp4"),
             samples=data.get("samples", 64),
@@ -150,23 +151,81 @@ class SceneSpec:
         }
 
     def to_full_dict(self) -> dict[str, Any]:
-        """Sérialisation complète pour persistance/versioning/patches."""
+        """Sérialisation complète pour persistance/versioning/patches.
+
+        Récursive et JSON-safe : les sous-dataclasses (caméra, personnages…)
+        sont aplaties via ``dataclasses.asdict``.
+        """
         return {
             "schema_version": self.SCENE_SPEC_VERSION,
             "brief": self.brief,
-            "environment": self.environment.__dict__,
-            "characters": [c.__dict__ for c in self.characters],
-            "shots": [s.__dict__ for s in self.shots],
+            "environment": asdict(self.environment),
+            "characters": [asdict(c) for c in self.characters],
+            "shots": [asdict(s) for s in self.shots],
             "render": self.render.to_mapping(),
         }
+
+    @classmethod
+    def _character_from_dict(cls, data: dict[str, Any]) -> "CharacterSpec":
+        payload = dict(data)
+        position = payload.get("position")
+        if isinstance(position, list):
+            payload["position"] = (
+                float(position[0]),
+                float(position[1]),
+                float(position[2]),
+            )
+        return CharacterSpec(**payload)
+
+    @classmethod
+    def _shot_from_dict(cls, data: dict[str, Any]) -> "ShotSpec":
+        camera_data = data.get("camera") or {}
+        camera = (
+            CameraSpec(
+                focal_length_mm=camera_data.get("focal_length_mm", 50.0),
+                position=(
+                    float(camera_data.get("position", (0.0, -5.0, 1.5))[0]),
+                    float(camera_data.get("position", (0.0, -5.0, 1.5))[1]),
+                    float(camera_data.get("position", (0.0, -5.0, 1.5))[2]),
+                ),
+                rotation=(
+                    float(camera_data.get("rotation", (0.0, 0.0, 0.0))[0]),
+                    float(camera_data.get("rotation", (0.0, 0.0, 0.0))[1]),
+                    float(camera_data.get("rotation", (0.0, 0.0, 0.0))[2]),
+                ),
+            )
+            if isinstance(camera_data, dict)
+            else camera_data
+        )
+        env = EnvironmentSpec(**(data.get("environment") or {}))
+        characters = [
+            cls._character_from_dict(c) for c in (data.get("characters") or [])
+        ]
+        animation = AnimationSpec(**(data.get("animation") or {}))
+        light_data = data.get("lighting") or {}
+        raw_color = light_data.get("color", (1.0, 1.0, 1.0))
+        lighting = LightingSpec(
+            key_light=light_data.get("key_light", "area"),
+            intensity=light_data.get("intensity", 1.0),
+            color=(float(raw_color[0]), float(raw_color[1]), float(raw_color[2])),
+        )
+        return ShotSpec(
+            duration=data.get("duration", 5.0),
+            fps=data.get("fps", 24),
+            camera=camera,
+            environment=env,
+            characters=characters,
+            animation=animation,
+            lighting=lighting,
+        )
 
     @classmethod
     def from_full_dict(cls, data: dict[str, Any]) -> "SceneSpec":
         """Reconstruction depuis la sérialisation complète."""
         env_data = data.get("environment", {})
         env = EnvironmentSpec(**env_data)
-        chars = [CharacterSpec(**c) for c in data.get("characters", [])]
-        shots = [ShotSpec(**s) for s in data.get("shots", [])]
+        chars = [cls._character_from_dict(c) for c in data.get("characters", [])]
+        shots = [cls._shot_from_dict(s) for s in data.get("shots", [])]
         render = RenderSpec.from_mapping(data.get("render", {}))
         return cls(
             brief=data.get("brief", ""),

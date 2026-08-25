@@ -16,7 +16,7 @@ from sqlalchemy.orm import Session
 
 from deepblender.api.db import DbSession
 from deepblender.api.models import Membership, Organization, Production, Project, User, Workspace
-from deepblender.api.security import decode_token
+from deepblender.api.security import decode_token_full
 from deepblender.api.state import get_secret_key
 
 _bearer = HTTPBearer(auto_error=False)
@@ -36,7 +36,10 @@ def get_current_user(
     db: DbSession,
     token: Annotated[str, Depends(get_token)],
 ) -> User:
-    user_id = decode_token(token, get_secret_key())
+    payload = decode_token_full(token, get_secret_key())
+    if payload is None or payload.get("type") != "access":
+        raise HTTPException(status_code=401, detail="invalid or expired token")
+    user_id = payload.get("sub")
     if user_id is None:
         raise HTTPException(status_code=401, detail="invalid or expired token")
     user = db.get(User, user_id)

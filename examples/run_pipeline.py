@@ -19,7 +19,7 @@ from deepblender.llm import build_llm
 
 async def main() -> None:
     llm = build_llm()
-    print(f"Modèle : {llm.model()}")
+    print(f"Modèle : {llm.model}")
 
     brief = Brief(
         text=(
