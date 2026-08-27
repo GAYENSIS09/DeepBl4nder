@@ -16,10 +16,10 @@ from nooa.agentdoc import hidden, pformat
 from nooa.config.strategy_config import CodeActConfig
 from nooa.strategy_validation import InvariantError
 
-from deepblender.agents.base import BaseAgent, DefaultsMixin, codeact_with_sandbox
-from deepblender.domain.scene import SceneSpec
-from deepblender.domain.ue5 import UE5Command, UE5Commands
-from deepblender.skills.registry import SkillRegistry
+from DeepBl4nder.agents.base import BaseAgent, DefaultsMixin, codeact_with_sandbox
+from DeepBl4nder.domain.scene import SceneSpec
+from DeepBl4nder.domain.ue5 import UE5Command, UE5Commands
+from DeepBl4nder.skills.registry import SkillRegistry
 
 
 def ue5_commands_postcondition(agent: Any, result: Any, call: Any) -> None:

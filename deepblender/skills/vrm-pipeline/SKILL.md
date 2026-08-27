@@ -149,7 +149,7 @@ clip = {
 }
 ```
 
-## Intégration avec DeepBlender
+## Intégration avec DeepBl4nder
 
 ### CharacterDesigner → VRM
 ```python

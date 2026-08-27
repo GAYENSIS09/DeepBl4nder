@@ -12,11 +12,11 @@ from nooa import CodeActStrategy, strategy
 from nooa.agentdoc import hidden
 from nooa.config.strategy_config import CodeActConfig
 
-from deepblender.agents.base import BaseAgent, DefaultsMixin
-from deepblender.domain.media import AudioPlan, CompositeSpec, ReviewReport
-from deepblender.domain.qa import QAReport
-from deepblender.domain.scene import SceneSpec, RenderOutput
-from deepblender.skills.registry import SkillRegistry
+from DeepBl4nder.agents.base import BaseAgent, DefaultsMixin
+from DeepBl4nder.domain.media import AudioPlan, CompositeSpec, ReviewReport
+from DeepBl4nder.domain.qa import QAReport
+from DeepBl4nder.domain.scene import SceneSpec, RenderOutput
+from DeepBl4nder.skills.registry import SkillRegistry
 
 
 def _review_postcondition(result: Any) -> str | None:

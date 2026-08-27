@@ -77,7 +77,7 @@ export default function DashboardPage() {
         <Card className="mb-8 border-red-500/40">
           <CardHeader
             title="Connexion à l'API impossible"
-            subtitle={`${error instanceof Error ? error.message : String(error)} — Vérifiez que le serveur DeepBlender est démarré.`}
+            subtitle={`${error instanceof Error ? error.message : String(error)} — Vérifiez que le serveur DeepBl4nder est démarré.`}
           />
         </Card>
       ) : null}
@@ -255,7 +255,7 @@ function WorkerCard({ worker, error }: { worker: WorkerOut | null; error: string
     <Card>
       <CardHeader
         title="Worker intégré"
-        subtitle="File d'exécution des runs sur le serveur DeepBlender."
+        subtitle="File d'exécution des runs sur le serveur DeepBl4nder."
         actions={
           worker ? (
             <Badge tone={statusTone}>

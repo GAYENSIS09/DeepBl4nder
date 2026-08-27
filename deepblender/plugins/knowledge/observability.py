@@ -13,9 +13,9 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-from deepblender.plugins.base import Plugin
+from DeepBl4nder.plugins.base import Plugin
 
-logger = logging.getLogger("deepblender.plugins.observability")
+logger = logging.getLogger("DeepBl4nder.plugins.observability")
 
 
 @dataclass
@@ -93,7 +93,7 @@ class ObservabilityPlugin(Plugin):
 
     def _init_span_file(self) -> None:
         """Ouvre le fichier JSONL pour le tracing local."""
-        log_dir = Path(os.environ.get("DEEPBLENDER_DATA_DIR", "data")) / "logs"
+        log_dir = Path(os.environ.get("DeepBl4nder_DATA_DIR", "data")) / "logs"
         log_dir.mkdir(parents=True, exist_ok=True)
         span_path = log_dir / "llm_spans.jsonl"
         try:
@@ -139,7 +139,7 @@ class ObservabilityPlugin(Plugin):
 
     def get_spans(self, limit: int = 100) -> list[dict[str, Any]]:
         """Lit les derniers spans depuis le fichier JSONL."""
-        span_path = Path(os.environ.get("DEEPBLENDER_DATA_DIR", "data")) / "logs" / "llm_spans.jsonl"
+        span_path = Path(os.environ.get("DeepBl4nder_DATA_DIR", "data")) / "logs" / "llm_spans.jsonl"
         if not span_path.exists():
             return []
 

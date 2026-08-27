@@ -1,8 +1,8 @@
-# DeepBlender API — FastAPI Gateway
+# DeepBl4nder API — FastAPI Gateway
 #
 # Usage:
-#   docker build -t deepblender/api:latest -f Dockerfile.api .
-#   docker run --rm -p 8000:8000 deepblender/api:latest
+#   docker build -t DeepBl4nder/api:latest -f Dockerfile.api .
+#   docker run --rm -p 8000:8000 DeepBl4nder/api:latest
 
 FROM python:3.12-slim AS base
 
@@ -17,22 +17,22 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # Python dependencies
 WORKDIR /app
 COPY pyproject.toml README.md ./
-COPY deepblender/ deepblender/
+COPY DeepBl4nder/ DeepBl4nder/
 RUN pip install --no-cache-dir ".[worker]"
 
 # Non-root user
-RUN groupadd -r deepblender && useradd -r -g deepblender -d /app -s /sbin/nologin deepblender \
-    && chown -R deepblender:deepblender /app
-USER deepblender
+RUN groupadd -r DeepBl4nder && useradd -r -g DeepBl4nder -d /app -s /sbin/nologin DeepBl4nder \
+    && chown -R DeepBl4nder:DeepBl4nder /app
+USER DeepBl4nder
 
 EXPOSE 8000
 
 ENV PYTHONUNBUFFERED=1 \
-    DEEPBLENDER_API=1 \
+    DeepBl4nder_API=1 \
     BLENDER_EXE=/usr/local/bin/blender \
     FFMPEG_EXE=/usr/local/bin/ffmpeg
 
 HEALTHCHECK --interval=30s --timeout=10s --start-period=10s --retries=3 \
     CMD curl -f http://localhost:8000/health || exit 1
 
-CMD ["python", "-m", "deepblender.api.app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["python", "-m", "DeepBl4nder.api.app", "--host", "0.0.0.0", "--port", "8000"]

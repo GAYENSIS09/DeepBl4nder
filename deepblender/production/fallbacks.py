@@ -12,10 +12,10 @@ import math
 import re
 from pathlib import Path
 
-from deepblender.domain.scene import BlenderScript, SceneSpec
-from deepblender.domain.narrative import StorySpec, StoryboardShot, StoryboardSpec
+from DeepBl4nder.domain.scene import BlenderScript, SceneSpec
+from DeepBl4nder.domain.narrative import StorySpec, StoryboardShot, StoryboardSpec
 
-logger = logging.getLogger("deepblender.pipeline")
+logger = logging.getLogger("DeepBl4nder.pipeline")
 
 _SHOT_ANGLE_CYCLE = ("wide", "medium", "closeup")
 _MAX_SYNTH_SHOTS = 12
@@ -135,7 +135,7 @@ def synthesize_blender_script(scene: SceneSpec, workdir: Path) -> BlenderScript:
         "",
         "import bpy",
         "",
-        "# Script SYNTHÉTISÉ déterministement par DeepBlender (fallback :",
+        "# Script SYNTHÉTISÉ déterministement par DeepBl4nder (fallback :",
         "# deux générations LLM invalides). Qualité dégradée, revue humaine",
         "# recommandée avant tout rendu définitif.",
         "bpy.ops.wm.read_factory_settings(use_empty=True)",

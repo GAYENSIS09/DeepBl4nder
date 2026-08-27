@@ -1,7 +1,7 @@
 """Politique de code généré : périmètre autorisé pour les scripts Blender.
 
 Le code généré par un LLM ne sort jamais du périmètre défini ici
-(Roadmap B §10, C §14). Le validateur AST (`deepblender.codegen.validator`)
+(Roadmap B §10, C §14). Le validateur AST (`DeepBl4nder.codegen.validator`)
 applique cette politique avant toute exécution dans un worker.
 """
 

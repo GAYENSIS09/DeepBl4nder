@@ -12,7 +12,7 @@ import time
 from pathlib import Path
 from typing import Any, Callable
 
-from deepblender.domain.media import (
+from DeepBl4nder.domain.media import (
     AudioMaster,
     AudioPlan,
     CompositeSpec,
@@ -20,14 +20,14 @@ from deepblender.domain.media import (
     MusicPlan,
     SoundDesignPlan,
 )
-from deepblender.domain.scene import RenderOutput, SceneSpec
-from deepblender.production.events import EventLog
-from deepblender.production.plugins import PluginShortcuts
-from deepblender.production.runs import ProductionRun
-from deepblender.artifacts.provenance import ProvenanceGraph
-from deepblender.artifacts.registry import Artifact, ArtifactRegistry
+from DeepBl4nder.domain.scene import RenderOutput, SceneSpec
+from DeepBl4nder.production.events import EventLog
+from DeepBl4nder.production.plugins import PluginShortcuts
+from DeepBl4nder.production.runs import ProductionRun
+from DeepBl4nder.artifacts.provenance import ProvenanceGraph
+from DeepBl4nder.artifacts.registry import Artifact, ArtifactRegistry
 
-logger = logging.getLogger("deepblender.production.postprod")
+logger = logging.getLogger("DeepBl4nder.production.postprod")
 
 
 class PostProductionRunner(PluginShortcuts):
@@ -385,7 +385,7 @@ class PostProductionRunner(PluginShortcuts):
             workdir.mkdir(parents=True, exist_ok=True)
 
             if self.subtitle_plugin and package.subtitles_path:
-                from deepblender.plugins.media.subtitle import SubtitleEntry
+                from DeepBl4nder.plugins.media.subtitle import SubtitleEntry
                 subtitle_entries = []
                 for i, dialogue in enumerate(package.dialogues):
                     if isinstance(dialogue, dict):

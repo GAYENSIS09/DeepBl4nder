@@ -2,7 +2,7 @@
 
 Le socle utilise une base relationnelle locale (SQLite) pour les données
 multi-tenant : users, organizations, membres, workspaces, projets et
-productions. L'URL est surchargeable via `DEEPBLENDER_DB` ou le paramètre
+productions. L'URL est surchargeable via `DeepBl4nder_DB` ou le paramètre
 `database_url` de `create_app` (facilite la migration vers PostgreSQL).
 """
 
@@ -17,7 +17,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
 
-from deepblender.api.state import get_session_factory
+from DeepBl4nder.api.state import get_session_factory
 
 
 class Base(DeclarativeBase):
@@ -27,7 +27,7 @@ class Base(DeclarativeBase):
 def _as_sqlalchemy_url(url: str) -> str:
     """Accepte une URL complète ou un simple chemin de fichier SQLite.
 
-    `deepblender.db` est converti en `sqlite:///<chemin absolu>` ; les URL
+    `DeepBl4nder.db` est converti en `sqlite:///<chemin absolu>` ; les URL
     avec schéma (ex. `sqlite:///x.db`, `postgresql://…`) passent telles quelles.
     """
     if "://" in url:

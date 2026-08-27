@@ -9,14 +9,14 @@ identifiants annoncés sont filtrés par les règles établies
 (``MODEL_SELECTION_RULES`` : exclusions embeddings/image/audio, préférences
 ordonnées, quota). Tout échec de découverte retombe silencieusement sur les
 listes statiques — le réseau ne doit jamais bloquer le démarrage.
-``DEEPBLENDER_DISCOVER_MODELS=off`` désactive la découverte.
+``DeepBl4nder_DISCOVER_MODELS=off`` désactive la découverte.
 
 Le ``LLMRouter`` supporte deux modes d'appel :
 
 - ``fallback`` (défaut production via ``get_router``) : le premier fournisseur
   sain du pool répond ; on ne passe au suivant qu'en cas d'échec — un seul
   fournisseur sollicité par appel, quotas préservés ;
-- ``vote`` (``DEEPBLENDER_LLM_MODE=vote``) : tous les fournisseurs disponibles
+- ``vote`` (``DeepBl4nder_LLM_MODE=vote``) : tous les fournisseurs disponibles
   répondent en parallèle ; les réponses identiques forment une majorité →
   c'est la réponse retenue ; en cas d'égalité, la santé historique départage.
 
@@ -49,7 +49,7 @@ import httpx
 from dataclasses import dataclass
 from typing import Any, Callable
 
-logger = logging.getLogger("deepblender.llm")
+logger = logging.getLogger("DeepBl4nder.llm")
 
 from nooa.unifiedllm import RetryConfig, UnifiedLLM
 from nooa.unifiedllm.registry import get_llm_client
@@ -677,7 +677,7 @@ class LLMRouter:
         # - "fallback" : premier fournisseur sain dans l'ordre du pool ; on ne
         #   passe au suivant qu'en cas d'échec (économique, adapté à la prod).
         resolved = (
-            mode or os.environ.get("DEEPBLENDER_LLM_MODE", "vote")
+            mode or os.environ.get("DeepBl4nder_LLM_MODE", "vote")
         ).strip().lower()
         self._mode = resolved if resolved in ("vote", "fallback") else "vote"
 
@@ -686,7 +686,7 @@ class LLMRouter:
         # filtrés par les règles (MODEL_SELECTION_RULES). Vide = repli statique.
         self._active_models: dict[str, tuple[str, ...]] = {}
         discover_env = os.environ.get(
-            "DEEPBLENDER_DISCOVER_MODELS", "1"
+            "DeepBl4nder_DISCOVER_MODELS", "1"
         ).strip().lower() not in {"0", "false", "off"}
         # Priorité : paramètre explicite ``discover`` > env > heuristique
         # (fabrique injectée = tests/outillage → pas de réseau).
@@ -1179,13 +1179,13 @@ def get_router(provider_ids: list[str] | None = None) -> LLMRouter:
     """Routeur partagé (santé continue entre les runs). Créé à la demande.
 
     Voie production : mode ``fallback`` séquentiel par défaut (quotas
-    préservés). ``DEEPBLENDER_LLM_MODE=vote`` restaure le vote multi-LLM.
+    préservés). ``DeepBl4nder_LLM_MODE=vote`` restaure le vote multi-LLM.
     """
     global _ROUTER
     if _ROUTER is None:
         _ROUTER = LLMRouter(
             provider_ids=provider_ids,
-            mode=os.environ.get("DEEPBLENDER_LLM_MODE", "fallback"),
+            mode=os.environ.get("DeepBl4nder_LLM_MODE", "fallback"),
         )
     return _ROUTER
 
@@ -1208,7 +1208,7 @@ def build_llm(provider_ids: list[str] | None = None, fake: bool = False) -> Any:
 
     - ``fake=True`` : FakeLLMClient scripté, sans quota (tests/développement).
     - Sinon : ``LLMRouter`` partagé — mode ``fallback`` séquentiel par défaut
-      (premier fournisseur sain du pool ; ``DEEPBLENDER_LLM_MODE=vote``
+      (premier fournisseur sain du pool ; ``DeepBl4nder_LLM_MODE=vote``
       restaure le vote majoritaire), cooldown simple après un échec.
     - ``provider_ids`` : pool strict optionnel (défaut : tous les fournisseurs
       dont la clé d'API est définie).

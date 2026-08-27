@@ -6,7 +6,7 @@ import re
 from dataclasses import dataclass
 from typing import Any
 
-from deepblender.domain.scene import SceneSpec
+from DeepBl4nder.domain.scene import SceneSpec
 
 
 PathPart = str | int

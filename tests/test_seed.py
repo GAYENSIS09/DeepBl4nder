@@ -7,9 +7,9 @@ from pathlib import Path
 import pytest
 from sqlalchemy.orm import Session
 
-from deepblender.api.db import Base, create_engine_for
-from deepblender.api.models import Membership, Organization, Project, User, Workspace
-from deepblender.api.seed import MIN_PASSWORD_LENGTH, seed_admin
+from DeepBl4nder.api.db import Base, create_engine_for
+from DeepBl4nder.api.models import Membership, Organization, Project, User, Workspace
+from DeepBl4nder.api.seed import MIN_PASSWORD_LENGTH, seed_admin
 
 
 @pytest.fixture()
@@ -24,20 +24,20 @@ def db(tmp_path: Path) -> Session:
 def test_seed_creates_admin_org_and_project(db: Session) -> None:
     result = seed_admin(
         db,
-        email="admin@deepblender.local",
+        email="admin@DeepBl4nder.local",
         password="admin-dev-123",
-        org_name="DeepBlender Dev",
+        org_name="DeepBl4nder Dev",
         project_name="Démo",
     )
     db.commit()
 
     assert result.user_created and result.org_created
-    user = db.query(User).filter(User.email == "admin@deepblender.local").one()
+    user = db.query(User).filter(User.email == "admin@DeepBl4nder.local").one()
     assert user.is_active
     membership = db.query(Membership).filter(Membership.user_id == user.id).one()
     assert membership.role == "admin"
     organization = db.query(Organization).filter(Organization.id == membership.organization_id).one()
-    assert organization.name == "DeepBlender Dev"
+    assert organization.name == "DeepBl4nder Dev"
     workspace = db.query(Workspace).filter(Workspace.organization_id == organization.id).one()
     assert workspace.name == "Default"
     project = db.query(Project).filter(Project.organization_id == organization.id).one()
@@ -59,7 +59,7 @@ def test_seed_is_idempotent(db: Session) -> None:
 
 
 def test_seed_resets_password(db: Session) -> None:
-    from deepblender.api.security import verify_password
+    from DeepBl4nder.api.security import verify_password
 
     seed_admin(db, email="a@b.c", password="password-123")
     db.commit()

@@ -1,6 +1,6 @@
 # 05 — Skills
 
-> Consolidation de : Roadmap A §14, B §6, C §9-10. Mécanisme NOOA (`TextSkill`, `skill_registry`) + contenu métier DeepBlender.
+> Consolidation de : Roadmap A §14, B §6, C §9-10. Mécanisme NOOA (`TextSkill`, `skill_registry`) + contenu métier DeepBl4nder.
 
 ## Définition
 

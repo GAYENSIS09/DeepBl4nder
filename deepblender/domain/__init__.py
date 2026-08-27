@@ -1,9 +1,9 @@
-"""Domaine métier de DeepBlender : objets vivants typés manipulés par les agents NOOA."""
+"""Domaine métier de DeepBl4nder : objets vivants typés manipulés par les agents NOOA."""
 
 from __future__ import annotations
 
-from deepblender.domain.asset import Asset, AssetKind, sha256_of_file
-from deepblender.domain.media import (
+from DeepBl4nder.domain.asset import Asset, AssetKind, sha256_of_file
+from DeepBl4nder.domain.media import (
     AudioMaster,
     AudioPlan,
     CompositeSpec,
@@ -13,9 +13,9 @@ from deepblender.domain.media import (
     SoundDesignPlan,
     SoundLayer,
 )
-from deepblender.domain.project import Brief, Project, Sequence, Shot
-from deepblender.domain.qa import Issue, IssueKind, QAReport, QAStatus, RevisionSpec
-from deepblender.domain.scene import (
+from DeepBl4nder.domain.project import Brief, Project, Sequence, Shot
+from DeepBl4nder.domain.qa import Issue, IssueKind, QAReport, QAStatus, RevisionSpec
+from DeepBl4nder.domain.scene import (
     BlenderScript,
     CharacterSpec,
     EnvironmentSpec,

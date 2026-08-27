@@ -216,7 +216,7 @@ brick_textures = search_polyhaven("textures", tags=["brick", "wall"], limit=5)
 tree_models = search_polyhaven("models", tags=["tree", "plant"], limit=5)
 ```
 
-## Intégration avec DeepBlender
+## Intégration avec DeepBl4nder
 
 ### DirectorAgent → Asset Search
 ```python

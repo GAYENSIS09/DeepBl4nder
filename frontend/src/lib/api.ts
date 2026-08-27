@@ -223,7 +223,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   try {
     response = await fetch(`${API_URL}${path}`, { ...init, headers });
   } catch {
-    throw new ApiError('Impossible de joindre le serveur DeepBlender.', 0);
+    throw new ApiError('Impossible de joindre le serveur DeepBl4nder.', 0);
   }
 
   if (!response.ok) {
@@ -270,7 +270,7 @@ async function requestBlob(path: string): Promise<{ blob: Blob; filename: string
   try {
     response = await fetch(`${API_URL}${path}`, { headers });
   } catch {
-    throw new ApiError('Impossible de joindre le serveur DeepBlender.', 0);
+    throw new ApiError('Impossible de joindre le serveur DeepBl4nder.', 0);
   }
   if (!response.ok) {
     throw new ApiError(await errorMessage(response), response.status);

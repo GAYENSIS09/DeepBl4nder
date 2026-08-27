@@ -20,7 +20,7 @@ Ne pas multiplier prématurément les agents : les capacités spécialisées vie
 ## Agent Run vs Production Run
 
 ```
-Agent Run (NOOA)                Production Run (DeepBlender)
+Agent Run (NOOA)                Production Run (DeepBl4nder)
 Agent → Context → Memory         Project → Production Step → Artifact
   → Method → LLM → Code/Tool       → Worker → Render/Process → QA
   → Validation → Result            → Revision → Artifact version
@@ -53,7 +53,7 @@ CONTEXT UPDATE → RETRY / REPAIR / ESCALATE.
 - **Agent → Tool/Plugin** : typed call → policy/permissions → tool → plugin → système
   externe → typed result → event/trace.
 - **Agent → CodeAct** : raisonnement → Python généré → validation NOOA → politique
-  DeepBlender → sandbox → exécution → stdout/stderr/result → event → état. Une erreur
+  DeepBl4nder → sandbox → exécution → stdout/stderr/result → event → état. Une erreur
   devient une information exploitable par la boucle de réparation.
 - **Artifact → QA** : checks techniques, visuels, sémantiques, continuité → `QAReport`.
 - **QA → Revision** : FAIL → classification → étape affectée → `RevisionSpec` → agent

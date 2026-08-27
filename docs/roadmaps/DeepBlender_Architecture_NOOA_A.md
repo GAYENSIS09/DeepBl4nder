@@ -1,4 +1,4 @@
-# DeepBlender — Architecture NOOA-First
+# DeepBl4nder — Architecture NOOA-First
 
 > **Statut :** feuille de route architecturale de départ  
 > **Version :** 0.2 — NOOA-first  
@@ -8,7 +8,7 @@
 
 ## 1. Vision
 
-DeepBlender est une plateforme de production audiovisuelle assistée par agents IA, construite **au-dessus de NVIDIA NeMo Labs OO-Agents (NOOA)**.
+DeepBl4nder est une plateforme de production audiovisuelle assistée par agents IA, construite **au-dessus de NVIDIA NeMo Labs OO-Agents (NOOA)**.
 
 L'objectif est de transformer une intention créative en production Blender exploitable, itérative et traçable :
 
@@ -38,13 +38,13 @@ Le MVP vise d'abord des séquences de **5 à 10 secondes**.
 
 La philosophie fondamentale est :
 
-> **NOOA fournit le runtime agentique. DeepBlender fournit le domaine de production audiovisuelle.**
+> **NOOA fournit le runtime agentique. DeepBl4nder fournit le domaine de production audiovisuelle.**
 
 ---
 
 # 2. Principe NOOA-first
 
-DeepBlender ne doit pas devenir un deuxième framework d'agents.
+DeepBl4nder ne doit pas devenir un deuxième framework d'agents.
 
 Nous exploitons directement les primitives NOOA lorsqu'elles sont pertinentes :
 
@@ -73,16 +73,16 @@ NOOA
 └── model-facing harness APIs
 ```
 
-**Ne pas recréer ces abstractions dans DeepBlender sans nécessité démontrée.**
+**Ne pas recréer ces abstractions dans DeepBl4nder sans nécessité démontrée.**
 
 ---
 
-# 3. Ce que DeepBlender apporte
+# 3. Ce que DeepBl4nder apporte
 
-DeepBlender ajoute uniquement les concepts propres à la production :
+DeepBl4nder ajoute uniquement les concepts propres à la production :
 
 ```text
-DeepBlender
+DeepBl4nder
 ├── Production domain
 ├── Blender domain objects
 ├── Skills métier
@@ -104,7 +104,7 @@ DeepBlender
 
 # 4. Matrice de responsabilité
 
-| Capacité | NOOA | DeepBlender |
+| Capacité | NOOA | DeepBl4nder |
 |---|---:|---:|
 | Agent runtime | **Natif** | Utilise |
 | Agent = objet Python | **Natif** | Utilise |
@@ -126,17 +126,17 @@ DeepBlender
 | Model selection par méthode | **Natif selon stratégie/configuration** | Configure |
 | Scoped context | **Natif** | Utilise |
 | Memory operations | **Natif** | Exploite |
-| Blender API | — | **DeepBlender** |
-| Blender integration | — | **DeepBlender** |
-| Blender worker isolation | — | **DeepBlender** |
-| Render scheduling | — | **DeepBlender** |
-| Asset management | — | **DeepBlender** |
-| Artifact registry | — | **DeepBlender** |
-| Provenance de production | — | **DeepBlender** |
-| Production dependency graph | — | **DeepBlender** |
-| Blender QA | — | **DeepBlender** |
-| Code security policy | — | **DeepBlender** |
-| Render farm | — | **DeepBlender / plugin** |
+| Blender API | — | **DeepBl4nder** |
+| Blender integration | — | **DeepBl4nder** |
+| Blender worker isolation | — | **DeepBl4nder** |
+| Render scheduling | — | **DeepBl4nder** |
+| Asset management | — | **DeepBl4nder** |
+| Artifact registry | — | **DeepBl4nder** |
+| Provenance de production | — | **DeepBl4nder** |
+| Production dependency graph | — | **DeepBl4nder** |
+| Blender QA | — | **DeepBl4nder** |
+| Code security policy | — | **DeepBl4nder** |
+| Render farm | — | **DeepBl4nder / plugin** |
 
 > Cette matrice distingue les primitives décrites par NOOA des responsabilités spécifiques au domaine Blender. Elle ne prétend pas que NOOA fournit un système complet de gestion de production.
 
@@ -144,7 +144,7 @@ DeepBlender
 
 # 5. Le modèle objet NOOA
 
-Le code DeepBlender doit suivre autant que possible le modèle objet de NOOA.
+Le code DeepBl4nder doit suivre autant que possible le modèle objet de NOOA.
 
 Conceptuellement :
 
@@ -190,7 +190,7 @@ corps Python    → logique déterministe
 
 # 6. Types et objets vivants
 
-Une priorité de DeepBlender est d'utiliser les **objets Python typés comme interface de travail**.
+Une priorité de DeepBl4nder est d'utiliser les **objets Python typés comme interface de travail**.
 
 Au lieu de transformer systématiquement tout en JSON :
 
@@ -235,7 +235,7 @@ Les objets métier ne doivent donc pas être conçus uniquement comme des DTO s�
 
 Le contexte agentique est délégué à NOOA.
 
-DeepBlender fournit les informations métier que NOOA doit rendre disponibles :
+DeepBl4nder fournit les informations métier que NOOA doit rendre disponibles :
 
 ```text
 NOOA Context
@@ -244,7 +244,7 @@ NOOA Context
      ├── relevant memory
      ├── method context
      ├── event context
-     └── DeepBlender objects
+     └── DeepBl4nder objects
              │
              ├── Project
              ├── Scene
@@ -253,7 +253,7 @@ NOOA Context
              └── QA state
 ```
 
-DeepBlender ne crée pas de `ContextManager` parallèle.
+DeepBl4nder ne crée pas de `ContextManager` parallèle.
 
 ---
 
@@ -292,7 +292,7 @@ NOOA Memory
     =
 mémoire cognitive / opérationnelle de l'agent
 
-DeepBlender Project Data
+DeepBl4nder Project Data
     =
 vérité persistante de la production
 ```
@@ -303,7 +303,7 @@ vérité persistante de la production
 
 Les événements agentiques et l'historique d'événements doivent être exploités via NOOA lorsqu'ils couvrent le besoin.
 
-DeepBlender ne doit pas créer un deuxième event bus pour les événements agentiques.
+DeepBl4nder ne doit pas créer un deuxième event bus pour les événements agentiques.
 
 Exemple :
 
@@ -319,7 +319,7 @@ NOOA Events
 └── agent completed
 ```
 
-DeepBlender peut ajouter des événements métier :
+DeepBl4nder peut ajouter des événements métier :
 
 ```text
 SceneCreated
@@ -341,7 +341,7 @@ NOOA observability
     ↓
 agent / model / loop / context / events
 
-DeepBlender observability
+DeepBl4nder observability
     ↓
 production / Blender / workers / renders / artifacts / costs
 ```
@@ -352,7 +352,7 @@ L'objectif est de relier les deux, pas de les remplacer.
 
 # 10. Code-as-Action
 
-C'est une capacité centrale pour DeepBlender.
+C'est une capacité centrale pour DeepBl4nder.
 
 Le modèle doit pouvoir utiliser Python comme langage d'action.
 
@@ -395,7 +395,7 @@ Pour Blender, cette capacité est particulièrement adaptée à la génération 
 
 # 11. Génération de code Blender
 
-Le code généré reste soumis aux politiques DeepBlender.
+Le code généré reste soumis aux politiques DeepBl4nder.
 
 Pipeline :
 
@@ -404,7 +404,7 @@ NOOA / Agent
       ↓
 Code-as-Action / Python
       ↓
-DeepBlender Code Policy
+DeepBl4nder Code Policy
       ↓
 Validation
       ↓
@@ -415,7 +415,7 @@ Blender
 
 Le principe est :
 
-> **NOOA donne au modèle la capacité d'agir en Python ; DeepBlender définit le périmètre dans lequel cette action est autorisée.**
+> **NOOA donne au modèle la capacité d'agir en Python ; DeepBl4nder définit le périmètre dans lequel cette action est autorisée.**
 
 ---
 
@@ -445,7 +445,7 @@ Les paramètres tels que :
 
 doivent être configurés au niveau NOOA lorsque ses mécanismes le permettent.
 
-DeepBlender ne doit pas construire un `LLMOrchestrator` propriétaire pour reproduire cela.
+DeepBl4nder ne doit pas construire un `LLMOrchestrator` propriétaire pour reproduire cela.
 
 ---
 
@@ -609,7 +609,7 @@ Le processus Blender doit être isolé.
 ```text
 NOOA Agent
     ↓
-DeepBlender capability
+DeepBl4nder capability
     ↓
 Blender Plugin
     ↓
@@ -620,7 +620,7 @@ Blender Worker
 Blender process
 ```
 
-Responsabilités DeepBlender :
+Responsabilités DeepBl4nder :
 
 - lancement ;
 - timeout ;
@@ -642,7 +642,7 @@ Worker 3 → Shot 003
 
 # 18. Production domain
 
-DeepBlender doit définir ses propres objets métier.
+DeepBl4nder doit définir ses propres objets métier.
 
 Exemples :
 
@@ -704,9 +704,9 @@ timestamp
 
 # 20. Provenance
 
-La provenance est une responsabilité métier DeepBlender.
+La provenance est une responsabilité métier DeepBl4nder.
 
-NOOA fournit le contexte et les événements agentiques nécessaires à l'observabilité de l'agent, mais DeepBlender doit reconstruire la provenance de production.
+NOOA fournit le contexte et les événements agentiques nécessaires à l'observabilité de l'agent, mais DeepBl4nder doit reconstruire la provenance de production.
 
 Question cible :
 
@@ -758,7 +758,7 @@ Revision
 
 ## Dependency graph
 
-Responsabilité DeepBlender :
+Responsabilité DeepBl4nder :
 
 ```text
 Asset A
@@ -772,7 +772,7 @@ Render
 
 ## Provenance graph
 
-Responsabilité DeepBlender :
+Responsabilité DeepBl4nder :
 
 ```text
 Brief
@@ -803,7 +803,7 @@ Les graphes représentent les **relations métier**, pas le runtime NOOA.
 
 # 22. QA
 
-QA est une responsabilité DeepBlender.
+QA est une responsabilité DeepBl4nder.
 
 ```text
 Technical QA
@@ -866,7 +866,7 @@ La boucle cible devient :
 
 La boucle de raisonnement est NOOA.
 
-La boucle de production est DeepBlender.
+La boucle de production est DeepBl4nder.
 
 Elles doivent rester connectées mais distinctes.
 
@@ -888,7 +888,7 @@ Ces trois notions ne doivent pas être confondues.
                   ▼
              Agent state
 
-              DeepBlender
+              DeepBl4nder
                   │
         ┌─────────┼─────────┐
         ▼         ▼         ▼
@@ -917,7 +917,7 @@ La vérité actuelle du projet.
 # 25. Architecture des dossiers
 
 ```text
-deepblender/
+DeepBl4nder/
 │
 ├── pyproject.toml
 ├── README.md
@@ -940,7 +940,7 @@ deepblender/
 │       └── rendering.md
 │
 ├── src/
-│   └── deepblender/
+│   └── DeepBl4nder/
 │       │
 │       ├── agents/
 │       │   ├── director.py
@@ -1044,11 +1044,11 @@ Si un besoin semble correspondre à l'une de ces catégories :
 
 1. vérifier d'abord les primitives NOOA ;
 2. utiliser NOOA directement ;
-3. n'ajouter une abstraction DeepBlender que si elle représente une responsabilité métier absente de NOOA.
+3. n'ajouter une abstraction DeepBl4nder que si elle représente une responsabilité métier absente de NOOA.
 
 ---
 
-# 27. Ce qui DOIT être DeepBlender
+# 27. Ce qui DOIT être DeepBl4nder
 
 ```text
 ✓ Blender integration
@@ -1214,7 +1214,7 @@ NOOA
  └── QAAgent
        │
        ▼
-DeepBlender
+DeepBl4nder
  │
  ├── Blender plugin
  ├── Blender worker
@@ -1287,7 +1287,7 @@ provenance
 
 ## Phase 0 — Étude NOOA
 
-Avant d'écrire des abstractions DeepBlender :
+Avant d'écrire des abstractions DeepBl4nder :
 
 - étudier les exemples NOOA ;
 - identifier les APIs réellement disponibles ;
@@ -1303,7 +1303,7 @@ Avant d'écrire des abstractions DeepBlender :
 
 ## Phase 1 — Agent NOOA minimal
 
-Créer un agent DeepBlender qui :
+Créer un agent DeepBl4nder qui :
 
 - possède un état typé ;
 - possède des méthodes agentiques ;
@@ -1424,7 +1424,7 @@ Est-ce une responsabilité du domaine audiovisuel ?
 Si oui :
 
 ```text
-AJOUTER À DEEPBLENDER
+AJOUTER À DeepBl4nder
 ```
 
 Sinon :
@@ -1441,7 +1441,7 @@ Ne pas ajouter.
                          USER
                            │
                            ▼
-                    DeepBlender API
+                    DeepBl4nder API
                            │
                            ▼
                  ┌───────────────────┐
@@ -1461,7 +1461,7 @@ Ne pas ajouter.
                  └─────────┬─────────┘
                            │
                            ▼
-                 DEEPBLENDER AGENTS
+                 DeepBl4nder AGENTS
                            │
              ┌─────────────┼─────────────┐
              ▼             ▼             ▼
@@ -1498,7 +1498,7 @@ Ne pas ajouter.
 NOOA
     = cerveau + runtime agentique
 
-DeepBlender
+DeepBl4nder
     = monde de production audiovisuelle
 
 Skills
@@ -1526,7 +1526,7 @@ Human
     = jugement créatif
 ```
 
-> **DeepBlender ne doit pas chercher à être meilleur que NOOA dans le domaine des agents. Il doit devenir extrêmement bon dans le domaine Blender / production audiovisuelle tout en exploitant profondément les primitives NOOA.**
+> **DeepBl4nder ne doit pas chercher à être meilleur que NOOA dans le domaine des agents. Il doit devenir extrêmement bon dans le domaine Blender / production audiovisuelle tout en exploitant profondément les primitives NOOA.**
 
 ---
 
@@ -1536,12 +1536,12 @@ L'architecture est saine si l'on peut demander :
 
 > « Est-ce que cette fonctionnalité est déjà fournie par NOOA ? »
 
-et supprimer toute abstraction DeepBlender qui ne fait que la reproduire.
+et supprimer toute abstraction DeepBl4nder qui ne fait que la reproduire.
 
 À l'inverse, si l'on demande :
 
 > « Comment cet agent sait-il que ce render correspond au Shot 12, quelle version de l'asset il utilise, quel GPU l'a produit et quelle révision a corrigé le QA ? »
 
-la réponse doit venir de DeepBlender.
+la réponse doit venir de DeepBl4nder.
 
 C'est cette frontière qui permet de garder l'architecture petite, extensible et fidèle à NOOA.

@@ -43,7 +43,7 @@ Cela sépare intention, structure et implémentation.
 1. **Intention & briefing** → `BriefSpec` (DirectorAgent)
 2. **Scénario** → `StorySpec`, `SceneNarrative`, `CharacterArc`, `DialogueSpec`
 3. **Storyboard** → `Storyboard`, `ShotPlan[]`
-4. **Prévis / Animatic** → `Animatic`, `TimingSpec`, `CameraPreview` (+ bande-son de référence `AudioReference`), (décision NOOA / rendu DeepBlender)
+4. **Prévis / Animatic** → `Animatic`, `TimingSpec`, `CameraPreview` (+ bande-son de référence `AudioReference`), (décision NOOA / rendu DeepBl4nder)
 5. **Faisabilité** → `FeasibilityReport` (durée, complexité, assets, GPU, budget, risques)
 6. **Assets** → Search/Generate/Import → Validate → Register → Version (characters, props, env, textures, HDRI, audio)
 7. **UV / Texturing / Shading** → `MaterialSpec`, `TextureSet`, `LookDev`
@@ -52,7 +52,7 @@ Cela sépare intention, structure et implémentation.
 10. **Animation / Caméra / Lumière / Simulation** → `AnimatedScene`, `CameraPass`, `LightingPass`, `SimulationCache`
 11. **Pre-render** → Preview Artifact → Technical QA
 12. **QA / Révisions** → `QAReport` ; FAIL → `RevisionSpec` → étape affectée (jamais toute la production)
-13. **Final Render** (local / worker pool / render farm — scheduler DeepBlender)
+13. **Final Render** (local / worker pool / render farm — scheduler DeepBl4nder)
 14. **Compositing** → `CompositeArtifact`
 15. **Audio** → `AudioPlan` → génération/import → mix → `AudioMaster` (sound design, music, voice)
 16. **Langues** → translation → voice/dubbing → subtitles → `LanguagePackage` (dialogues, sous-titres, métadonnées, interface)
@@ -61,7 +61,7 @@ Cela sépare intention, structure et implémentation.
 
 ## Production state
 
-DeepBlender conserve la vérité du projet :
+DeepBl4nder conserve la vérité du projet :
 
 ```text
 Project

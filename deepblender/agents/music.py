@@ -12,10 +12,10 @@ from nooa import CodeActStrategy, strategy
 from nooa.agentdoc import hidden
 from nooa.config.strategy_config import CodeActConfig
 
-from deepblender.agents.base import BaseAgent, DefaultsMixin
-from deepblender.domain.media import MusicPlan
-from deepblender.domain.scene import SceneSpec
-from deepblender.skills.registry import SkillRegistry
+from DeepBl4nder.agents.base import BaseAgent, DefaultsMixin
+from DeepBl4nder.domain.media import MusicPlan
+from DeepBl4nder.domain.scene import SceneSpec
+from DeepBl4nder.skills.registry import SkillRegistry
 
 
 def _music_postcondition(result: Any) -> str | None:

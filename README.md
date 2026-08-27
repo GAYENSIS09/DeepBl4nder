@@ -1,4 +1,4 @@
-# DeepBlender
+# DeepBl4nder
 
 ---
 
@@ -38,7 +38,7 @@ Cette approche permettrait de passer d'une demande vague comme "fais une scène 
 ### Non-objectifs
 
 - Générer des longs métrages autonomes dès le départ (le MVP vise des séquences de 5 à 10 secondes).
-- Remplacer l'expertise d'un studio: DeepBlender est une production assistée, pas un remplacement.
+- Remplacer l'expertise d'un studio: DeepBl4nder est une production assistée, pas un remplacement.
 - Écrire tout le code d'un coup: ce document décrit la cible, l'implémentation suit un chemin incrémental.
 
 ### Qualité et métriques de succès

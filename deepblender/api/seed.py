@@ -2,17 +2,17 @@
 
 Usage :
 
-    python -m deepblender.api.seed [--db URL|fichier] [--email …] [--password …]
+    python -m DeepBl4nder.api.seed [--db URL|fichier] [--email …] [--password …]
 
 Idempotent : si le compte existe déjà, il est réactivé et son mot de passe
 rejoué ; l'organisation et le projet ne sont créés que s'ils manquent.
 
 Les identifiants se lisent aussi via l'environnement :
 
-    DEEPBLENDER_SEED_EMAIL     (défaut : admin@deepblender.local)
-    DEEPBLENDER_SEED_PASSWORD  (sinon mot de passe aléatoire affiché en sortie)
-    DEEPBLENDER_SEED_ORG       (défaut : DeepBlender Dev)
-    DEEPBLENDER_SEED_PROJECT   (défaut : Démo)
+    DeepBl4nder_SEED_EMAIL     (défaut : admin@DeepBl4nder.local)
+    DeepBl4nder_SEED_PASSWORD  (sinon mot de passe aléatoire affiché en sortie)
+    DeepBl4nder_SEED_ORG       (défaut : DeepBl4nder Dev)
+    DeepBl4nder_SEED_PROJECT   (défaut : Démo)
 
 Jamais de mot de passe en dur dans le code ni le guide : il est fourni par
 l'utilisateur ou généré et affiché une seule fois.
@@ -28,12 +28,12 @@ from dataclasses import dataclass
 
 from sqlalchemy.orm import Session
 
-from deepblender.api.db import Base, create_engine_for
-from deepblender.api.models import Membership, Organization, Project, User, Workspace
-from deepblender.api.security import hash_password
+from DeepBl4nder.api.db import Base, create_engine_for
+from DeepBl4nder.api.models import Membership, Organization, Project, User, Workspace
+from DeepBl4nder.api.security import hash_password
 
-DEFAULT_EMAIL = "admin@deepblender.local"
-DEFAULT_ORG = "DeepBlender Dev"
+DEFAULT_EMAIL = "admin@DeepBl4nder.local"
+DEFAULT_ORG = "DeepBl4nder Dev"
 DEFAULT_PROJECT = "Démo"
 MIN_PASSWORD_LENGTH = 8
 
@@ -65,12 +65,12 @@ def seed_admin(
     user = db.query(User).filter(User.email == email).first()
     user_created = user is None
     if user is None:
-        user = User(email=email, password_hash=hash_password(password), full_name="Admin DeepBlender")
+        user = User(email=email, password_hash=hash_password(password), full_name="Admin DeepBl4nder")
         db.add(user)
         db.flush()
     else:
         user.password_hash = hash_password(password)
-        user.full_name = user.full_name or "Admin DeepBlender"
+        user.full_name = user.full_name or "Admin DeepBl4nder"
         user.is_active = True
 
     organization = db.query(Organization).filter(Organization.name == org_name).first()
@@ -127,19 +127,19 @@ def seed_admin(
 
 
 def _build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(prog="deepblender.api.seed", description="Seed de développement DeepBlender.")
-    parser.add_argument("--db", default=os.environ.get("DEEPBLENDER_DB", "deepblender.db"), help="Base SQLAlchemy (URL ou fichier SQLite).")
-    parser.add_argument("--email", default=os.environ.get("DEEPBLENDER_SEED_EMAIL", DEFAULT_EMAIL))
-    parser.add_argument("--password", default=os.environ.get("DEEPBLENDER_SEED_PASSWORD", ""))
-    parser.add_argument("--org", default=os.environ.get("DEEPBLENDER_SEED_ORG", DEFAULT_ORG))
-    parser.add_argument("--project", default=os.environ.get("DEEPBLENDER_SEED_PROJECT", DEFAULT_PROJECT))
+    parser = argparse.ArgumentParser(prog="DeepBl4nder.api.seed", description="Seed de développement DeepBl4nder.")
+    parser.add_argument("--db", default=os.environ.get("DeepBl4nder_DB", "DeepBl4nder.db"), help="Base SQLAlchemy (URL ou fichier SQLite).")
+    parser.add_argument("--email", default=os.environ.get("DeepBl4nder_SEED_EMAIL", DEFAULT_EMAIL))
+    parser.add_argument("--password", default=os.environ.get("DeepBl4nder_SEED_PASSWORD", ""))
+    parser.add_argument("--org", default=os.environ.get("DeepBl4nder_SEED_ORG", DEFAULT_ORG))
+    parser.add_argument("--project", default=os.environ.get("DeepBl4nder_SEED_PROJECT", DEFAULT_PROJECT))
     return parser
 
 
 def main(argv: list[str] | None = None) -> int:
     args = _build_parser().parse_args(argv)
     password = args.password or secrets.token_urlsafe(12)
-    generated = not args.password and not os.environ.get("DEEPBLENDER_SEED_PASSWORD")
+    generated = not args.password and not os.environ.get("DeepBl4nder_SEED_PASSWORD")
 
     engine = create_engine_for(args.db)
     Base.metadata.create_all(engine)

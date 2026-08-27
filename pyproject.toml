@@ -3,9 +3,9 @@ requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "deepblender"
+name = "DeepBl4nder"
 version = "0.2.0"
-description = "DeepBlender : orchestration d'agents IA (NOOA) avec capacites, scheduler, bus d'evenements, evaluation de scenes et rendu Blender."
+description = "DeepBl4nder : orchestration d'agents IA (NOOA) avec capacites, scheduler, bus d'evenements, evaluation de scenes et rendu Blender."
 requires-python = ">=3.12"
 dependencies = [
     "nooa==0.0.8",
@@ -27,17 +27,17 @@ worker = ["psutil"]
 dev = ["ruff", "mypy", "pytest", "httpx>=0.27"]
 
 [project.scripts]
-deepblender = "deepblender.cli:main"
+DeepBl4nder = "DeepBl4nder.cli:main"
 
 [tool.setuptools.packages.find]
-include = ["deepblender*"]
+include = ["DeepBl4nder*"]
 
 [tool.setuptools.package-data]
-"deepblender" = ["skills/*/SKILL.md"]
+"DeepBl4nder" = ["skills/*/SKILL.md"]
 
 [tool.mypy]
 python_version = "3.12"
-files = ["deepblender", "tests"]
+files = ["DeepBl4nder", "tests"]
 check_untyped_defs = true
 
 [tool.ruff]
@@ -47,7 +47,7 @@ exclude = ["data", "frontend/.next"]
 ignore = ["E402"]
 
 [[tool.mypy.overrides]]
-module = "deepblender.bridge.worker"
+module = "DeepBl4nder.bridge.worker"
 disable_error_code = ["import-not-found"]
 
 [[tool.mypy.overrides]]
@@ -56,5 +56,5 @@ ignore_missing_imports = true
 follow_imports = "skip"
 
 [[tool.mypy.overrides]]
-module = ["deepblender.agents.*"]
+module = ["DeepBl4nder.agents.*"]
 disable_error_code = ["empty-body", "import-untyped"]

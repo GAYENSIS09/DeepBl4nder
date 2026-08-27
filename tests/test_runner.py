@@ -8,12 +8,12 @@ from pathlib import Path
 
 import pytest
 
-from deepblender.domain.project import Brief
-from deepblender.domain.qa import QAReport, Issue, IssueKind
-from deepblender.domain.scene import BlenderScript, SceneSpec
-from deepblender.domain.media import LanguagePackage
-from deepblender.production.budget import BudgetTracker
-from deepblender.production.runner import PipelineRunner, RunOutcome
+from DeepBl4nder.domain.project import Brief
+from DeepBl4nder.domain.qa import QAReport, Issue, IssueKind
+from DeepBl4nder.domain.scene import BlenderScript, SceneSpec
+from DeepBl4nder.domain.media import LanguagePackage
+from DeepBl4nder.production.budget import BudgetTracker
+from DeepBl4nder.production.runner import PipelineRunner, RunOutcome
 from nooa.errors import GenerationError
 
 VALID_SCRIPT = "import bpy\nscene = bpy.context.scene\nscene.frame_end = 120\n"
@@ -680,7 +680,7 @@ class FixedStory:
 
 
 def _story_with_beats() -> "StorySpec":
-    from deepblender.domain.narrative import Act, StoryBeat, StorySpec
+    from DeepBl4nder.domain.narrative import Act, StoryBeat, StorySpec
 
     return StorySpec(
         logline="Une nuit décisive.",
@@ -728,7 +728,7 @@ async def test_storyboard_synthesized_from_beats_when_model_fails_twice(tmp_path
 @pytest.mark.asyncio
 async def test_storyboard_synthesis_fallback_when_story_empty(tmp_path: Path) -> None:
     """Histoire elle-même vide : un plan d'exposition unique, run survit."""
-    from deepblender.domain.narrative import StorySpec
+    from DeepBl4nder.domain.narrative import StorySpec
 
     empty_story = StorySpec(logline="", synopsis="")
     runner = PipelineRunner(

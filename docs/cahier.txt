@@ -1,5 +1,5 @@
 ================================================================================
-  DEEPBLENDER — SPECIFICATION TECHNIQUE COMPLETE
+  DeepBl4nder — SPECIFICATION TECHNIQUE COMPLETE
   Plateforme de Production Video/Animation par Agents IA
   Version 2.0 — Aout 2026
 ================================================================================
@@ -30,10 +30,10 @@
 PARTIE I — VISION & POSITIONNEMENT
 ================================================================================
 
-1.1  QU'EST-CE QUE DEEPBLENDER ?
+1.1  QU'EST-CE QUE DeepBl4nder ?
 ----------------------------------
 
-DeepBlender est une plateforme SaaS qui transforme un prompt textuel en
+DeepBl4nder est une plateforme SaaS qui transforme un prompt textuel en
 production video/animation complete : scenario, storyboard, rendu 3D,
 audio, musique, voix, sous-titres, et compositing final.
 
@@ -305,9 +305,9 @@ PARTIE III — SYSTEME D'AGENTS
       -> AudioAgent regenere l'AudioPlan
 
   Le systeme de patches EST DEJA IMPLEMENTE dans :
-    - deepblender/domain/patch.py
-    - deepblender/api/app.py (POST /productions/{id}/patches)
-    - deepblender/production/runner.py (revision loop)
+    - DeepBl4nder/domain/patch.py
+    - DeepBl4nder/api/app.py (POST /productions/{id}/patches)
+    - DeepBl4nder/production/runner.py (revision loop)
 
 
 ================================================================================
@@ -786,7 +786,7 @@ PARTIE IX — DEPLOIEMENT & INFRASTRUCTURE
 9.2  VARIABLES D'ENVIRONNEMENT CLES
 
   # LLM
-  DEEPBLENDER_LLM_MODE=fallback
+  DeepBl4nder_LLM_MODE=fallback
   GEMINI_API_KEY=...
   GROQ_API_KEY=...
   NVIDIA_API_KEY=...
@@ -794,7 +794,7 @@ PARTIE IX — DEPLOIEMENT & INFRASTRUCTURE
 
   # Blender
   BLENDER_EXE=/usr/bin/blender
-  DEEPBLENDER_MAX_RENDER_RETRIES=2
+  DeepBl4nder_MAX_RENDER_RETRIES=2
 
   # AI Video (optionnel)
   COGVIDEX_MODEL_PATH=/models/cogvideox-5b
@@ -805,8 +805,8 @@ PARTIE IX — DEPLOIEMENT & INFRASTRUCTURE
   TTS_BINARY=/usr/local/bin/piper
 
   # Storage
-  DEEPBLENDER_STORAGE_BACKEND=s3
-  S3_BUCKET=deepblender-assets
+  DeepBl4nder_STORAGE_BACKEND=s3
+  S3_BUCKET=DeepBl4nder-assets
   S3_ENDPOINT=https://minio.example.com
 
   # Observability
@@ -815,8 +815,8 @@ PARTIE IX — DEPLOIEMENT & INFRASTRUCTURE
   OTEL_ENDPOINT=http://otel-collector:4317
 
   # Budget
-  DEEPBLENDER_BUDGET=1.0
-  DEEPBLENDER_RATE_LIMIT_MAX=60
+  DeepBl4nder_BUDGET=1.0
+  DeepBl4nder_RATE_LIMIT_MAX=60
 
 9.3  DOCKER COMPOSE (DEV)
 
@@ -1020,15 +1020,15 @@ ANNEXE A — FICHIERS CLES A MODIFIER
 
   Fichier                          Changements
   --------------------------------  ----------------------------------------
-  deepblender/agents/blender.py     + render_dir context, + rendering skill
-  deepblender/agents/base.py        + reflexion fix (strategy_instructions)
-  deepblender/production/runner.py  + 22-step pipeline, + new agents
-  deepblender/llm.py                + LiteLLM integration
-  deepblender/api/app.py            + new endpoints (preview, patches)
-  deepblender/domain/scene.py       + CharacterSpec, AnimationClip
-  deepblender/domain/media.py       + MusicPlan, SoundDesignPlan
-  deepblender/plugins/rendering/    + UE5Engine, GodotEngine, AIVideoEngine
-  deepblender/skills/               + 8 new skills
+  DeepBl4nder/agents/blender.py     + render_dir context, + rendering skill
+  DeepBl4nder/agents/base.py        + reflexion fix (strategy_instructions)
+  DeepBl4nder/production/runner.py  + 22-step pipeline, + new agents
+  DeepBl4nder/llm.py                + LiteLLM integration
+  DeepBl4nder/api/app.py            + new endpoints (preview, patches)
+  DeepBl4nder/domain/scene.py       + CharacterSpec, AnimationClip
+  DeepBl4nder/domain/media.py       + MusicPlan, SoundDesignPlan
+  DeepBl4nder/plugins/rendering/    + UE5Engine, GodotEngine, AIVideoEngine
+  DeepBl4nder/skills/               + 8 new skills
   frontend/src/app/                 + new pages (preview, library)
   frontend/src/components/          + ScenePreview, PatchEditor
 

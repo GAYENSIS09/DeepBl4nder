@@ -6,7 +6,7 @@ import re
 from dataclasses import dataclass
 from pathlib import Path
 
-from deepblender.plugins.base import Plugin, PluginError
+from DeepBl4nder.plugins.base import Plugin, PluginError
 
 _BLOCK = re.compile(r"(\d+)\s*\n(\d{2}:\d{2}:\d{2},\d{3})\s*-->\s*(\d{2}:\d{2}:\d{2},\d{3})\s*\n(.*?)(?=\n\n|\Z)", re.S)
 

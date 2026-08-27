@@ -13,17 +13,17 @@ import time
 from pathlib import Path
 from typing import Any, Callable
 
-from deepblender.artifacts.provenance import ProvenanceGraph
-from deepblender.artifacts.registry import Artifact, ArtifactRegistry
-from deepblender.codegen.validator import validate_for_worker
-from deepblender.domain.scene import BlenderScript, RenderOutput, SceneSpec, ShotSpec
-from deepblender.plugins.registry import PluginRegistry
-from deepblender.production.events import EventLog
-from deepblender.production.checkpoints import CheckpointManager
-from deepblender.production.plugins import PluginShortcuts
-from deepblender.production.runs import ProductionRun
+from DeepBl4nder.artifacts.provenance import ProvenanceGraph
+from DeepBl4nder.artifacts.registry import Artifact, ArtifactRegistry
+from DeepBl4nder.codegen.validator import validate_for_worker
+from DeepBl4nder.domain.scene import BlenderScript, RenderOutput, SceneSpec, ShotSpec
+from DeepBl4nder.plugins.registry import PluginRegistry
+from DeepBl4nder.production.events import EventLog
+from DeepBl4nder.production.checkpoints import CheckpointManager
+from DeepBl4nder.production.plugins import PluginShortcuts
+from DeepBl4nder.production.runs import ProductionRun
 
-logger = logging.getLogger("deepblender.pipeline")
+logger = logging.getLogger("DeepBl4nder.pipeline")
 
 
 class RenderManager(PluginShortcuts):

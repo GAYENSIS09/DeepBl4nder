@@ -6,8 +6,8 @@ from pathlib import Path
 
 import pytest
 
-from deepblender import __version__
-from deepblender.cli import main
+from DeepBl4nder import __version__
+from DeepBl4nder.cli import main
 
 
 def test_version_flag() -> None:

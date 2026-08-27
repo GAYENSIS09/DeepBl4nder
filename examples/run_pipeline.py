@@ -11,10 +11,10 @@ from __future__ import annotations
 
 import asyncio
 
-from deepblender.agents import BlenderAgent, DirectorAgent
-from deepblender.codegen.validator import validate_for_worker
-from deepblender.domain.project import Brief
-from deepblender.llm import build_llm
+from DeepBl4nder.agents import BlenderAgent, DirectorAgent
+from DeepBl4nder.codegen.validator import validate_for_worker
+from DeepBl4nder.domain.project import Brief
+from DeepBl4nder.llm import build_llm
 
 
 async def main() -> None:

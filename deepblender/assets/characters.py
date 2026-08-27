@@ -22,10 +22,10 @@ class CharacterAssetClient:
     """Client pour récupérer des personnages rigged 3D (GLB/FBX)."""
 
     def __init__(self, cache_dir: str | Path | None = None) -> None:
-        self._cache_dir = Path(cache_dir) if cache_dir else Path("deepblender_cache/characters")
+        self._cache_dir = Path(cache_dir) if cache_dir else Path("DeepBl4nder_cache/characters")
         self._cache_dir.mkdir(parents=True, exist_ok=True)
         self._session = requests.Session()
-        self._session.headers.update({"User-Agent": "DeepBlender/0.3"})
+        self._session.headers.update({"User-Agent": "DeepBl4nder/0.3"})
 
     def search(
         self,

@@ -71,7 +71,7 @@ Le thème est la question que la vidéo pose au spectateur.
 - Le thème doit être **visible** dans chaque scène, pas dit explicitement.
 - **Logline** : une phrase qui résume l'histoire + le thème.
 
-## Application au pipeline DeepBlender
+## Application au pipeline DeepBl4nder
 
 ### Brief → StorySpec
 ```

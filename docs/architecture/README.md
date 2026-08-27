@@ -1,20 +1,20 @@
-# DeepBlender — Architecture (source de vérité)
+# DeepBl4nder — Architecture (source de vérité)
 
 > **Statut :** consolidation active.
-> Les trois feuilles de route préliminaires (`docs/roadmaps/DeepBlender_Architecture_NOOA_A/B/C.md`)
+> Les trois feuilles de route préliminaires (`docs/roadmaps/DeepBl4nder_Architecture_NOOA_A/B/C.md`)
 > sont **archivées** et ne doivent plus évoluer. Ce dossier est la source de vérité unique,
 > alignée sur les capacités **réellement disponibles** de NOOA 0.0.8 (voir `00-nooa.md`).
 
-## Ce que DeepBlender est
+## Ce que DeepBl4nder est
 
-DeepBlender est une plateforme de **production audiovisuelle assistée par agents IA**,
+DeepBl4nder est une plateforme de **production audiovisuelle assistée par agents IA**,
 construite **au-dessus de NOOA** (NVIDIA NeMo Labs OO-Agents, arXiv:2607.20709).
 
 ```
                 USER
                   │
                   ▼
-         DEEPBLENDER (domaine de production + Blender + artifacts + QA)
+         DeepBl4nder (domaine de production + Blender + artifacts + QA)
                   │
                   ▼
       NOOA (runtime agentique : objet = agent, contexte, événements,
@@ -29,7 +29,7 @@ Blender       Audio/FFmpeg    Assets/Storage
       Workers        Artifacts
 ```
 
-**La règle d'or** : DeepBlender n'est *pas* « un framework d'agents qui utilise NOOA » ;
+**La règle d'or** : DeepBl4nder n'est *pas* « un framework d'agents qui utilise NOOA » ;
 c'est une *plateforme de production audiovisuelle dont le runtime agentique est NOOA*.
 Toute capacité déjà fournie par NOOA est utilisée, jamais réimplémentée.
 
@@ -37,7 +37,7 @@ Toute capacité déjà fournie par NOOA est utilisée, jamais réimplémentée.
 
 | Sujet | Choix retenu | Source dominante |
 |---|---|---|
-| Responsabilités NOOA / DeepBlender | Matrice de responsabilité (§ `02-principes.md`) | Roadmap A §4, C §4-5 |
+| Responsabilités NOOA / DeepBl4nder | Matrice de responsabilité (§ `02-principes.md`) | Roadmap A §4, C §4-5 |
 | Distinction Agent Run / Production Run | Corrélés mais séparés (§ `04-agents.md`) | Roadmap C §6-7 |
 | Lifecycles & transitions | Lifecycles Agent / Production + 32 transitions | Roadmap C §25-34 |
 | Identité de corrélation | `project_id` … `worker_id`, coûts, timestamps | Roadmap C §7 |
@@ -71,7 +71,7 @@ Toute capacité déjà fournie par NOOA est utilisée, jamais réimplémentée.
 | Élément | Statut |
 |---|---|
 | Consolidation théorique | Fait (ce dossier) |
-| Paquet Python `deepblender/` | Fait (domain, agents NOOA, 26 skills, blender, codegen, plugins+tools, production, api, cli) |
+| Paquet Python `DeepBl4nder/` | Fait (domain, agents NOOA, 26 skills, blender, codegen, plugins+tools, production, api, cli) |
 | Tests (`tests/`, dont `test_decoupling.py`) | Fait (95 tests verts) |
 | CI (ruff, mypy, pytest) | Fait — lint, typecheck et tests passent localement |
 | Docker / docker-compose | Configurés (Dockerfile corrigé : install avec NOOA) ; image non construite |

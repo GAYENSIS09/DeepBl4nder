@@ -1,8 +1,8 @@
-# DeepBlender Worker — Blender + FFmpeg headless execution environment
+# DeepBl4nder Worker — Blender + FFmpeg headless execution environment
 #
 # Usage:
-#   docker build -t deepblender/worker:latest -f Dockerfile.worker .
-#   docker run --rm -v $(pwd)/work:/work deepblender/worker:latest \
+#   docker build -t DeepBl4nder/worker:latest -f Dockerfile.worker .
+#   docker run --rm -v $(pwd)/work:/work DeepBl4nder/worker:latest \
 #     blender -b -P /work/script.py
 
 FROM python:3.12-slim
@@ -50,25 +50,25 @@ RUN blender --version
 # Python dependencies
 WORKDIR /app
 COPY pyproject.toml README.md ./
-COPY deepblender/ deepblender/
+COPY DeepBl4nder/ DeepBl4nder/
 RUN pip install --no-cache-dir ".[worker]"
 
 # Create work directory
 RUN mkdir -p /work /projects
 
 # Non-root user
-RUN groupadd -r deepblender && useradd -r -g deepblender -d /app -s /sbin/nologin deepblender \
-    && chown -R deepblender:deepblender /app \
-    && chown -R deepblender:deepblender /work \
-    && chown -R deepblender:deepblender /projects
-USER deepblender
+RUN groupadd -r DeepBl4nder && useradd -r -g DeepBl4nder -d /app -s /sbin/nologin DeepBl4nder \
+    && chown -R DeepBl4nder:DeepBl4nder /app \
+    && chown -R DeepBl4nder:DeepBl4nder /work \
+    && chown -R DeepBl4nder:DeepBl4nder /projects
+USER DeepBl4nder
 
 WORKDIR /work
 
 ENV BLENDER_EXE=/usr/local/bin/blender \
     FFMPEG_EXE=/usr/local/bin/ffmpeg \
     PYTHONPATH=/app:/work \
-    DEEPBLENDER_WORKER=1 \
+    DeepBl4nder_WORKER=1 \
     PYTHONUNBUFFERED=1
 
 # Health check: verify Blender and FFmpeg are available

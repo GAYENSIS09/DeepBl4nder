@@ -10,10 +10,10 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any, Callable, cast
 
-from deepblender.plugins.media.audio import AudioPlugin
-from deepblender.plugins.rendering.blender import BlenderPlugin
-from deepblender.plugins.rendering.ffmpeg import FFmpegPlugin
-from deepblender.plugins.registry import PluginRegistry
+from DeepBl4nder.plugins.media.audio import AudioPlugin
+from DeepBl4nder.plugins.rendering.blender import BlenderPlugin
+from DeepBl4nder.plugins.rendering.ffmpeg import FFmpegPlugin
+from DeepBl4nder.plugins.registry import PluginRegistry
 
 
 @dataclass(frozen=True)

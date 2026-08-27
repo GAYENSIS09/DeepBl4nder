@@ -1,4 +1,4 @@
-"""Plugins DeepBlender : architecture modulaire par domaine.
+"""Plugins DeepBl4nder : architecture modulaire par domaine.
 
 Structure :
 ├── base.py              # Classe de base Plugin
@@ -24,21 +24,21 @@ Structure :
     └── asset_library.py    # AssetLibraryPlugin
 """
 
-from deepblender.plugins.base import Plugin, PluginError
-from deepblender.plugins.registry import PluginRegistry
-from deepblender.plugins.tools import Tool, ToolRegistry
+from DeepBl4nder.plugins.base import Plugin, PluginError
+from DeepBl4nder.plugins.registry import PluginRegistry
+from DeepBl4nder.plugins.tools import Tool, ToolRegistry
 
 # Media
-from deepblender.plugins.media import AudioPlugin, TTSPlugin, SubtitlePlugin, SubtitleEntry
+from DeepBl4nder.plugins.media import AudioPlugin, TTSPlugin, SubtitlePlugin, SubtitleEntry
 
 # Rendering
-from deepblender.plugins.rendering import BlenderPlugin, FFmpegPlugin, RenderFarmPlugin
+from DeepBl4nder.plugins.rendering import BlenderPlugin, FFmpegPlugin, RenderFarmPlugin
 
 # Storage
-from deepblender.plugins.storage import StoragePlugin, GitPlugin
+from DeepBl4nder.plugins.storage import StoragePlugin, GitPlugin
 
 # Knowledge
-from deepblender.plugins.knowledge import KnowledgeGraphPlugin, AssetLibraryPlugin
+from DeepBl4nder.plugins.knowledge import KnowledgeGraphPlugin, AssetLibraryPlugin
 
 __all__ = [
     # Base

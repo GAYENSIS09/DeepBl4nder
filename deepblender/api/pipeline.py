@@ -18,7 +18,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable
 
-from deepblender.agents import (
+from DeepBl4nder.agents import (
     AnimatorAgent,
     AudioAgent,
     BlenderAgent,
@@ -34,15 +34,15 @@ from deepblender.agents import (
     StoryAgent,
     StoryboardAgent,
 )
-from deepblender.api.models import Production
-from deepblender.domain.project import Brief
-from deepblender.llm import build_llm
-from deepblender.production.budget import BudgetTracker
-from deepblender.production.runner import PipelineRunner
+from DeepBl4nder.api.models import Production
+from DeepBl4nder.domain.project import Brief
+from DeepBl4nder.llm import build_llm
+from DeepBl4nder.production.budget import BudgetTracker
+from DeepBl4nder.production.runner import PipelineRunner
 
 EventHook = Callable[[str, dict[str, Any]], None]
 
-logger = logging.getLogger("deepblender.api.pipeline")
+logger = logging.getLogger("DeepBl4nder.api.pipeline")
 
 # Coûts estimés par étape (USD) — basés sur les prix LLM typiques
 _STEP_COSTS: dict[str, float] = {
@@ -218,12 +218,12 @@ async def run_production(
     budget = BudgetTracker(budget=budget_limit, run_id=production_id)
 
     # Create Blender bridge for rendering (lazy import to avoid slow startup)
-    from deepblender.bridges.blender.bridge import BlenderBridge
+    from DeepBl4nder.bridges.blender.bridge import BlenderBridge
     blender_bridge = BlenderBridge()
 
     # Max render retries from env (default 2)
     import os
-    max_render_retries = int(os.environ.get("DEEPBLENDER_MAX_RENDER_RETRIES", "2"))
+    max_render_retries = int(os.environ.get("DeepBl4nder_MAX_RENDER_RETRIES", "2"))
 
     tracker = RunTracker(
         production_id=production_id,

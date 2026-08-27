@@ -7,8 +7,8 @@ import shutil
 from dataclasses import dataclass
 from pathlib import Path
 
-from deepblender.bridge.worker import WorkerCommand, WorkerProcess
-from deepblender.plugins.base import Plugin, PluginError
+from DeepBl4nder.bridge.worker import WorkerCommand, WorkerProcess
+from DeepBl4nder.plugins.base import Plugin, PluginError
 
 
 @dataclass

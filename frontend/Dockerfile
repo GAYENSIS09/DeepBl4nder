@@ -1,8 +1,8 @@
-# DeepBlender Frontend — Next.js
+# DeepBl4nder Frontend — Next.js
 #
 # Usage:
-#   docker build -t deepblender/frontend:latest -f Dockerfile .
-#   docker run --rm -p 3000:3000 deepblender/frontend:latest
+#   docker build -t DeepBl4nder/frontend:latest -f Dockerfile .
+#   docker run --rm -p 3000:3000 DeepBl4nder/frontend:latest
 
 # Stage 1: Build
 FROM node:20-alpine AS builder

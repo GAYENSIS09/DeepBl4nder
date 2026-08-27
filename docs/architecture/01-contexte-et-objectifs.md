@@ -4,7 +4,7 @@
 
 ## Vision
 
-DeepBlender transforme une intention créative en production audiovisuelle traçable, itérable
+DeepBl4nder transforme une intention créative en production audiovisuelle traçable, itérable
 et observable :
 
 > « Fais une scène de suspense dans une ruelle. »
@@ -18,7 +18,7 @@ Brief → Narration → Storyboard → Prévis/Animatic → Faisabilité → Ass
   → Final QA → Export
 ```
 
-**NOOA est le runtime agentique. DeepBlender est le monde métier de production.**
+**NOOA est le runtime agentique. DeepBl4nder est le monde métier de production.**
 
 ## Objectifs ADD (contraintes)
 

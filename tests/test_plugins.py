@@ -6,16 +6,16 @@ import pytest
 from pathlib import Path
 from typing import cast
 
-from deepblender.codegen import CodePolicyViolation
-from deepblender.bridges.blender.bridge import BlenderNotFoundError
-from deepblender.domain.scene import BlenderScript
-from deepblender.plugins.knowledge.asset_library import AssetLibraryPlugin
-from deepblender.plugins.media.audio import AudioPlugin
-from deepblender.plugins.rendering.blender import BlenderPlugin
-from deepblender.plugins.registry import PluginRegistry
-from deepblender.plugins.storage.storage import StoragePlugin
-from deepblender.plugins.media.subtitle import SubtitleEntry, SubtitlePlugin
-from deepblender.plugins.tools import ToolRegistry
+from DeepBl4nder.codegen import CodePolicyViolation
+from DeepBl4nder.bridges.blender.bridge import BlenderNotFoundError
+from DeepBl4nder.domain.scene import BlenderScript
+from DeepBl4nder.plugins.knowledge.asset_library import AssetLibraryPlugin
+from DeepBl4nder.plugins.media.audio import AudioPlugin
+from DeepBl4nder.plugins.rendering.blender import BlenderPlugin
+from DeepBl4nder.plugins.registry import PluginRegistry
+from DeepBl4nder.plugins.storage.storage import StoragePlugin
+from DeepBl4nder.plugins.media.subtitle import SubtitleEntry, SubtitlePlugin
+from DeepBl4nder.plugins.tools import ToolRegistry
 
 
 def test_plugin_registry_registers_builtins() -> None:
@@ -161,7 +161,7 @@ def test_tool_create_audio_produces_file(tmp_path: Path) -> None:
 
 
 def test_knowledge_graph_add_node_and_query(tmp_path: Path) -> None:
-    from deepblender.plugins.knowledge.knowledge_graph import KnowledgeGraphPlugin
+    from DeepBl4nder.plugins.knowledge.knowledge_graph import KnowledgeGraphPlugin
 
     kg = KnowledgeGraphPlugin(path=tmp_path / "kg.json")
     kg.add_node("nina", "Character", {"language": "fr"})

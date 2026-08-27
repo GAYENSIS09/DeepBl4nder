@@ -11,7 +11,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-from deepblender.plugins.base import Plugin, PluginError
+from DeepBl4nder.plugins.base import Plugin, PluginError
 
 
 @dataclass

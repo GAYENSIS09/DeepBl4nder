@@ -1,6 +1,6 @@
 > **Statut :** feuille de route architecturale de départ  
 > **Version :** 0.3 — NOOA capabilities + production lifecycles + transitions  
-> **Principe directeur :** exploiter au maximum les capacités réellement présentes dans NVIDIA NeMo Labs OO-Agents et ne pas reconstruire dans DeepBlender ce que NOOA fournit déjà.
+> **Principe directeur :** exploiter au maximum les capacités réellement présentes dans NVIDIA NeMo Labs OO-Agents et ne pas reconstruire dans DeepBl4nder ce que NOOA fournit déjà.
 
 ---
 
@@ -8,7 +8,7 @@
 
 Ce document croise deux sources :
 
-1. **ADD DeepBlender** : vision, pipeline audiovisuel, objectifs, compétences, cas d'usage et métriques.
+1. **ADD DeepBl4nder** : vision, pipeline audiovisuel, objectifs, compétences, cas d'usage et métriques.
 2. **NOOA actuel** : architecture et capacités exposées dans le dépôt NVIDIA-NeMo/labs-OO-Agents.
 
 Le dépôt actuel expose notamment :
@@ -32,13 +32,13 @@ Le dépôt actuel expose notamment :
 - `nooa-memory` pour la mémoire long terme ;
 - pipeline d'évaluation.
 
-NOOA est actuellement présenté comme un projet de recherche dont l'API publique peut évoluer. DeepBlender doit donc encapsuler le **domaine de production**, pas figer inutilement les détails internes de NOOA.
+NOOA est actuellement présenté comme un projet de recherche dont l'API publique peut évoluer. DeepBl4nder doit donc encapsuler le **domaine de production**, pas figer inutilement les détails internes de NOOA.
 
 ---
 
 # 1. Vision
 
-DeepBlender est une plateforme de production audiovisuelle assistée par agents IA.
+DeepBl4nder est une plateforme de production audiovisuelle assistée par agents IA.
 
 L'objectif est de transformer une intention comme :
 
@@ -87,7 +87,7 @@ Export
 
 NOOA constitue le runtime agentique.
 
-DeepBlender constitue le monde métier de production.
+DeepBl4nder constitue le monde métier de production.
 
 2. Principes fondamentaux
 P1 — Agent = objet Python
@@ -114,7 +114,7 @@ def frame_count(self, duration: float, fps: int) -> int:
     return round(duration * fps)
 P4 — Python est le langage de composition
 
-NOOA permet au modèle d'agir via du code Python. DeepBlender doit donc favoriser :
+NOOA permet au modèle d'agir via du code Python. DeepBl4nder doit donc favoriser :
 
 objets vivants
 +
@@ -136,12 +136,12 @@ NOOA sait-il déjà le faire ?
         ↓
 Est-ce une responsabilité du domaine audiovisuel ?
         │
-       oui → DeepBlender
+       oui → DeepBl4nder
         │
        non → ne pas ajouter
 3. Architecture des responsabilités
 ┌─────────────────────────────────────────────────────────┐
-│                     DEEPBLENDER                         │
+│                     DeepBl4nder                         │
 │                                                         │
 │  Production audiovisuelle + Blender + Artifacts + QA   │
 │                                                         │
@@ -157,7 +157,7 @@ Est-ce une responsabilité du domaine audiovisuel ?
 └─────────────────────────────────────────────────────────┘
 4. Ce qui appartient à NOOA
 
-DeepBlender doit exploiter les primitives NOOA existantes pour :
+DeepBl4nder doit exploiter les primitives NOOA existantes pour :
 
 runtime agentique ;
 agent object model ;
@@ -183,9 +183,9 @@ CLI / trace viewer lorsque pertinent.
 
 NOOA trace notamment les appels LLM, exécutions de code et invocations de méthodes avec leurs relations parent-enfant.
 
-5. Ce qui appartient à DeepBlender
+5. Ce qui appartient à DeepBl4nder
 
-DeepBlender doit fournir :
+DeepBl4nder doit fournir :
 
 Project ;
 Sequence ;
@@ -238,7 +238,7 @@ Result
 Events / Trace
 Production Run
 
-Concerne DeepBlender :
+Concerne DeepBl4nder :
 
 Project
  ↓
@@ -316,7 +316,7 @@ memory ;
 typed output ;
 trace.
 
-DeepBlender :
+DeepBl4nder :
 
 BriefSpec ;
 project state.
@@ -365,7 +365,7 @@ Responsabilités :
 NOOA
 → décision / planification
 
-DeepBlender
+DeepBl4nder
 → création / rendu de la prévis
 Étape 5 — Faisabilité technique
 
@@ -511,7 +511,7 @@ local
 worker pool
 render farm
 
-Le scheduler appartient à DeepBlender.
+Le scheduler appartient à DeepBl4nder.
 
 Étape 14 — Compositing
 
@@ -619,7 +619,7 @@ templates/
 
 NOOA doit être utilisé pour le mécanisme de skills lorsque ses primitives le permettent.
 
-DeepBlender possède le contenu métier des skills.
+DeepBl4nder possède le contenu métier des skills.
 
 10. Progressive disclosure
 
@@ -695,7 +695,7 @@ Il ne devient pas un deuxième runtime agentique.
 13. Blender Worker
 NOOA Agent
  ↓
-DeepBlender capability
+DeepBl4nder capability
  ↓
 Blender plugin
  ↓
@@ -734,7 +734,7 @@ Python generated
  ↓
 NOOA validation
  ↓
-DeepBlender policy
+DeepBl4nder policy
  ↓
 Sandbox
  ↓
@@ -755,7 +755,7 @@ selon l'environnement retenu.
 
 15. Context
 
-Le contexte n'est pas une base de données DeepBlender parallèle.
+Le contexte n'est pas une base de données DeepBl4nder parallèle.
 
 NOOA gère :
 
@@ -765,7 +765,7 @@ dynamic prompts
 summarization
 model-facing context APIs
 
-DeepBlender fournit :
+DeepBl4nder fournit :
 
 Project state
 Shot state
@@ -780,7 +780,7 @@ NOOA Memory
     ↓
 mémoire long terme de l'agent
 
-DeepBlender Production State
+DeepBl4nder Production State
     ↓
 vérité persistante du projet
 
@@ -792,7 +792,7 @@ Memory
 Production State
 → « Shot 07 utilise actuellement une caméra 85mm, version 3. »
 
-Ne pas remplacer nooa-memory par un DeepBlenderMemoryManager sans nécessité.
+Ne pas remplacer nooa-memory par un DeepBl4nderMemoryManager sans nécessité.
 
 17. Events et tracing
 
@@ -806,7 +806,7 @@ helper calls
 
 avec relations parent/enfant.
 
-DeepBlender ajoute seulement les événements de production :
+DeepBl4nder ajoute seulement les événements de production :
 
 ProjectCreated
 ShotCreated
@@ -824,7 +824,7 @@ NOOA trace
      │
      │ correlation IDs
      ▼
-DeepBlender production trace
+DeepBl4nder production trace
 18. Observabilité
 
 Vue globale :
@@ -883,7 +883,7 @@ Le système doit pouvoir interrompre ou demander une validation lorsqu'une polit
 
 20. Production state
 
-DeepBlender doit conserver la vérité du projet :
+DeepBl4nder doit conserver la vérité du projet :
 
 Project
  ├── Sequences
@@ -1100,7 +1100,7 @@ generated Python
  ↓
 NOOA code validation
  ↓
-DeepBlender policy
+DeepBl4nder policy
  ↓
 sandbox
  ↓
@@ -1256,7 +1256,7 @@ replay / resume
 Important :
 
 NOOA fournit une partie des primitives de runtime/event sourcing ;
-DeepBlender doit garantir la persistance et la reprise de l'état de production ;
+DeepBl4nder doit garantir la persistance et la reprise de l'état de production ;
 les artifacts déjà validés ne doivent pas être recréés inutilement.
 
 La stratégie exacte de replay doit être implémentée après étude détaillée des APIs NOOA réellement disponibles.
@@ -1265,7 +1265,7 @@ La stratégie exacte de replay doit être implémentée après étude détaillé
 
 Le projet doit utiliser le pipeline d'évaluation fourni par NOOA pour les capacités agentiques lorsque cela est pertinent.
 
-Golden set DeepBlender :
+Golden set DeepBl4nder :
 
 scene_001
 scene_002
@@ -1336,7 +1336,7 @@ Final
 La présence humaine est configurable selon le type de projet.
 
 39. Architecture des dossiers
-deepblender/
+DeepBl4nder/
 │
 ├── pyproject.toml
 ├── README.md
@@ -1372,7 +1372,7 @@ deepblender/
 │       └── qa.md
 │
 ├── src/
-│   └── deepblender/
+│   └── DeepBl4nder/
 │       │
 │       ├── agents/
 │       │   ├── director.py
@@ -1518,7 +1518,7 @@ Avant de créer l'un de ces composants :
 3. vérifier le code source
 4. tester l'API
 5. seulement ensuite décider
-41. Ce qui doit rester DeepBlender
+41. Ce qui doit rester DeepBl4nder
 ✓ Production domain
 ✓ Blender domain
 ✓ Production state
@@ -1710,7 +1710,7 @@ parallelism
                                 USER
                                   │
                                   ▼
-                         DEEPBLENDER API
+                         DeepBl4nder API
                                   │
                                   ▼
                     ┌────────────────────────┐
@@ -1763,7 +1763,7 @@ parallelism
                   └──────────────→ NOOA
 46. Règle d'or finale
 
-DeepBlender ne doit pas devenir :
+DeepBl4nder ne doit pas devenir :
 
 « un framework d'agents qui utilise NOOA ».
 
@@ -1777,7 +1777,7 @@ NOOA
 =
 agent runtime
 
-DeepBlender
+DeepBl4nder
 =
 production runtime / domain
 
@@ -1816,7 +1816,7 @@ creative authority
 
 L'architecture est réussie si :
 
-un agent DeepBlender reste un objet Python NOOA ;
+un agent DeepBl4nder reste un objet Python NOOA ;
 le contexte, la mémoire, les événements et le tracing utilisent les mécanismes NOOA existants ;
 les skills peuvent évoluer sans modifier le runtime ;
 les tools/plugins peuvent évoluer sans modifier les agents ;
@@ -1829,14 +1829,14 @@ l'humain peut reprendre le contrôle ;
 les coûts et la latence sont mesurables ;
 l'ajout d'un worker ne nécessite pas de refonte du runtime ;
 le système peut passer progressivement de 5 secondes à des productions plus complexes ;
-aucune abstraction DeepBlender ne duplique inutilement une capacité NOOA.
+aucune abstraction DeepBl4nder ne duplique inutilement une capacité NOOA.
 48. Décision architecturale
 
 NOOA est la fondation agentique.
 
-DeepBlender ne doit pas concurrencer cette fondation.
+DeepBl4nder ne doit pas concurrencer cette fondation.
 
-Le projet doit exploiter en profondeur les capacités NOOA disponibles aujourd'hui, tout en isolant dans DeepBlender uniquement ce qui appartient réellement à la production audiovisuelle.
+Le projet doit exploiter en profondeur les capacités NOOA disponibles aujourd'hui, tout en isolant dans DeepBl4nder uniquement ce qui appartient réellement à la production audiovisuelle.
 
 La priorité d'implémentation n'est donc pas :
 
@@ -1853,6 +1853,6 @@ mais :
 
 '''
 
-path = Path("/mnt/data/DeepBlender_Architecture_NOOA_First_v0.3.md")
+path = Path("/mnt/data/DeepBl4nder_Architecture_NOOA_First_v0.3.md")
 path.write_text(md, encoding="utf-8")
 print(path)

@@ -1,7 +1,7 @@
 'use client';
 
-const TOKEN_KEY = 'deepblender_token';
-const EMAIL_KEY = 'deepblender_email';
+const TOKEN_KEY = 'DeepBl4nder_token';
+const EMAIL_KEY = 'DeepBl4nder_email';
 
 export function getToken(): string | null {
   if (typeof window === 'undefined') return null;

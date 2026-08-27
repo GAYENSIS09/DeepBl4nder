@@ -50,7 +50,7 @@ export async function ensureProject(preferredName?: string): Promise<ProjectOut>
   const org: OrgOut =
     orgs.length > 0
       ? orgs[0]
-      : await api.createOrganization(`Studio ${(await api.me()).user.full_name.trim().split(' ')[0] || 'DeepBlender'}`);
+      : await api.createOrganization(`Studio ${(await api.me()).user.full_name.trim().split(' ')[0] || 'DeepBl4nder'}`);
 
   const workspaces = await api.listWorkspaces(org.id);
   const workspace: WorkspaceOut =
@@ -62,7 +62,7 @@ export async function ensureProject(preferredName?: string): Promise<ProjectOut>
       ? projects[0]
       : await api.createProject(workspace.id, {
           name: preferredName || 'Projet principal',
-          description: 'Créé automatiquement par DeepBlender.',
+          description: 'Créé automatiquement par DeepBl4nder.',
         });
 
   return project;

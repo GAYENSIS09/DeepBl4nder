@@ -25,7 +25,7 @@ class PolyHavenClient:
         self._cache_dir = Path(cache_dir) if cache_dir else Path("polyhaven_cache")
         self._cache_dir.mkdir(parents=True, exist_ok=True)
         self._session = requests.Session()
-        self._session.headers.update({"User-Agent": "DeepBlender/0.2"})
+        self._session.headers.update({"User-Agent": "DeepBl4nder/0.2"})
 
     def search(
         self,

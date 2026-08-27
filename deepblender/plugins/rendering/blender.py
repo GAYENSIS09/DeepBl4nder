@@ -11,10 +11,10 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from deepblender.bridges.blender.bridge import BlenderBridge
-from deepblender.bridge.worker import ProcessResult
-from deepblender.domain.scene import BlenderScript
-from deepblender.plugins.base import Plugin
+from DeepBl4nder.bridges.blender.bridge import BlenderBridge
+from DeepBl4nder.bridge.worker import ProcessResult
+from DeepBl4nder.domain.scene import BlenderScript
+from DeepBl4nder.plugins.base import Plugin
 
 _INSPECT_TEMPLATE = (
     "import bpy\n"

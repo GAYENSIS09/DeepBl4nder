@@ -8,9 +8,9 @@ from dataclasses import dataclass, field
 from typing import Literal
 from uuid import uuid4
 
-from deepblender.production.events import APPROVAL_EVENTS, STEP_EVENTS, EventLog
+from DeepBl4nder.production.events import APPROVAL_EVENTS, STEP_EVENTS, EventLog
 
-logger = logging.getLogger("deepblender.pipeline")
+logger = logging.getLogger("DeepBl4nder.pipeline")
 
 RunStatus = Literal["created", "planned", "running", "awaiting_approval", "completed", "revision", "blocked"]
 

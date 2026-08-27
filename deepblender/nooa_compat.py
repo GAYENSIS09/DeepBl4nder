@@ -39,7 +39,7 @@ import re
 from dataclasses import asdict, fields as dc_fields, is_dataclass
 from typing import Any
 
-logger = logging.getLogger("deepblender.pipeline")
+logger = logging.getLogger("DeepBl4nder.pipeline")
 
 # Clé(s) légitimes d'une enveloppe d'appel : on ne déplie que si TOUTES les
 # clés présentes y figurent — jamais un payload métier contenant par hasard
@@ -352,7 +352,7 @@ def _coerce_domain_nesting(result: Any) -> Any:
     les parsers tolérants du domaine pour livrer de vraies dataclass.
     """
     try:
-        from deepblender.domain.narrative import StoryboardSpec, StorySpec
+        from DeepBl4nder.domain.narrative import StoryboardSpec, StorySpec
     except Exception:  # noqa: BLE001 - import jamais bloquant
         return result
 
@@ -409,7 +409,7 @@ def install() -> None:
     from nooa.strategies.codeact import CodeActStrategy
 
     original = CodeActStrategy._handle_return_result
-    if getattr(original, "_deepblender_unwrap", False):
+    if getattr(original, "_DeepBl4nder_unwrap", False):
         _INSTALLED = True
         return
 
@@ -447,7 +447,7 @@ def install() -> None:
                 return coerced, None
         return validated, error_msg
 
-    patched._deepblender_unwrap = True  # type: ignore[attr-defined]
+    patched._DeepBl4nder_unwrap = True  # type: ignore[attr-defined]
     CodeActStrategy._handle_return_result = patched  # type: ignore[method-assign]
     _patch_reflexion_strategy()
     _INSTALLED = True
@@ -475,7 +475,7 @@ def _patch_reflexion_strategy() -> None:
     except ImportError:
         return
 
-    if getattr(ActorRuntime, "_deepblender_dynamiccontext_fix", False):
+    if getattr(ActorRuntime, "_DeepBl4nder_dynamiccontext_fix", False):
         return
 
     original_prepare_context = ActorRuntime._prepare_context
@@ -515,7 +515,7 @@ def _patch_reflexion_strategy() -> None:
         return blocks
 
     ActorRuntime._prepare_context = _patched_prepare_context  # type: ignore[assignment]
-    ActorRuntime._deepblender_dynamiccontext_fix = True  # type: ignore[attr-defined]
+    ActorRuntime._DeepBl4nder_dynamiccontext_fix = True  # type: ignore[attr-defined]
     logger.info(
         "nooa_compat : ActorRuntime._prepare_context patché pour DynamicContext "
         "(ReflexionStrategy.base utilisé comme strategy)."

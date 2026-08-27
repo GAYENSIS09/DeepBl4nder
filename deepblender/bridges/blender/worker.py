@@ -11,9 +11,9 @@ from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
 
-from deepblender.bridges.blender.bridge import BlenderBridge
-from deepblender.bridge.worker import ProcessResult
-from deepblender.domain.scene import BlenderScript
+from DeepBl4nder.bridges.blender.bridge import BlenderBridge
+from DeepBl4nder.bridge.worker import ProcessResult
+from DeepBl4nder.domain.scene import BlenderScript
 
 
 class WorkerStatus(str, Enum):

@@ -1,11 +1,11 @@
-"""BaseAgent : classe de base pour tous les agents DeepBlender (NOOA).
+"""BaseAgent : classe de base pour tous les agents DeepBl4nder (NOOA).
 
 Factorise le chargement de skills, la configuration NOOA et les patterns communs.
 
 Exploite NOOA 0.0.8 (00-nooa.md) :
-- ``TruncationConfig`` : budget de contexte / événements (env ``DEEPBLENDER_AGENT_TRUNCATION``).
-- ``SQLiteStorageManager`` : persistance d'état de l'agent (env ``DEEPBLENDER_AGENT_STORAGE``).
-- ``nooa.tracing`` : observabilité des boucles agentiques (env ``DEEPBLENDER_TRACING``).
+- ``TruncationConfig`` : budget de contexte / événements (env ``DeepBl4nder_AGENT_TRUNCATION``).
+- ``SQLiteStorageManager`` : persistance d'état de l'agent (env ``DeepBl4nder_AGENT_STORAGE``).
+- ``nooa.tracing`` : observabilité des boucles agentiques (env ``DeepBl4nder_TRACING``).
 - ``@hidden`` (agentdoc) : masque les helpers internes du rendu modèle.
 - postconditions : invariants métier (``InvariantError`` -> retry de validation modèle).
 """
@@ -26,12 +26,12 @@ from nooa.strategy_validation import InvariantError
 # GenerationError SANS importer nooa directement (règle de découplage).
 __all__ = ["GenerationError", "InvariantError"]
 
-from deepblender.llm import model_name_of
-from deepblender.nooa_compat import install as install_nooa_compat
-from deepblender.skills.registry import SkillRegistry, get_default_registry
+from DeepBl4nder.llm import model_name_of
+from DeepBl4nder.nooa_compat import install as install_nooa_compat
+from DeepBl4nder.skills.registry import SkillRegistry, get_default_registry
 
 # Normalisation étendue des return_result (enveloppes non standard des
-# modèles de secours) — voir deepblender/nooa_compat.py. Idempotent.
+# modèles de secours) — voir DeepBl4nder/nooa_compat.py. Idempotent.
 install_nooa_compat()
 
 _TRACING_ENABLED = False
@@ -39,8 +39,8 @@ _SENTINEL = object()
 
 
 def _sandbox_enabled() -> bool:
-    """True si ``DEEPBLENDER_SANDBOX=1`` : exécution de code dans un worker confiné."""
-    return os.getenv("DEEPBLENDER_SANDBOX", "").lower() in ("1", "true", "yes", "on")
+    """True si ``DeepBl4nder_SANDBOX=1`` : exécution de code dans un worker confiné."""
+    return os.getenv("DeepBl4nder_SANDBOX", "").lower() in ("1", "true", "yes", "on")
 
 
 def _default_memory_skill() -> Any:
@@ -54,8 +54,8 @@ def _default_memory_skill() -> Any:
 
 
 def _default_event_query() -> Any:
-    """EventQuery depuis ``DEEPBLENDER_EVENT_QUERY=<type>`` (None = défaut NOOA)."""
-    etype = os.getenv("DEEPBLENDER_EVENT_QUERY", "").strip()
+    """EventQuery depuis ``DeepBl4nder_EVENT_QUERY=<type>`` (None = défaut NOOA)."""
+    etype = os.getenv("DeepBl4nder_EVENT_QUERY", "").strip()
     if not etype:
         return None
     return EventQuery(type=etype, limit=8)
@@ -64,10 +64,10 @@ def _default_event_query() -> Any:
 def _default_truncation() -> Any:
     """TruncationConfig avec valeurs par défaut raisonnables.
 
-    ``DEEPBLENDER_AGENT_TRUNCATION=0`` désactive ; sinon activé par défaut.
+    ``DeepBl4nder_AGENT_TRUNCATION=0`` désactive ; sinon activé par défaut.
     ``LLM_CONTEXT_TOKENS`` et ``LLM_EVENT_TOKENS`` fixent les budgets.
     """
-    if os.getenv("DEEPBLENDER_AGENT_TRUNCATION", "").lower() in ("0", "false", "no", "off"):
+    if os.getenv("DeepBl4nder_AGENT_TRUNCATION", "").lower() in ("0", "false", "no", "off"):
         return None
     try:
         from nooa.config.truncation_config import TruncationConfig
@@ -87,8 +87,8 @@ def _default_truncation() -> Any:
 
 
 def _default_storage() -> Any:
-    """SQLiteStorageManager si ``DEEPBLENDER_AGENT_STORAGE=<chemin db>`` est défini."""
-    path = os.getenv("DEEPBLENDER_AGENT_STORAGE", "").strip()
+    """SQLiteStorageManager si ``DeepBl4nder_AGENT_STORAGE=<chemin db>`` est défini."""
+    path = os.getenv("DeepBl4nder_AGENT_STORAGE", "").strip()
     if not path:
         return None
     try:
@@ -100,19 +100,19 @@ def _default_storage() -> Any:
 
 
 def _enable_tracing_if_configured() -> None:
-    """Active le tracing NOOA une fois, sauf si ``DEEPBLENDER_TRACING=0``.
+    """Active le tracing NOOA une fois, sauf si ``DeepBl4nder_TRACING=0``.
 
     Le tracing est activé par défaut pour faciliter le debugging.
-    Désactivez avec ``DEEPBLENDER_TRACING=0`` ou ``DEEPBLENDER_ENV=production``.
+    Désactivez avec ``DeepBl4nder_TRACING=0`` ou ``DeepBl4nder_ENV=production``.
     """
     global _TRACING_ENABLED
     if _TRACING_ENABLED:
         return
     # Désactivé explicitement ou en production
-    if os.getenv("DEEPBLENDER_TRACING", "").lower() in ("0", "false", "no", "off"):
+    if os.getenv("DeepBl4nder_TRACING", "").lower() in ("0", "false", "no", "off"):
         _TRACING_ENABLED = True
         return
-    if os.getenv("DEEPBLENDER_ENV", "").lower() in ("production", "prod"):
+    if os.getenv("DeepBl4nder_ENV", "").lower() in ("production", "prod"):
         _TRACING_ENABLED = True
         return
     try:
@@ -131,7 +131,7 @@ def scene_spec_postcondition(agent: Any, result: Any, call: Any) -> None:
     Lève ``InvariantError`` (retry de validation NOOA, modèle corrigeable)
     plutôt que de laisser passer une spec vide.
     """
-    from deepblender.domain.scene import SceneSpec
+    from DeepBl4nder.domain.scene import SceneSpec
 
     if not isinstance(result, SceneSpec):
         return
@@ -146,7 +146,7 @@ def scene_spec_postcondition(agent: Any, result: Any, call: Any) -> None:
 
 def blender_script_postcondition(agent: Any, result: Any, call: Any) -> None:
     """Invariant : un BlenderScript généré doit avoir du code non vide."""
-    from deepblender.domain.scene import BlenderScript
+    from DeepBl4nder.domain.scene import BlenderScript
 
     if not isinstance(result, BlenderScript):
         return
@@ -156,7 +156,7 @@ def blender_script_postcondition(agent: Any, result: Any, call: Any) -> None:
 
 def story_spec_postcondition(agent: Any, result: Any, call: Any) -> None:
     """Invariant : une StorySpec produite doit porter une logline."""
-    from deepblender.domain.narrative import StorySpec
+    from DeepBl4nder.domain.narrative import StorySpec
 
     if not isinstance(result, StorySpec):
         return
@@ -170,7 +170,7 @@ def story_spec_postcondition(agent: Any, result: Any, call: Any) -> None:
 
 def storyboard_spec_postcondition(agent: Any, result: Any, call: Any) -> None:
     """Invariant : un StoryboardSpec produit doit contenir au moins un plan."""
-    from deepblender.domain.narrative import StoryboardSpec
+    from DeepBl4nder.domain.narrative import StoryboardSpec
 
     if not isinstance(result, StoryboardSpec):
         return
@@ -184,7 +184,7 @@ def storyboard_spec_postcondition(agent: Any, result: Any, call: Any) -> None:
 
 
 def codeact_with_sandbox(config: Any = None) -> CodeActStrategy:
-    """CodeActStrategy avec backend sandbox quand ``DEEPBLENDER_SANDBOX=1``."""
+    """CodeActStrategy avec backend sandbox quand ``DeepBl4nder_SANDBOX=1``."""
     from nooa.config.strategy_config import CodeActConfig
 
     base = config or CodeActConfig()
@@ -194,7 +194,7 @@ def codeact_with_sandbox(config: Any = None) -> CodeActStrategy:
 
 
 class BaseAgent(Agent):
-    """Classe de base pour agents DeepBlender avec progressive disclosure des skills.
+    """Classe de base pour agents DeepBl4nder avec progressive disclosure des skills.
 
     Fournit :
     - Registre de skills partagé (injecté ou défaut singleton)
@@ -239,11 +239,11 @@ class BaseAgent(Agent):
     def _enable_memory(self, memory: Any = _SENTINEL) -> bool:
         """Attache la mémoire long terme (nooa-memory) par défaut.
 
-        ``DEEPBLENDER_AGENT_MEMORY=0`` désactive ; sinon activé par défaut.
+        ``DeepBl4nder_AGENT_MEMORY=0`` désactive ; sinon activé par défaut.
         La mémoire persiste entre les runs via ``MEMORY_STORAGE_PATH``.
         """
         if memory is _SENTINEL:
-            memory = os.getenv("DEEPBLENDER_AGENT_MEMORY", "").lower() not in (
+            memory = os.getenv("DeepBl4nder_AGENT_MEMORY", "").lower() not in (
                 "0",
                 "false",
                 "no",
@@ -293,15 +293,15 @@ class BaseAgent(Agent):
         """Installe un TokenBudgetSummarizer pour comprimer l'historique long.
 
         Empeche les conversations longues de depasser la fenetre de contexte.
-        Controle par DEEPBLENDER_AGENT_HISTORY_BUDGET (tokens, defaut 80000).
+        Controle par DeepBl4nder_AGENT_HISTORY_BUDGET (tokens, defaut 80000).
         """
-        if os.getenv("DEEPBLENDER_NO_SUMMARIZER", "").lower() in ("1", "true"):
+        if os.getenv("DeepBl4nder_NO_SUMMARIZER", "").lower() in ("1", "true"):
             return
         try:
             from nooa.agents import TokenBudgetSummarizer
             from nooa.config import TokenBudgetConfig
 
-            max_tokens = int(os.getenv("DEEPBLENDER_AGENT_HISTORY_BUDGET", "80000"))
+            max_tokens = int(os.getenv("DeepBl4nder_AGENT_HISTORY_BUDGET", "80000"))
             TokenBudgetSummarizer.install(
                 self,
                 config=TokenBudgetConfig(max_tokens=max_tokens, preserve_recent=10),
@@ -397,7 +397,7 @@ def _guardrail_validate_output(ctx: Any, next_fn: Any) -> Any:
     result = getattr(ctx, "result", None)
     if result is not None and isinstance(result, str) and len(result.strip()) < 10:
         import logging
-        logging.getLogger("deepblender.guardrails").warning(
+        logging.getLogger("DeepBl4nder.guardrails").warning(
             "Sortie trop courte (%d chars) pour %s",
             len(result.strip()),
             getattr(ctx, "method_name", "unknown"),

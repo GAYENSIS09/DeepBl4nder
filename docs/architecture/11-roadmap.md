@@ -6,7 +6,7 @@
 ## Architecture des dossiers (finale)
 
 ```text
-deepblender/
+DeepBl4nder/
 ├── pyproject.toml
 ├── README.md
 ├── Dockerfile
@@ -16,9 +16,9 @@ deepblender/
 │   ├── architecture/          ← source de vérité (ce dossier)
 │   ├── roadmaps/              ← archives, ne pas faire évoluer
 │   └── cahier-de-conception-v1.md
-├── deepblender/               ← paquet Python
+├── DeepBl4nder/               ← paquet Python
 │   ├── __init__.py
-│   ├── cli.py                 ← point d'entrée `deepblender` (inspect|validate|serve|seed)
+│   ├── cli.py                 ← point d'entrée `DeepBl4nder` (inspect|validate|serve|seed)
 │   ├── llm.py                 ← multi-provider LLM router (vote)
 │   ├── agents/                ← sous-classes nooa.Agent (director, blender, qa, audio, compositing, localization)
 │   ├── domain/                ← objets métier typés (project, scene, shot, asset, qa, media)

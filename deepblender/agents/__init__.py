@@ -1,4 +1,4 @@
-"""Agents DeepBlender : sous-classes directes de nooa.Agent.
+"""Agents DeepBl4nder : sous-classes directes de nooa.Agent.
 
 Aucun framework agentique propriétaire : le runtime, le contexte, les
 événements, la mémoire et le tracing sont ceux de NOOA (P5).
@@ -6,22 +6,22 @@ Aucun framework agentique propriétaire : le runtime, le contexte, les
 
 from __future__ import annotations
 
-from deepblender.agents.animator import AnimatorAgent
-from deepblender.agents.audio import AudioAgent
-from deepblender.agents.base import BaseAgent, DefaultsMixin
-from deepblender.agents.blender import BlenderAgent
-from deepblender.agents.char import CharacterDesignerAgent
-from deepblender.agents.comp import CompositingAgent
-from deepblender.agents.director import DirectorAgent
-from deepblender.agents.env import EnvironmentArtistAgent
-from deepblender.agents.loc import LocalizationAgent
-from deepblender.agents.music import MusicComposerAgent
-from deepblender.agents.qa import QAAgent
-from deepblender.agents.review import ReviewAgent
-from deepblender.agents.sfx import SoundDesignerAgent
-from deepblender.agents.story import StoryAgent
-from deepblender.agents.board import StoryboardAgent
-from deepblender.agents.ue5 import UE5Agent
+from DeepBl4nder.agents.animator import AnimatorAgent
+from DeepBl4nder.agents.audio import AudioAgent
+from DeepBl4nder.agents.base import BaseAgent, DefaultsMixin
+from DeepBl4nder.agents.blender import BlenderAgent
+from DeepBl4nder.agents.char import CharacterDesignerAgent
+from DeepBl4nder.agents.comp import CompositingAgent
+from DeepBl4nder.agents.director import DirectorAgent
+from DeepBl4nder.agents.env import EnvironmentArtistAgent
+from DeepBl4nder.agents.loc import LocalizationAgent
+from DeepBl4nder.agents.music import MusicComposerAgent
+from DeepBl4nder.agents.qa import QAAgent
+from DeepBl4nder.agents.review import ReviewAgent
+from DeepBl4nder.agents.sfx import SoundDesignerAgent
+from DeepBl4nder.agents.story import StoryAgent
+from DeepBl4nder.agents.board import StoryboardAgent
+from DeepBl4nder.agents.ue5 import UE5Agent
 
 __all__ = [
     "AnimatorAgent",

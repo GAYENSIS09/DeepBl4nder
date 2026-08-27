@@ -1,7 +1,7 @@
 """Rendering plugins : Blender, FFmpeg, render farm."""
 
-from deepblender.plugins.rendering.blender import BlenderPlugin
-from deepblender.plugins.rendering.ffmpeg import (
+from DeepBl4nder.plugins.rendering.blender import BlenderPlugin
+from DeepBl4nder.plugins.rendering.ffmpeg import (
     FFmpegPlugin,
     ColorGradePreset,
     ExportPreset,
@@ -11,7 +11,7 @@ from deepblender.plugins.rendering.ffmpeg import (
     export_video,
     mix_audio_tracks,
 )
-from deepblender.plugins.rendering.render_farm import RenderFarmPlugin
+from DeepBl4nder.plugins.rendering.render_farm import RenderFarmPlugin
 
 __all__ = [
     "BlenderPlugin", "FFmpegPlugin", "RenderFarmPlugin",

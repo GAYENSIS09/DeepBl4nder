@@ -7,13 +7,13 @@ from typing import Any
 from nooa import CodeActStrategy, strategy
 from nooa.config.strategy_config import CodeActConfig
 
-from deepblender.agents.base import (
+from DeepBl4nder.agents.base import (
     BaseAgent,
     DefaultsMixin,
     story_spec_postcondition,
 )
-from deepblender.domain.narrative import StorySpec
-from deepblender.skills.registry import SkillRegistry
+from DeepBl4nder.domain.narrative import StorySpec
+from DeepBl4nder.skills.registry import SkillRegistry
 
 
 class StoryAgent(BaseAgent, DefaultsMixin):

@@ -28,32 +28,32 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any, Callable
 
-from deepblender.agents.base import GenerationError
-from deepblender.artifacts.provenance import ProvenanceGraph
-from deepblender.artifacts.registry import Artifact, ArtifactRegistry
-from deepblender.production.context import ContextInjector
-from deepblender.codegen.validator import ValidationReport, validate_for_worker
-from deepblender.domain.patch import Patch, apply_patches
-from deepblender.domain.project import Brief
-from deepblender.domain.qa import Issue, IssueKind, QAReport, RevisionSpec
-from deepblender.domain.scene import BlenderScript, SceneSpec, RenderOutput, ENGINE_UE5
-from deepblender.domain.ue5 import UE5Commands
-from deepblender.domain.media import AudioPlan, AudioMaster, CompositeSpec, LanguagePackage, MusicPlan, SoundDesignPlan
-from deepblender.domain.narrative import StorySpec, StoryboardSpec
-from deepblender.plugins.registry import PluginRegistry
-from deepblender.production.budget import BudgetTracker
-from deepblender.production.checkpoints import CheckpointManager
-from deepblender.production.fallbacks import synthesize_blender_script, synthesize_storyboard
-from deepblender.production.events import EventLog, ProductionEvent
-from deepblender.production.rendering import RenderManager
-from deepblender.production.postprod import PostProductionRunner
-from deepblender.production.plugins import PluginShortcuts
-from deepblender.production.runs import ProductionRun, ProductionStep
-from deepblender.qa.visual import assess_render, visual_qa_to_report
+from DeepBl4nder.agents.base import GenerationError
+from DeepBl4nder.artifacts.provenance import ProvenanceGraph
+from DeepBl4nder.artifacts.registry import Artifact, ArtifactRegistry
+from DeepBl4nder.production.context import ContextInjector
+from DeepBl4nder.codegen.validator import ValidationReport, validate_for_worker
+from DeepBl4nder.domain.patch import Patch, apply_patches
+from DeepBl4nder.domain.project import Brief
+from DeepBl4nder.domain.qa import Issue, IssueKind, QAReport, RevisionSpec
+from DeepBl4nder.domain.scene import BlenderScript, SceneSpec, RenderOutput, ENGINE_UE5
+from DeepBl4nder.domain.ue5 import UE5Commands
+from DeepBl4nder.domain.media import AudioPlan, AudioMaster, CompositeSpec, LanguagePackage, MusicPlan, SoundDesignPlan
+from DeepBl4nder.domain.narrative import StorySpec, StoryboardSpec
+from DeepBl4nder.plugins.registry import PluginRegistry
+from DeepBl4nder.production.budget import BudgetTracker
+from DeepBl4nder.production.checkpoints import CheckpointManager
+from DeepBl4nder.production.fallbacks import synthesize_blender_script, synthesize_storyboard
+from DeepBl4nder.production.events import EventLog, ProductionEvent
+from DeepBl4nder.production.rendering import RenderManager
+from DeepBl4nder.production.postprod import PostProductionRunner
+from DeepBl4nder.production.plugins import PluginShortcuts
+from DeepBl4nder.production.runs import ProductionRun, ProductionStep
+from DeepBl4nder.qa.visual import assess_render, visual_qa_to_report
 
 CostHook = Callable[[str], float]
 
-logger = logging.getLogger("deepblender.pipeline")
+logger = logging.getLogger("DeepBl4nder.pipeline")
 
 
 def _compact(payload: dict[str, Any], limit: int = 400) -> str:
@@ -366,7 +366,7 @@ class PipelineRunner(PluginShortcuts):
             return []
         session = self.session_factory()
         try:
-            from deepblender.api.models import Patch as PatchModel
+            from DeepBl4nder.api.models import Patch as PatchModel
             from sqlalchemy import select
             patches = session.scalars(
                 select(PatchModel).where(
@@ -403,7 +403,7 @@ class PipelineRunner(PluginShortcuts):
             return
         session = self.session_factory()
         try:
-            from deepblender.api.models import Patch as PatchModel
+            from DeepBl4nder.api.models import Patch as PatchModel
             from sqlalchemy import select
             from datetime import datetime, timezone
             patches = session.scalars(
@@ -467,7 +467,7 @@ class PipelineRunner(PluginShortcuts):
         if self.session_factory and self.production_id:
             session = self.session_factory()
             try:
-                from deepblender.api.models import Scene as SceneModel
+                from DeepBl4nder.api.models import Scene as SceneModel
                 from sqlalchemy import select
                 scenes = session.scalars(
                     select(SceneModel).where(
@@ -491,7 +491,7 @@ class PipelineRunner(PluginShortcuts):
             return None
         session = self.session_factory()
         try:
-            from deepblender.api.models import Production
+            from DeepBl4nder.api.models import Production
             prod = session.get(Production, self.production_id)
             return prod.organization_id if prod else None
         finally:
@@ -615,15 +615,15 @@ class PipelineRunner(PluginShortcuts):
         if (
             storyboard_spec is not None
             and "storyboard" not in reusable  # un storyboard repris a déjà été approuvé
-            and not os.environ.get("DEEPBLENDER_AUTO_APPROVE", "0") == "1"
+            and not os.environ.get("DeepBl4nder_AUTO_APPROVE", "0") == "1"
         ):
             self.production_run.request_approval("storyboard")
             self.event_log.append("approval_requested", {"step": "storyboard", "reason": "Awaiting human approval of storyboard"})
             run.status = "awaiting_approval"
             self._emit("approval_required", {"production_id": self.production_id, "step": "storyboard"})
             # In a real implementation, we would wait here for approval
-            # For now, we auto-approve in test mode or when DEEPBLENDER_AUTO_APPROVE=1
-            if os.environ.get("DEEPBLENDER_AUTO_APPROVE", "0") != "1":
+            # For now, we auto-approve in test mode or when DeepBl4nder_AUTO_APPROVE=1
+            if os.environ.get("DeepBl4nder_AUTO_APPROVE", "0") != "1":
                 self.production_run.approve("storyboard")
                 self.event_log.append("approval_granted", {"step": "storyboard", "auto": True})
                 run.status = "running"
@@ -642,7 +642,7 @@ class PipelineRunner(PluginShortcuts):
                 self._mark_patches_applied([p.target for p in pending_patches])
                 # Inject patch instructions into blender agent context for targeted regeneration
                 if self.blender and hasattr(self.blender, "context"):
-                    from deepblender.domain.patch import patch_to_revision_instruction
+                    from DeepBl4nder.domain.patch import patch_to_revision_instruction
                     combined_feedback = "\n\n".join(patch_to_revision_instruction(p) for p in pending_patches)
                     self.context_injector._set_context(self.blender.context, "revision_feedback", combined_feedback)
         else:
@@ -1044,7 +1044,7 @@ class PipelineRunner(PluginShortcuts):
 
     def _synthesize_ue5_commands(self, scene: SceneSpec) -> UE5Commands:
         """Fallback: commandes UE5 basiques quand le LLM échoue."""
-        from deepblender.domain.ue5 import UE5Command
+        from DeepBl4nder.domain.ue5 import UE5Command
         scene_name = _safe_name(scene.brief[:30] if scene.brief else "scene")
         commands = [
             UE5Command(endpoint="level/create", payload={"name": scene_name, "template": "empty"}),

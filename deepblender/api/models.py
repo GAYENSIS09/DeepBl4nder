@@ -13,7 +13,7 @@ from uuid import uuid4
 from sqlalchemy import Boolean, CheckConstraint, DateTime, Float, ForeignKey, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from deepblender.api.db import Base
+from DeepBl4nder.api.db import Base
 
 Role = str  # "owner" | "admin" | "editor" | "viewer"
 

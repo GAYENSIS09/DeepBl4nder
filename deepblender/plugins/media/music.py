@@ -13,9 +13,9 @@ import wave
 from dataclasses import dataclass
 from pathlib import Path
 
-from deepblender.plugins.base import Plugin
+from DeepBl4nder.plugins.base import Plugin
 
-logger = logging.getLogger("deepblender.plugins.music")
+logger = logging.getLogger("DeepBl4nder.plugins.music")
 
 _RATE = 44100
 

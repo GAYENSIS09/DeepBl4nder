@@ -2,7 +2,7 @@
 
 ## Contexte
 
-DeepBlender a un pipeline fonctionnel avec Blender. L'architecture retenue (Option C) garde BlenderAgent intact et ajoute des agents séparés pour chaque moteur. UE5 est le premier moteur à intégrer après Blender.
+DeepBl4nder a un pipeline fonctionnel avec Blender. L'architecture retenue (Option C) garde BlenderAgent intact et ajoute des agents séparés pour chaque moteur. UE5 est le premier moteur à intégrer après Blender.
 
 UE5 est fondamentalement différent de Blender :
 - **Pas de script Python** : UE5 s'exécute comme un serveur avec REST API
@@ -23,7 +23,7 @@ SceneSpec (commun)
 
 ## Étape 1 : Domaine — Étendre RenderSpec
 
-**Fichier** : `deepblender/domain/scene.py`
+**Fichier** : `DeepBl4nder/domain/scene.py`
 
 ### 1a. Ajouter les moteurs supportés
 
@@ -61,7 +61,7 @@ Ajouter `ue5_settings: UE5RenderSpec | None = None` à `RenderSpec`.
 
 ## Étape 2 : UE5Bridge — Client REST pour UE5
 
-**Fichier à créer** : `deepblender/bridges/ue5/bridge.py`
+**Fichier à créer** : `DeepBl4nder/bridges/ue5/bridge.py`
 
 ### 2a. Classe UE5Bridge
 
@@ -138,14 +138,14 @@ UE5 Server (port 8080)
 ```
 
 **Fichiers créés** :
-- `deepblender/bridges/ue5/__init__.py`
-- `deepblender/bridges/ue5/bridge.py`
+- `DeepBl4nder/bridges/ue5/__init__.py`
+- `DeepBl4nder/bridges/ue5/bridge.py`
 
 ---
 
 ## Étape 3 : UE5Agent — Agent NOOA pour UE5
 
-**Fichier à créer** : `deepblender/agents/ue5.py`
+**Fichier à créer** : `DeepBl4nder/agents/ue5.py`
 
 ### 3a. Classe UE5Agent
 
@@ -207,14 +207,14 @@ def ue5_commands_postcondition(agent, result, call):
 ```
 
 **Fichiers créés** :
-- `deepblender/agents/ue5.py`
-- `deepblender/domain/ue5.py` (UE5Commands, UE5RenderSpec)
+- `DeepBl4nder/agents/ue5.py`
+- `DeepBl4nder/domain/ue5.py` (UE5Commands, UE5RenderSpec)
 
 ---
 
 ## Étape 4 : Wiring dans le Runner
 
-**Fichier** : `deepblender/production/runner.py`
+**Fichier** : `DeepBl4nder/production/runner.py`
 
 ### 4a. Ajouter l'agent UE5
 
@@ -267,7 +267,7 @@ async def _build_ue5(self, scene: SceneSpec) -> tuple[UE5Commands, Path]:
 
 ## Étape 5 : Skills UE5 (déjà existants)
 
-**Fichier** : `deepblender/skills/unreal-engine/SKILL.md`
+**Fichier** : `DeepBl4nder/skills/unreal-engine/SKILL.md`
 
 Le skill existe déjà avec 134 lignes de documentation sur :
 - Level creation
@@ -297,13 +297,13 @@ Le skill existe déjà avec 134 lignes de documentation sur :
 
 | Fichier | Action |
 |---------|--------|
-| `deepblender/domain/scene.py` | MODIFIER — ajouter UE5RenderSpec, étendre engine |
-| `deepblender/domain/ue5.py` | CRÉER — UE5Commands |
-| `deepblender/bridges/ue5/__init__.py` | CRÉER |
-| `deepblender/bridges/ue5/bridge.py` | CRÉER — UE5Bridge |
-| `deepblender/agents/ue5.py` | CRÉER — UE5Agent |
-| `deepblender/production/runner.py` | MODIFIER — routing engine |
-| `deepblender/skills/unreal-engine/SKILL.md` | ENRICHIR |
+| `DeepBl4nder/domain/scene.py` | MODIFIER — ajouter UE5RenderSpec, étendre engine |
+| `DeepBl4nder/domain/ue5.py` | CRÉER — UE5Commands |
+| `DeepBl4nder/bridges/ue5/__init__.py` | CRÉER |
+| `DeepBl4nder/bridges/ue5/bridge.py` | CRÉER — UE5Bridge |
+| `DeepBl4nder/agents/ue5.py` | CRÉER — UE5Agent |
+| `DeepBl4nder/production/runner.py` | MODIFIER — routing engine |
+| `DeepBl4nder/skills/unreal-engine/SKILL.md` | ENRICHIR |
 | `tests/test_ue5_bridge.py` | CRÉER |
 | `tests/test_ue5_agent.py` | CRÉER |
 | `tests/test_runner_engine_routing.py` | CRÉER |

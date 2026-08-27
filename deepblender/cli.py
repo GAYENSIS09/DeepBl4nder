@@ -1,4 +1,4 @@
-"""CLI DeepBlender : point d'entrée `deepblender` (pyproject [project.scripts])."""
+"""CLI DeepBl4nder : point d'entrée `DeepBl4nder` (pyproject [project.scripts])."""
 
 from __future__ import annotations
 
@@ -7,16 +7,16 @@ import sys
 from pathlib import Path
 from typing import Sequence
 
-from deepblender import __version__
-from deepblender.codegen.validator import ASTValidator
-from deepblender.plugins.registry import PluginRegistry
-from deepblender.plugins.rendering.render_farm import RenderFarmPlugin
-from deepblender.plugins.tools import ToolRegistry
-from deepblender.skills.registry import get_default_registry
+from DeepBl4nder import __version__
+from DeepBl4nder.codegen.validator import ASTValidator
+from DeepBl4nder.plugins.registry import PluginRegistry
+from DeepBl4nder.plugins.rendering.render_farm import RenderFarmPlugin
+from DeepBl4nder.plugins.tools import ToolRegistry
+from DeepBl4nder.skills.registry import get_default_registry
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(prog="deepblender", description="Production audiovisuelle assistée par agents IA (NOOA).")
+    parser = argparse.ArgumentParser(prog="DeepBl4nder", description="Production audiovisuelle assistée par agents IA (NOOA).")
     parser.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
     sub = parser.add_subparsers(dest="command", required=True)
 
@@ -42,8 +42,8 @@ def build_parser() -> argparse.ArgumentParser:
 def _cmd_inspect() -> int:
     import nooa
 
-    from deepblender.bridges.blender.bridge import BlenderBridge
-    from deepblender.bridge.worker import blender_version
+    from DeepBl4nder.bridges.blender.bridge import BlenderBridge
+    from DeepBl4nder.bridge.worker import blender_version
 
     registry = get_default_registry()
     bridge = BlenderBridge()
@@ -52,7 +52,7 @@ def _cmd_inspect() -> int:
     farm = RenderFarmPlugin()
     skills = [info.name for info in registry.discover()]
     plugins = [f"{p['name']} ({p['available']})" for p in plugin_registry.discover()]
-    print(f"DeepBlender        : {__version__}")
+    print(f"DeepBl4nder        : {__version__}")
     print(f"Python             : {sys.version.split()[0]}")
     print(f"NOOA               : {getattr(nooa, '__version__', 'unknown')}")
     print(f"Blender binaire    : {'disponible' if bridge.available() else 'absent (set BLENDER_EXE)'}")
@@ -86,13 +86,13 @@ def main(argv: Sequence[str] | None = None) -> int:
     if args.command == "serve":
         import uvicorn
 
-        from deepblender.api.app import create_app
+        from DeepBl4nder.api.app import create_app
 
         app = create_app()
         uvicorn.run(app, host=args.host, port=args.port)
         return 0
     if args.command == "seed":
-        from deepblender.api.seed import main as seed_main
+        from DeepBl4nder.api.seed import main as seed_main
 
         seed_args: list[str] = []
         for option, value in (("--db", args.db), ("--email", args.email), ("--password", args.password),

@@ -1,11 +1,11 @@
-# DeepBlender UE5 Server — REST API for Unreal Engine 5
+# DeepBl4nder UE5 Server — REST API for Unreal Engine 5
 #
 # Ce serveur FastAPI communique avec l'éditeur UE5 via le Python API.
 # Il doit tourner DANS un environnement où UE5 est installé.
 #
 # Usage:
-#   docker build -t deepblender/ue5-server:latest .
-#   docker run --rm -p 8080:8080 deepblender/ue5-server:latest
+#   docker build -t DeepBl4nder/ue5-server:latest .
+#   docker run --rm -p 8080:8080 DeepBl4nder/ue5-server:latest
 
 FROM ubuntu:22.04
 

@@ -12,9 +12,9 @@ import os
 from dataclasses import dataclass, field
 from typing import Any
 
-from deepblender.plugins.base import Plugin
+from DeepBl4nder.plugins.base import Plugin
 
-logger = logging.getLogger("deepblender.plugins.cache")
+logger = logging.getLogger("DeepBl4nder.plugins.cache")
 
 
 @dataclass

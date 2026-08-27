@@ -14,10 +14,10 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from deepblender.api.db import DbSession
-from deepblender.api.models import Membership, Organization, Production, Project, User, Workspace
-from deepblender.api.security import decode_token_full
-from deepblender.api.state import get_secret_key
+from DeepBl4nder.api.db import DbSession
+from DeepBl4nder.api.models import Membership, Organization, Production, Project, User, Workspace
+from DeepBl4nder.api.security import decode_token_full
+from DeepBl4nder.api.state import get_secret_key
 
 _bearer = HTTPBearer(auto_error=False)
 

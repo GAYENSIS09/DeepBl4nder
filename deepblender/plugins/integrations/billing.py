@@ -10,9 +10,9 @@ import os
 from dataclasses import dataclass, field
 from typing import Any
 
-from deepblender.plugins.base import Plugin
+from DeepBl4nder.plugins.base import Plugin
 
-logger = logging.getLogger("deepblender.plugins.billing")
+logger = logging.getLogger("DeepBl4nder.plugins.billing")
 
 
 @dataclass
@@ -109,7 +109,7 @@ class BillingPlugin(Plugin):
                 line_items=[{
                     "price_data": {
                         "currency": "usd",
-                        "product_data": {"name": f"DeepBlender {plan.name}"},
+                        "product_data": {"name": f"DeepBl4nder {plan.name}"},
                         "unit_amount": int(plan.price_usd * 100),
                         "recurring": {"interval": "month"},
                     },

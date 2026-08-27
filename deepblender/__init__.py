@@ -1,4 +1,4 @@
-"""DeepBlender : orchestration d'agents IA (NOOA) pour la production audiovisuelle Blender."""
+"""DeepBl4nder : orchestration d'agents IA (NOOA) pour la production audiovisuelle Blender."""
 
 from __future__ import annotations
 

@@ -13,15 +13,15 @@ from unittest.mock import MagicMock
 import pytest
 from pydantic import BaseModel
 
-from deepblender.nooa_compat import (
+from DeepBl4nder.nooa_compat import (
     install,
     parse_json_string_result,
     unwrap_return_envelope,
     unwrap_typed_wrappers,
 )
-from deepblender.domain.narrative import StorySpec, StoryboardShot, StoryboardSpec
-from deepblender.domain.qa import QAReport
-from deepblender.domain.scene import BlenderScript
+from DeepBl4nder.domain.narrative import StorySpec, StoryboardShot, StoryboardSpec
+from DeepBl4nder.domain.qa import QAReport
+from DeepBl4nder.domain.scene import BlenderScript
 
 
 class TinySpec(BaseModel):
@@ -174,8 +174,8 @@ def test_structural_invariants_still_strict() -> None:
     la postcondition si elle est enregistrée (filet de sécurité)."""
     import pytest as _pytest
 
-    from deepblender.agents.base import scene_spec_postcondition, story_spec_postcondition
-    from deepblender.domain.scene import SceneSpec
+    from DeepBl4nder.agents.base import scene_spec_postcondition, story_spec_postcondition
+    from DeepBl4nder.domain.scene import SceneSpec
     from nooa.strategy_validation import InvariantError
 
     with _pytest.raises(InvariantError):
@@ -236,7 +236,7 @@ def test_story_spec_with_dict_acts_and_dialogues_coerced() -> None:
     })
     assert error_msg is None
     assert isinstance(validated, StorySpec)
-    from deepblender.domain.narrative import Act, DialogueLine
+    from DeepBl4nder.domain.narrative import Act, DialogueLine
 
     assert isinstance(validated.acts[0], Act)
     assert isinstance(validated.acts[0].beats[0], object)  # StoryBeat
@@ -437,7 +437,7 @@ def test_positional_args_with_excess_truncated() -> None:
 
 
 def test_positional_args_guards() -> None:
-    from deepblender.nooa_compat import map_positional_args
+    from DeepBl4nder.nooa_compat import map_positional_args
 
     # Type sans champs connus → intouché :
     unknown = {"args": [1, 2], "function_name": "X"}

@@ -1,4 +1,4 @@
-# Plan : Docker Complet + CI/CD pour DeepBlender
+# Plan : Docker Complet + CI/CD pour DeepBl4nder
 
 ## Contexte
 
@@ -9,7 +9,7 @@ Le setup Docker actuel est minimal : 3 services (worker, scheduler, API) sans Po
 | Fichier | Contenu |
 |---------|---------|
 | `Dockerfile` | Python 3.12 + Blender + FFmpeg (basique) |
-| `Dockerfile.worker` | Blender 4.1 from tarball + DeepBlender |
+| `Dockerfile.worker` | Blender 4.1 from tarball + DeepBl4nder |
 | `docker-compose.yml` | 3 services, pas de DB/Redis/UE5 |
 | `.github/workflows/ci.yml` | lint + typecheck + test |
 | `.env.example` | Variables LLM + binaires |
@@ -29,8 +29,8 @@ services:
     image: postgres:16-alpine
     volumes: [pgdata:/var/lib/postgresql/data]
     environment:
-      POSTGRES_DB: deepblender
-      POSTGRES_USER: deepblender
+      POSTGRES_DB: DeepBl4nder
+      POSTGRES_USER: DeepBl4nder
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
     healthcheck: pg_isready
 
@@ -51,22 +51,22 @@ services:
     ports: ["3002:3000"]
     depends_on: [postgres]
     environment:
-      DATABASE_URL: postgresql://deepblender:${POSTGRES_PASSWORD}@postgres:5432/deepblender
+      DATABASE_URL: postgresql://DeepBl4nder:${POSTGRES_PASSWORD}@postgres:5432/DeepBl4nder
       NEXTAUTH_URL: http://localhost:3002
       NEXTAUTH_SECRET: ${LANGFUSE_SECRET}
       SALT: ${LANGFUSE_SALT}
 
-  # ── DeepBlender ─────────────────────────────────────────
-  deepblender-api:
+  # ── DeepBl4nder ─────────────────────────────────────────
+  DeepBl4nder-api:
     build:
       context: .
       dockerfile: Dockerfile.api
     ports: ["8000:8000"]
     depends_on: [postgres, redis, minio]
-    environment: *deepblender-env
+    environment: *DeepBl4nder-env
     restart: unless-stopped
 
-  deepblender-worker:
+  DeepBl4nder-worker:
     build:
       context: .
       dockerfile: Dockerfile.worker
@@ -78,16 +78,16 @@ services:
               count: 1
               capabilities: [gpu]
     volumes: [./work:/work, ./projects:/projects]
-    environment: *deepblender-env
+    environment: *DeepBl4nder-env
     restart: unless-stopped
 
-  deepblender-scheduler:
+  DeepBl4nder-scheduler:
     build:
       context: .
       dockerfile: Dockerfile.worker
-    command: python -m deepblender.tasks.celery_config
-    depends_on: [redis, deepblender-worker]
-    environment: *deepblender-env
+    command: python -m DeepBl4nder.tasks.celery_config
+    depends_on: [redis, DeepBl4nder-worker]
+    environment: *DeepBl4nder-env
     restart: unless-stopped
 
   # ── UE5 Server (optionnel) ─────────────────────────────
@@ -114,7 +114,7 @@ services:
       context: ./frontend
       dockerfile: Dockerfile
     ports: ["3000:3000"]
-    depends_on: [deepblender-api]
+    depends_on: [DeepBl4nder-api]
     restart: unless-stopped
 
 volumes:
@@ -126,13 +126,13 @@ volumes:
 ### Anchor pour variables d'environnement
 
 ```yaml
-x-deepblender-env: &deepblender-env
-  DEEPBLENDER_DB: postgresql://deepblender:${POSTGRES_PASSWORD}@postgres:5432/deepblender
+x-DeepBl4nder-env: &DeepBl4nder-env
+  DeepBl4nder_DB: postgresql://DeepBl4nder:${POSTGRES_PASSWORD}@postgres:5432/DeepBl4nder
   REDIS_URL: redis://redis:6379/0
   MINIO_ENDPOINT: minio:9000
   MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY}
   MINIO_SECRET_KEY: ${MINIO_SECRET_KEY}
-  DEEPBLENDER_SECRET_KEY: ${DEEPBLENDER_SECRET_KEY}
+  DeepBl4nder_SECRET_KEY: ${DeepBl4nder_SECRET_KEY}
   GROQ_API_KEY: ${GROQ_API_KEY}
   GEMINI_API_KEY: ${GEMINI_API_KEY}
   OPENROUTER_API_KEY: ${OPENROUTER_API_KEY}
@@ -144,7 +144,7 @@ x-deepblender-env: &deepblender-env
   LANGFUSE_HOST: http://langfuse:3000
   BLENDER_EXE: /usr/local/bin/blender
   FFMPEG_EXE: /usr/local/bin/ffmpeg
-  DEEPBLENDER_ENV: production
+  DeepBl4nder_ENV: production
 ```
 
 ---
@@ -162,18 +162,18 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 WORKDIR /app
 COPY pyproject.toml README.md ./
-COPY deepblender/ deepblender/
+COPY DeepBl4nder/ DeepBl4nder/
 RUN pip install --no-cache-dir ".[worker]"
 
 # API specific
 EXPOSE 8000
 ENV PYTHONUNBUFFERED=1 \
-    DEEPBLENDER_API=1
+    DeepBl4nder_API=1
 
 HEALTHCHECK --interval=30s --timeout=10s \
     CMD curl -f http://localhost:8000/health || exit 1
 
-CMD ["python", "-m", "deepblender.api.app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["python", "-m", "DeepBl4nder.api.app", "--host", "0.0.0.0", "--port", "8000"]
 ```
 
 ### 2b. `Dockerfile.worker` (mis à jour)
@@ -229,10 +229,10 @@ CMD ["python", "server.py"]
 ```env
 # Database
 POSTGRES_PASSWORD=change-me-in-production
-DEEPBLENDER_SECRET_KEY=change-me-64-chars
+DeepBl4nder_SECRET_KEY=change-me-64-chars
 
 # Object Storage
-MINIO_ACCESS_KEY=deepblender
+MINIO_ACCESS_KEY=DeepBl4nder
 MINIO_SECRET_KEY=change-me-minio
 
 # LLM Keys
@@ -267,7 +267,7 @@ jobs:
       - setup-python 3.12
       - pip install -e ".[dev]"
       - ruff check
-      - mypy deepblender
+      - mypy DeepBl4nder
       - pytest -q
 
   # ── Docker Build ────────────────────────────────────────

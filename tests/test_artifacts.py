@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from deepblender.artifacts.provenance import ProvenanceGraph
-from deepblender.artifacts.registry import Artifact, ArtifactRegistry
+from DeepBl4nder.artifacts.provenance import ProvenanceGraph
+from DeepBl4nder.artifacts.registry import Artifact, ArtifactRegistry
 
 
 def _make(tmp_path, name: str, content: str) -> Artifact:  # noqa: ANN001

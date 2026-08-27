@@ -1,7 +1,7 @@
-"""Skills DeepBlender : mécanique NOOA, contenu métier dans `deepblender/skills/`."""
+"""Skills DeepBl4nder : mécanique NOOA, contenu métier dans `DeepBl4nder/skills/`."""
 
 from __future__ import annotations
 
-from deepblender.skills.registry import SkillInfo, SkillRegistry
+from DeepBl4nder.skills.registry import SkillInfo, SkillRegistry
 
 __all__ = ["SkillInfo", "SkillRegistry"]

@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none">
+  <defs>
+    <linearGradient id="ag" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#AAFF00"/>
+      <stop offset="100%" stop-color="#88CC00"/>
+    </linearGradient>
+  </defs>
+  <rect width="64" height="64" rx="12" fill="#0A0A0A"/>
+  <!-- 3D Cube -->
+  <path d="M32 8 L54 22 L54 44 L32 58 L10 44 L10 22 Z" stroke="url(#ag)" stroke-width="2" fill="none" stroke-linejoin="round"/>
+  <path d="M32 8 L32 58" stroke="#AAFF00" stroke-width="1" opacity="0.35"/>
+  <path d="M10 22 L54 22" stroke="#AAFF00" stroke-width="1" opacity="0.35"/>
+  <!-- Nodes -->
+  <circle cx="32" cy="8" r="3" fill="#AAFF00"/>
+  <circle cx="10" cy="22" r="2.5" fill="#AAFF00" opacity="0.9"/>
+  <circle cx="54" cy="22" r="2.5" fill="#AAFF00" opacity="0.9"/>
+  <circle cx="32" cy="58" r="3" fill="#AAFF00"/>
+  <circle cx="21" cy="35" r="2" fill="#88CC00" opacity="0.7"/>
+  <circle cx="43" cy="35" r="2" fill="#88CC00" opacity="0.7"/>
+  <circle cx="32" cy="35" r="2.5" fill="#AAFF00" opacity="0.8"/>
+  <!-- Neural lines -->
+  <line x1="32" y1="8" x2="21" y2="35" stroke="#AAFF00" stroke-width="0.7" opacity="0.5"/>
+  <line x1="32" y1="8" x2="43" y2="35" stroke="#AAFF00" stroke-width="0.7" opacity="0.5"/>
+  <line x1="10" y1="22" x2="21" y2="35" stroke="#AAFF00" stroke-width="0.7" opacity="0.5"/>
+  <line x1="54" y1="22" x2="43" y2="35" stroke="#AAFF00" stroke-width="0.7" opacity="0.5"/>
+  <line x1="21" y1="35" x2="32" y2="58" stroke="#AAFF00" stroke-width="0.7" opacity="0.4"/>
+  <line x1="43" y1="35" x2="32" y2="58" stroke="#AAFF00" stroke-width="0.7" opacity="0.4"/>
+</svg>

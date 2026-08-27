@@ -14,7 +14,7 @@ from __future__ import annotations
 import ast
 from dataclasses import dataclass, field
 
-from deepblender.codegen.policy import CodePolicy
+from DeepBl4nder.codegen.policy import CodePolicy
 
 # Import de modules interdits, en dehors de la liste blanche.
 _FORBIDDEN_ATTRS: tuple[tuple[str, str], ...] = (

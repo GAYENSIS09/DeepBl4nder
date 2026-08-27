@@ -1,7 +1,7 @@
 """Sécurité : hachage des mots de passe (PBKDF2-HMAC-SHA256) et JWT HS256.
 
 Les mots de passe ne sont jamais stockés en clair. Les jetons sont signés
-HMAC-SHA256 avec une clé secrète (`DEEPBLENDER_SECRET_KEY`). Aucun secret
+HMAC-SHA256 avec une clé secrète (`DeepBl4nder_SECRET_KEY`). Aucun secret
 ne transite par le frontend ni par les logs.
 
 Support des refresh tokens avec rotation et révocation.

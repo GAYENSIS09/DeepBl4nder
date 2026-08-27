@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from deepblender.skills.registry import SkillRegistry
+from DeepBl4nder.skills.registry import SkillRegistry
 
 
 def test_default_registry_discovers_packaged_skills() -> None:

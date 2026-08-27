@@ -5,8 +5,8 @@ from __future__ import annotations
 import time
 from dataclasses import dataclass, field
 
-from deepblender.domain.scene import SceneSpec
-from deepblender.domain.utils import new_id as _new_id
+from DeepBl4nder.domain.scene import SceneSpec
+from DeepBl4nder.domain.utils import new_id as _new_id
 
 
 @dataclass

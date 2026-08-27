@@ -5,7 +5,7 @@
 ## Pipeline du code généré
 
 ```text
-Agent → Python généré → validation NOOA → politique DeepBlender → sandbox → worker → Blender
+Agent → Python généré → validation NOOA → politique DeepBl4nder → sandbox → worker → Blender
 ```
 
 Le code généré **n'est jamais exécuté directement** (`exec(llm_output)` interdit) :
@@ -24,7 +24,7 @@ destructives, ressources, durée d'exécution.
 Blender est isolé du processus principal.
 
 ```text
-NOOA Agent → DeepBlender capability → Blender plugin → Worker Manager
+NOOA Agent → DeepBl4nder capability → Blender plugin → Worker Manager
   → Blender Worker → Blender process
 ```
 
@@ -35,7 +35,7 @@ ajout dynamique d'un worker sans redémarrage (implémenté : `WorkerScheduler.a
 Le worker possède : `worker_id`, `GPU`, `scene`, `process`, `environment`, `timeout`,
 `status`, `artifacts`, `logs`.
 
-Le scheduler (local / worker pool / render farm) appartient à DeepBlender.
+Le scheduler (local / worker pool / render farm) appartient à DeepBl4nder.
 
 ## Sécurité
 

@@ -13,11 +13,11 @@ from nooa import CodeActStrategy, strategy
 from nooa.agentdoc import hidden
 from nooa.config.strategy_config import CodeActConfig
 
-from deepblender.agents.base import BaseAgent, DefaultsMixin, scene_spec_postcondition
-from deepblender.domain.project import Brief
-from deepblender.domain.scene import SceneSpec
-from deepblender.domain.narrative import StorySpec, StoryboardSpec
-from deepblender.skills.registry import SkillRegistry
+from DeepBl4nder.agents.base import BaseAgent, DefaultsMixin, scene_spec_postcondition
+from DeepBl4nder.domain.project import Brief
+from DeepBl4nder.domain.scene import SceneSpec
+from DeepBl4nder.domain.narrative import StorySpec, StoryboardSpec
+from DeepBl4nder.skills.registry import SkillRegistry
 
 
 class DirectorAgent(BaseAgent, DefaultsMixin):

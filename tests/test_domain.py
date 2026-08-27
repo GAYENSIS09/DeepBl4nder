@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-from deepblender.domain.asset import sha256_of_file
-from deepblender.domain.qa import Issue, IssueKind, QAReport, QAStatus, RevisionSpec
-from deepblender.domain.scene import CharacterSpec, SceneSpec, ShotSpec
+from DeepBl4nder.domain.asset import sha256_of_file
+from DeepBl4nder.domain.qa import Issue, IssueKind, QAReport, QAStatus, RevisionSpec
+from DeepBl4nder.domain.scene import CharacterSpec, SceneSpec, ShotSpec
 
 
 def test_shot_spec_frame_count() -> None:
@@ -52,6 +52,6 @@ def test_revision_targets_a_step() -> None:
 
 def test_sha256_of_file(tmp_path) -> None:  # noqa: ANN001
     f = tmp_path / "asset.bin"
-    f.write_bytes(b"deepblender")
+    f.write_bytes(b"DeepBl4nder")
     assert sha256_of_file(f) == sha256_of_file(f)
     assert len(sha256_of_file(f)) == 64

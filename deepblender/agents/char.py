@@ -12,10 +12,10 @@ from nooa import CodeActStrategy, strategy
 from nooa.agentdoc import hidden
 from nooa.config.strategy_config import CodeActConfig
 
-from deepblender.agents.base import BaseAgent, DefaultsMixin
-from deepblender.domain.media import CharacterDesignResult
-from deepblender.domain.scene import CharacterSpec, SceneSpec
-from deepblender.skills.registry import SkillRegistry
+from DeepBl4nder.agents.base import BaseAgent, DefaultsMixin
+from DeepBl4nder.domain.media import CharacterDesignResult
+from DeepBl4nder.domain.scene import CharacterSpec, SceneSpec
+from DeepBl4nder.skills.registry import SkillRegistry
 
 
 # Postcondition: CharacterDesignResult must have at least one character

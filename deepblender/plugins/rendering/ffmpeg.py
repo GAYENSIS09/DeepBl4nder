@@ -2,7 +2,7 @@
 
 Frontière d'intégration vers ffmpeg : `FFMPEG_EXE` permet de surcharger le
 binaire. Toutes les opérations passent par la frontière de processus
-(`deepblender.bridge.worker`).
+(`DeepBl4nder.bridge.worker`).
 """
 
 from __future__ import annotations
@@ -13,11 +13,11 @@ import shutil
 from dataclasses import dataclass
 from pathlib import Path
 
-from deepblender.bridge.worker import WorkerCommand, WorkerProcess
-from deepblender.plugins.base import Plugin, PluginError
+from DeepBl4nder.bridge.worker import WorkerCommand, WorkerProcess
+from DeepBl4nder.plugins.base import Plugin, PluginError
 
 
-logger = logging.getLogger("deepblender.plugins.ffmpeg")
+logger = logging.getLogger("DeepBl4nder.plugins.ffmpeg")
 
 
 # ════════════════════════════════════════════════════════════════

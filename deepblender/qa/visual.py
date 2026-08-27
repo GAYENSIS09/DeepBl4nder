@@ -12,8 +12,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-from deepblender.domain.qa import Issue, IssueKind, QAReport
-from deepblender.domain.scene import RenderOutput
+from DeepBl4nder.domain.qa import Issue, IssueKind, QAReport
+from DeepBl4nder.domain.scene import RenderOutput
 
 
 @dataclass

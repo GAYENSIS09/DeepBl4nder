@@ -61,7 +61,7 @@ describe('api', () => {
 
   describe('me', () => {
     it('sends GET to /api/me with Authorization header', async () => {
-      localStorage.setItem('deepblender_token', 'my-token');
+      localStorage.setItem('DeepBl4nder_token', 'my-token');
       mockFetch.mockResolvedValueOnce(
         jsonResponse({ user: { id: '1', email: 'a@b.com', full_name: 'A', created_at: '' }, memberships: [] })
       );
@@ -74,7 +74,7 @@ describe('api', () => {
 
   describe('createOrganization', () => {
     it('sends POST with name', async () => {
-      localStorage.setItem('deepblender_token', 'tok');
+      localStorage.setItem('DeepBl4nder_token', 'tok');
       mockFetch.mockResolvedValueOnce(jsonResponse({ id: '1', name: 'Org', owner_id: '1', created_at: '', role: 'owner' }));
       await api.createOrganization('Org');
       const [, init] = mockFetch.mock.calls[0];
@@ -85,7 +85,7 @@ describe('api', () => {
 
   describe('listOrganizations', () => {
     it('returns array', async () => {
-      localStorage.setItem('deepblender_token', 'tok');
+      localStorage.setItem('DeepBl4nder_token', 'tok');
       mockFetch.mockResolvedValueOnce(jsonResponse([]));
       const result = await api.listOrganizations();
       expect(result).toEqual([]);
@@ -94,21 +94,21 @@ describe('api', () => {
 
   describe('error handling', () => {
     it('throws ApiError with status for HTTP errors', async () => {
-      localStorage.setItem('deepblender_token', 'tok');
+      localStorage.setItem('DeepBl4nder_token', 'tok');
       mockFetch.mockResolvedValueOnce(errorResponse('forbidden', 403));
       await expect(api.getOrganization('1')).rejects.toThrow('forbidden');
     });
 
     it('throws ApiError on network failure', async () => {
-      localStorage.setItem('deepblender_token', 'tok');
+      localStorage.setItem('DeepBl4nder_token', 'tok');
       mockFetch.mockRejectedValueOnce(new Error('Network error'));
-      await expect(api.getOrganization('1')).rejects.toThrow('Impossible de joindre le serveur DeepBlender.');
+      await expect(api.getOrganization('1')).rejects.toThrow('Impossible de joindre le serveur DeepBl4nder.');
     });
   });
 
   describe('deleteProject', () => {
     it('sends DELETE', async () => {
-      localStorage.setItem('deepblender_token', 'tok');
+      localStorage.setItem('DeepBl4nder_token', 'tok');
       mockFetch.mockResolvedValueOnce(new Response(null, { status: 204 }));
       await api.deleteProject('proj-1');
       const [url, init] = mockFetch.mock.calls[0];
@@ -119,7 +119,7 @@ describe('api', () => {
 
   describe('runProduction', () => {
     it('sends POST to /run', async () => {
-      localStorage.setItem('deepblender_token', 'tok');
+      localStorage.setItem('DeepBl4nder_token', 'tok');
       mockFetch.mockResolvedValueOnce(jsonResponse({ id: 'p1', status: 'running' }));
       await api.runProduction('p1');
       const [url, init] = mockFetch.mock.calls[0];

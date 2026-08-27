@@ -11,7 +11,7 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
-from deepblender.api.app import create_app, sse_event_stream
+from DeepBl4nder.api.app import create_app, sse_event_stream
 
 PASSWORD = "mot-de-passe-123"
 
@@ -267,28 +267,28 @@ def test_delete_project_removes_productions(client: TestClient) -> None:
 
 class _StubDirector:
     async def plan_scene(self, brief, story_spec=None, storyboard_spec=None):
-        from deepblender.domain.scene import SceneSpec, ShotSpec
+        from DeepBl4nder.domain.scene import SceneSpec, ShotSpec
 
         return SceneSpec(brief=brief.text, shots=[ShotSpec(duration=1.0)])
 
 
 class _StubBlender:
     async def build_script(self, spec):
-        from deepblender.domain.scene import BlenderScript
+        from DeepBl4nder.domain.scene import BlenderScript
 
         return BlenderScript(code="import bpy\n", scene_name="stub_scene")
 
 
 class _StubQA:
     async def assess(self, spec, artifact_path, code=""):
-        from deepblender.domain.qa import QAReport
+        from DeepBl4nder.domain.qa import QAReport
 
         return QAReport(passed=True, score=1.0)
 
 
 class _StubAudio:
     async def plan_audio(self, spec):
-        from deepblender.domain.media import AudioPlan
+        from DeepBl4nder.domain.media import AudioPlan
 
         return AudioPlan(mood="neutral", music_theme="stub", tempo=90.0)
 
@@ -298,42 +298,42 @@ class _StubLocalization:
         return ["fr"]
 
     async def plan_localization(self, spec, language, languages=None):
-        from deepblender.domain.media import LanguagePackage
+        from DeepBl4nder.domain.media import LanguagePackage
 
         return LanguagePackage(language=language, languages=list(languages or ["fr"]))
 
 
 class _StubCompositing:
     async def plan_compositing(self, spec):
-        from deepblender.domain.media import CompositeSpec
+        from DeepBl4nder.domain.media import CompositeSpec
 
         return CompositeSpec(passes=["diffuse", "mist"], grade="balanced")
 
 
 class _StubStory:
     async def plan_story(self, brief):
-        from deepblender.domain.narrative import StorySpec
+        from DeepBl4nder.domain.narrative import StorySpec
 
         return StorySpec(logline=brief.text[:100], synopsis=brief.text)
 
 
 class _StubStoryboard:
     async def plan_storyboard(self, story_spec):
-        from deepblender.domain.narrative import StoryboardSpec
+        from DeepBl4nder.domain.narrative import StoryboardSpec
 
         return StoryboardSpec(shots=[])
 
 
 class _StubCharacterDesigner:
     async def design_characters(self, scene):
-        from deepblender.domain.media import CharacterDesignResult, CharacterModel
+        from DeepBl4nder.domain.media import CharacterDesignResult, CharacterModel
         return CharacterDesignResult(characters=[
             CharacterModel(name="Hero", description="Main character", geometry_type="primitive"),
         ])
 
 class _StubAnimator:
     async def generate_animations(self, scene):
-        from deepblender.domain.media import AnimationResult, AnimationClip
+        from DeepBl4nder.domain.media import AnimationResult, AnimationClip
         return AnimationResult(clips=[
             AnimationClip(character_name="Hero", shot_index=0, duration=1.0),
         ])
@@ -353,12 +353,12 @@ class _StubEnvironmentArtist:
 
 class _StubMusicComposer:
     async def compose_music(self, scene):
-        from deepblender.domain.media import MusicPlan
+        from DeepBl4nder.domain.media import MusicPlan
         return MusicPlan(main_theme="stub_theme", total_duration=5.0)
 
 class _StubSoundDesigner:
     async def design_sound(self, scene):
-        from deepblender.domain.media import SoundDesignPlan
+        from DeepBl4nder.domain.media import SoundDesignPlan
         return SoundDesignPlan()
 
 class _StubReview:
@@ -412,7 +412,7 @@ def _wait_status(client: TestClient, token: str, production_id: str, timeout: fl
 
 
 def test_run_pipeline_e2e(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr("deepblender.api.pipeline.build_agents", _stub_agents)
+    monkeypatch.setattr("DeepBl4nder.api.pipeline.build_agents", _stub_agents)
     token = _register(client, "run@example.com", "Run")
     production = _project_chain(client, token)
 
@@ -444,7 +444,7 @@ def test_run_pipeline_e2e(client: TestClient, monkeypatch: pytest.MonkeyPatch) -
 
 
 def test_run_pipeline_conflict_when_running(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr("deepblender.api.pipeline.build_agents", _stub_agents)
+    monkeypatch.setattr("DeepBl4nder.api.pipeline.build_agents", _stub_agents)
     token = _register(client, "busy@example.com")
     production = _project_chain(client, token)
 
@@ -556,7 +556,7 @@ def _run_workdir(client: TestClient, production_id: str) -> Path:
 
 
 def test_revision_relaunches_pipeline(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr("deepblender.api.pipeline.build_agents", _stub_agents)
+    monkeypatch.setattr("DeepBl4nder.api.pipeline.build_agents", _stub_agents)
     token = _register(client, "rev@example.com")
     production = _project_chain(client, token)
 
@@ -583,7 +583,7 @@ def test_revision_relaunches_pipeline(client: TestClient, monkeypatch: pytest.Mo
 
 
 def test_revision_conflict_when_running(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr("deepblender.api.pipeline.build_agents", _stub_agents)
+    monkeypatch.setattr("DeepBl4nder.api.pipeline.build_agents", _stub_agents)
     token = _register(client, "revbusy@example.com")
     production = _project_chain(client, token)
 
@@ -599,7 +599,7 @@ def test_revision_conflict_when_running(client: TestClient, monkeypatch: pytest.
 
 
 def test_artifact_download_and_path_traversal(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr("deepblender.api.pipeline.build_agents", _stub_agents)
+    monkeypatch.setattr("DeepBl4nder.api.pipeline.build_agents", _stub_agents)
     token = _register(client, "dl@example.com")
     production = _project_chain(client, token)
     pid = production["id"]
@@ -660,7 +660,7 @@ def test_worker_status_reports_runs(client: TestClient, monkeypatch: pytest.Monk
         assert "failures" in provider
         assert "last_error" in provider
 
-    monkeypatch.setattr("deepblender.api.pipeline.build_agents", _stub_agents)
+    monkeypatch.setattr("DeepBl4nder.api.pipeline.build_agents", _stub_agents)
     production = _project_chain(client, token)
     resp = client.post(f"/api/productions/{production['id']}/run", headers=_auth(token))
     assert resp.status_code == 202
@@ -673,8 +673,8 @@ def test_worker_status_reports_runs(client: TestClient, monkeypatch: pytest.Monk
 def test_usage_reports_consumption_and_quotas(
     client: TestClient, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    monkeypatch.setenv("DEEPBLENDER_QUOTA_PRODUCTIONS", "5")
-    monkeypatch.setenv("DEEPBLENDER_QUOTA_COST", "4.5")
+    monkeypatch.setenv("DeepBl4nder_QUOTA_PRODUCTIONS", "5")
+    monkeypatch.setenv("DeepBl4nder_QUOTA_COST", "4.5")
     token = _register(client, "usage@example.com")
     _project_chain(client, token)
 

@@ -4,17 +4,17 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-from deepblender.plugins.base import Plugin
-from deepblender.plugins.knowledge.asset_library import AssetLibraryPlugin
-from deepblender.plugins.media.audio import AudioPlugin
-from deepblender.plugins.media.subtitle import SubtitlePlugin
-from deepblender.plugins.media.tts import TTSPlugin
-from deepblender.plugins.rendering.blender import BlenderPlugin
-from deepblender.plugins.rendering.ffmpeg import FFmpegPlugin
-from deepblender.plugins.rendering.render_farm import RenderFarmPlugin
-from deepblender.plugins.knowledge.knowledge_graph import KnowledgeGraphPlugin
-from deepblender.plugins.storage.storage import StoragePlugin
-from deepblender.plugins.storage.git import GitPlugin
+from DeepBl4nder.plugins.base import Plugin
+from DeepBl4nder.plugins.knowledge.asset_library import AssetLibraryPlugin
+from DeepBl4nder.plugins.media.audio import AudioPlugin
+from DeepBl4nder.plugins.media.subtitle import SubtitlePlugin
+from DeepBl4nder.plugins.media.tts import TTSPlugin
+from DeepBl4nder.plugins.rendering.blender import BlenderPlugin
+from DeepBl4nder.plugins.rendering.ffmpeg import FFmpegPlugin
+from DeepBl4nder.plugins.rendering.render_farm import RenderFarmPlugin
+from DeepBl4nder.plugins.knowledge.knowledge_graph import KnowledgeGraphPlugin
+from DeepBl4nder.plugins.storage.storage import StoragePlugin
+from DeepBl4nder.plugins.storage.git import GitPlugin
 
 _BUILTINS: dict[str, type[Plugin]] = {
     "blender": BlenderPlugin,

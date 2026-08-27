@@ -13,7 +13,7 @@ import httpx
 import litellm
 import pytest
 
-import deepblender.llm as llm
+import DeepBl4nder.llm as llm
 
 _LLM_ENV_VARS = [
     "GEMINI_API_KEY",
@@ -32,7 +32,7 @@ def _reset_router(monkeypatch: pytest.MonkeyPatch) -> None:
     La découverte réseau des modèles est désactivée par défaut : aucun test
     ne doit dépendre du réseau ; les tests dédiés la réactivent explicitement.
     """
-    monkeypatch.setenv("DEEPBLENDER_DISCOVER_MODELS", "off")
+    monkeypatch.setenv("DeepBl4nder_DISCOVER_MODELS", "off")
     llm.reset_router()
     yield
     llm.reset_router()

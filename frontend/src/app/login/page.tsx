@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { useState, type FormEvent } from 'react';
 
@@ -37,11 +38,9 @@ export default function LoginPage() {
     <div className="flex min-h-screen items-center justify-center px-6 py-10">
       <div className="w-full max-w-md animate-fade-up">
         <div className="mb-8 text-center">
-          <span className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-acid font-display text-2xl font-bold text-black">
-            D
-          </span>
+          <img src="/favicon.svg" alt="DeepBl4nder" className="mx-auto mb-4 h-14 w-14" />
           <h1 className="font-display text-3xl font-bold tracking-tight text-off-white">
-            Deep<span className="text-acid">Blender</span>
+            Deep<span className="text-acid">Bl4nder</span>
           </h1>
           <p className="mt-2 text-sm text-muted">Production audiovisuelle assistée par agents IA.</p>
         </div>

@@ -10,7 +10,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
     <RequireAuth>
       <div className="min-h-screen">
         <Sidebar />
-        <main className="ml-[200px] min-h-screen">{children}</main>
+        <main className="min-h-screen lg:ml-[200px]">{children}</main>
       </div>
     </RequireAuth>
   );

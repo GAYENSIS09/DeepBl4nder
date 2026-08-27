@@ -1,11 +1,11 @@
-"""DeepBlender UE5 Server — REST API for Unreal Engine 5.
+"""DeepBl4nder UE5 Server — REST API for Unreal Engine 5.
 
 FastAPI server that communicates with the UE5 Editor via its Python API.
-The server receives commands from DeepBlender's UE5Bridge and executes
+The server receives commands from DeepBl4nder's UE5Bridge and executes
 them inside the UE5 Editor (headless mode).
 
 Architecture:
-  DeepBlender API → UE5Bridge → REST API (this server) → UE5 Python API → UE5 Editor
+  DeepBl4nder API → UE5Bridge → REST API (this server) → UE5 Python API → UE5 Editor
 
 This server must run on a machine where UE5 is installed.
 """
@@ -25,13 +25,13 @@ from pydantic import BaseModel
 logger = logging.getLogger("ue5-server")
 
 app = FastAPI(
-    title="DeepBlender UE5 Server",
-    description="REST API to control Unreal Engine 5 from DeepBlender",
+    title="DeepBl4nder UE5 Server",
+    description="REST API to control Unreal Engine 5 from DeepBl4nder",
     version="0.1.0",
 )
 
 UE5_EXE = os.environ.get("UE5_EXE", "/opt/UnrealEngine/Engine/Binaries/Linux/UnrealEditor-Cmd")
-UE5_PROJECT = os.environ.get("UE5_PROJECT", "/ue5-projects/deepblender")
+UE5_PROJECT = os.environ.get("UE5_PROJECT", "/ue5-projects/DeepBl4nder")
 
 # Track render status
 _render_status: dict[str, Any] = {"status": "idle", "progress": 0.0}

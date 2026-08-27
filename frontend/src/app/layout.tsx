@@ -24,8 +24,9 @@ const mono = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  title: 'DeepBlender',
-  description: 'Production audiovisuelle assistée par agents IA (NOOA + Blender).',
+  title: 'DeepBl4nder — AI Audiovisual Production',
+  description: 'Plateforme SaaS de production audiovisuelle assistée par agents IA. Pipeline complet : scénario, storyboard, Blender/UE5, audio, compositing.',
+  icons: { icon: '/favicon.svg' },
 };
 
 export default function RootLayout({

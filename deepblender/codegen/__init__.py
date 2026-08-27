@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from deepblender.codegen.policy import ALLOWED_IMPORTS, FORBIDDEN_BUILTINS, CodePolicy, CodePolicyViolation
-from deepblender.codegen.validator import ASTValidator, ValidationReport, validate_for_worker
+from DeepBl4nder.codegen.policy import ALLOWED_IMPORTS, FORBIDDEN_BUILTINS, CodePolicy, CodePolicyViolation
+from DeepBl4nder.codegen.validator import ASTValidator, ValidationReport, validate_for_worker
 
 __all__ = [
     "ALLOWED_IMPORTS",

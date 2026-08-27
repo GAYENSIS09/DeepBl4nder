@@ -1,17 +1,17 @@
-"""Journalisation complète de l'arrière-plan DeepBlender.
+"""Journalisation complète de l'arrière-plan DeepBl4nder.
 
 Un seul appel à ``setup_logging()`` configure :
 
 - la console (stdout) ;
-- un fichier rotatif ``$DEEPBLENDER_DATA_DIR/logs/deepblender.log``
+- un fichier rotatif ``$DeepBl4nder_DATA_DIR/logs/DeepBl4nder.log``
   (5 Mo × 5 fichiers) qui conserve TOUT ce qui se passe en arrière-plan :
   étapes du pipeline, appels/votes/échecs LLM, découvertes de modèles…
 
 Variables d'environnement :
 
-- ``DEEPBLENDER_LOG_LEVEL`` : niveau global (INFO par défaut ; DEBUG =
+- ``DeepBl4nder_LOG_LEVEL`` : niveau global (INFO par défaut ; DEBUG =
   journalisation exhaustive des décisions internes) ;
-- ``DEEPBLENDER_DATA_DIR`` : racine des données (logs sous-dossier ``logs``).
+- ``DeepBl4nder_DATA_DIR`` : racine des données (logs sous-dossier ``logs``).
 """
 
 from __future__ import annotations
@@ -30,20 +30,20 @@ _THIRD_PARTY_LOGGERS = ("litellm", "httpx", "httpcore", "openai")
 
 def log_file_path(data_dir: str | None = None) -> Path:
     """Chemin du fichier de journal rotatif."""
-    base = data_dir or os.environ.get("DEEPBLENDER_DATA_DIR", "data")
-    return Path(base) / "logs" / "deepblender.log"
+    base = data_dir or os.environ.get("DeepBl4nder_DATA_DIR", "data")
+    return Path(base) / "logs" / "DeepBl4nder.log"
 
 
 def setup_logging(level: str | None = None, data_dir: str | None = None) -> Path:
-    """Attache console + fichier rotatif au logger racine ``deepblender``.
+    """Attache console + fichier rotatif au logger racine ``DeepBl4nder``.
 
     Idempotent : peut être appelé depuis l'API, le CLI ou les runners sans
     dupliquer les handlers. Retourne le chemin du fichier de journal.
     """
-    resolved = (level or os.environ.get("DEEPBLENDER_LOG_LEVEL", "INFO")).upper()
+    resolved = (level or os.environ.get("DeepBl4nder_LOG_LEVEL", "INFO")).upper()
     lvl = getattr(logging, resolved, logging.INFO)
 
-    root = logging.getLogger("deepblender")
+    root = logging.getLogger("DeepBl4nder")
     root.setLevel(lvl)
     root.propagate = False
 

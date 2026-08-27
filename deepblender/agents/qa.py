@@ -15,10 +15,10 @@ from nooa import CodeActStrategy, PredictStrategy, strategy
 from nooa.agentdoc import hidden
 from nooa.config import CodeActConfig, PredictConfig
 
-from deepblender.agents.base import BaseAgent, DefaultsMixin
-from deepblender.domain.qa import QAReport, Issue, IssueKind
-from deepblender.domain.scene import SceneSpec
-from deepblender.skills.registry import SkillRegistry
+from DeepBl4nder.agents.base import BaseAgent, DefaultsMixin
+from DeepBl4nder.domain.qa import QAReport, Issue, IssueKind
+from DeepBl4nder.domain.scene import SceneSpec
+from DeepBl4nder.skills.registry import SkillRegistry
 
 
 def _qa_postcondition(result: QAReport) -> str | None:

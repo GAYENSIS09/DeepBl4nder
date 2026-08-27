@@ -1,4 +1,4 @@
-# DeepBlender — Docker Compose Production
+# DeepBl4nder — Docker Compose Production
 #
 # Usage:
 #   cp .env.production .env
@@ -7,27 +7,27 @@
 # Services:
 #   postgres, redis, minio          — infrastructure
 #   langfuse                        — observabilité LLM
-#   deepblender-api                 — FastAPI gateway
-#   deepblender-worker              — Blender + FFmpeg (GPU)
-#   deepblender-scheduler           — Celery workers
+#   DeepBl4nder-api                 — FastAPI gateway
+#   DeepBl4nder-worker              — Blender + FFmpeg (GPU)
+#   DeepBl4nder-scheduler           — Celery workers
 #   ue5-server                      — Unreal Engine 5 REST API (optionnel, profile "ue5")
 #   frontend                        — Next.js UI
 
-x-deepblender-env: &deepblender-env
+x-DeepBl4nder-env: &DeepBl4nder-env
   # Database
-  DEEPBLENDER_DB: postgresql://deepblender:${POSTGRES_PASSWORD}@postgres:5432/deepblender
+  DeepBl4nder_DB: postgresql://DeepBl4nder:${POSTGRES_PASSWORD}@postgres:5432/DeepBl4nder
   # Cache
   REDIS_URL: redis://redis:6379/0
   # Object Storage
   MINIO_ENDPOINT: minio:9000
-  MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY:-deepblender}
+  MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY:-DeepBl4nder}
   MINIO_SECRET_KEY: ${MINIO_SECRET_KEY:-minioadmin}
-  MINIO_BUCKET: ${MINIO_BUCKET:-deepblender}
+  MINIO_BUCKET: ${MINIO_BUCKET:-DeepBl4nder}
   # Auth
-  DEEPBLENDER_SECRET_KEY: ${DEEPBLENDER_SECRET_KEY}
-  JWT_SECRET: ${JWT_SECRET:-${DEEPBLENDER_SECRET_KEY}}
+  DeepBl4nder_SECRET_KEY: ${DeepBl4nder_SECRET_KEY}
+  JWT_SECRET: ${JWT_SECRET:-${DeepBl4nder_SECRET_KEY}}
   # CORS
-  DEEPBLENDER_CORS_ORIGINS: http://localhost:3000,http://frontend:3000
+  DeepBl4nder_CORS_ORIGINS: http://localhost:3000,http://frontend:3000
   # LLM Providers
   GROQ_API_KEY: ${GROQ_API_KEY:-}
   GEMINI_API_KEY: ${GEMINI_API_KEY:-}
@@ -39,14 +39,14 @@ x-deepblender-env: &deepblender-env
   LANGFUSE_SECRET_KEY: ${LANGFUSE_SECRET_KEY:-}
   LANGFUSE_PUBLIC_KEY: ${LANGFUSE_PUBLIC_KEY:-}
   LANGFUSE_HOST: http://langfuse:3000
-  DEEPBLENDER_TRACING: "1"
+  DeepBl4nder_TRACING: "1"
   # Binaries
   BLENDER_EXE: /usr/local/bin/blender
   FFMPEG_EXE: /usr/local/bin/ffmpeg
   # Workers
-  DEEPBLENDER_WORKER_TIMEOUT: "600"
+  DeepBl4nder_WORKER_TIMEOUT: "600"
   # Budget
-  DEEPBLENDER_BUDGET: ${DEEPBLENDER_BUDGET:-1.0}
+  DeepBl4nder_BUDGET: ${DeepBl4nder_BUDGET:-1.0}
 
 services:
   # ══════════════════════════════════════════════════════════
@@ -58,13 +58,13 @@ services:
     volumes:
       - pgdata:/var/lib/postgresql/data
     environment:
-      POSTGRES_DB: deepblender
-      POSTGRES_USER: deepblender
+      POSTGRES_DB: DeepBl4nder
+      POSTGRES_USER: DeepBl4nder
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
     ports:
       - "5432:5432"
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U deepblender -d deepblender"]
+      test: ["CMD-SHELL", "pg_isready -U DeepBl4nder -d DeepBl4nder"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -92,7 +92,7 @@ services:
       - "9000:9000"
       - "9001:9001"
     environment:
-      MINIO_ROOT_USER: ${MINIO_ACCESS_KEY:-deepblender}
+      MINIO_ROOT_USER: ${MINIO_ACCESS_KEY:-DeepBl4nder}
       MINIO_ROOT_PASSWORD: ${MINIO_SECRET_KEY:-minioadmin}
     healthcheck:
       test: ["CMD", "mc", "ready", "local"]
@@ -113,7 +113,7 @@ services:
       postgres:
         condition: service_healthy
     environment:
-      DATABASE_URL: postgresql://deepblender:${POSTGRES_PASSWORD}@postgres:5432/deepblender
+      DATABASE_URL: postgresql://DeepBl4nder:${POSTGRES_PASSWORD}@postgres:5432/DeepBl4nder
       NEXTAUTH_URL: http://localhost:3002
       NEXTAUTH_SECRET: ${LANGFUSE_SECRET:-changeme}
       SALT: ${LANGFUSE_SALT:-changeme}
@@ -125,10 +125,10 @@ services:
     restart: unless-stopped
 
   # ══════════════════════════════════════════════════════════
-  #  DeepBlender API
+  #  DeepBl4nder API
   # ══════════════════════════════════════════════════════════
 
-  deepblender-api:
+  DeepBl4nder-api:
     build:
       context: .
       dockerfile: Dockerfile.api
@@ -142,8 +142,8 @@ services:
       minio:
         condition: service_started
     environment:
-      <<: *deepblender-env
-      DEEPBLENDER_API: "1"
+      <<: *DeepBl4nder-env
+      DeepBl4nder_API: "1"
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
       interval: 30s
@@ -152,10 +152,10 @@ services:
     restart: unless-stopped
 
   # ══════════════════════════════════════════════════════════
-  #  DeepBlender Worker (Blender + FFmpeg)
+  #  DeepBl4nder Worker (Blender + FFmpeg)
   # ══════════════════════════════════════════════════════════
 
-  deepblender-worker:
+  DeepBl4nder-worker:
     build:
       context: .
       dockerfile: Dockerfile.worker
@@ -163,8 +163,8 @@ services:
       - ./work:/work
       - ./projects:/projects
     environment:
-      <<: *deepblender-env
-      DEEPBLENDER_WORKER: "1"
+      <<: *DeepBl4nder-env
+      DeepBl4nder_WORKER: "1"
     deploy:
       resources:
         reservations:
@@ -178,16 +178,16 @@ services:
   #  Celery Scheduler (optional, for async task queue)
   # ══════════════════════════════════════════════════════════
 
-  deepblender-scheduler:
+  DeepBl4nder-scheduler:
     build:
       context: .
       dockerfile: Dockerfile.worker
-    command: python -m deepblender.tasks.celery_config
+    command: python -m DeepBl4nder.tasks.celery_config
     depends_on:
       redis:
         condition: service_healthy
     environment:
-      <<: *deepblender-env
+      <<: *DeepBl4nder-env
     restart: unless-stopped
 
   # ══════════════════════════════════════════════════════════
@@ -202,7 +202,7 @@ services:
       - "8080:8080"
     environment:
       UE5_EXE: /opt/UnrealEngine/Engine/Binaries/Linux/UnrealEditor-Cmd
-      UE5_PROJECT: /ue5-projects/deepblender
+      UE5_PROJECT: /ue5-projects/DeepBl4nder
     deploy:
       resources:
         reservations:
@@ -224,7 +224,7 @@ services:
     ports:
       - "3000:3000"
     depends_on:
-      deepblender-api:
+      DeepBl4nder-api:
         condition: service_healthy
     environment:
       NEXT_PUBLIC_API_URL: http://localhost:8000

@@ -6,7 +6,7 @@ import shutil
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from deepblender.plugins.base import Plugin, PluginError
+from DeepBl4nder.plugins.base import Plugin, PluginError
 
 
 @dataclass

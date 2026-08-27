@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from deepblender.domain.media import AudioMaster, AudioPlan, CompositeSpec, LanguagePackage
+from DeepBl4nder.domain.media import AudioMaster, AudioPlan, CompositeSpec, LanguagePackage
 
 
 def test_audio_plan_mapping() -> None:

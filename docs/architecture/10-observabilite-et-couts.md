@@ -5,7 +5,7 @@
 ## Observabilité (deux plans reliés, pas remplacés)
 
 ```text
-NOOA observability          DeepBlender observability
+NOOA observability          DeepBl4nder observability
   agent / LLM / code          production / workers / renders
   context / methods           artifacts / coûts
   events / strategies         budgets / retries / failures
@@ -38,7 +38,7 @@ ProductionRun → événements persistants → checkpoint/state → crash → re
 ```
 
 - NOOA fournit une partie des primitives de runtime/event sourcing ;
-- DeepBlender garantit la **persistance et la reprise de l'état de production** :
+- DeepBl4nder garantit la **persistance et la reprise de l'état de production** :
   journal d'événements append-only (JSONL) + `ProductionRun.recover` qui rejoue
   les événements non consommés (étapes démarrées sans événement terminal) ;
 - les artifacts déjà validés ne sont **pas recréés** inutilement.

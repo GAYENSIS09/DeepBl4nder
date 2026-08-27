@@ -10,7 +10,7 @@ Scripting UE5 pour le rendu cinematographique haute fidelite.
 ## Architecture
 
 ```
-DeepBlender API  →  REST API  →  UE5 Server (Python plugin)
+DeepBl4nder API  →  REST API  →  UE5 Server (Python plugin)
                                    ├── Level creation
                                    ├── Material setup
                                    ├── Lighting (Lumen)

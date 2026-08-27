@@ -8,7 +8,7 @@ from __future__ import annotations
 from dataclasses import asdict, dataclass, field, is_dataclass
 from typing import Any
 
-from deepblender.domain.utils import new_id as _new_id
+from DeepBl4nder.domain.utils import new_id as _new_id
 
 
 def _plain(value: Any) -> Any:

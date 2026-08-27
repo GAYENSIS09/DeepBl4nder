@@ -19,14 +19,14 @@ from nooa.agentdoc import hidden, pformat
 from nooa.config.strategy_config import CodeActConfig, ReflexionConfig
 from nooa.strategies.template import TemplateStrategy
 
-from deepblender.agents.base import (
+from DeepBl4nder.agents.base import (
     BaseAgent,
     DefaultsMixin,
     blender_script_postcondition,
     codeact_with_sandbox,
 )
-from deepblender.domain.scene import BlenderScript, SceneSpec
-from deepblender.skills.registry import SkillRegistry
+from DeepBl4nder.domain.scene import BlenderScript, SceneSpec
+from DeepBl4nder.skills.registry import SkillRegistry
 
 
 def _blender_reflexion_config() -> ReflexionConfig:
@@ -277,7 +277,7 @@ class BlenderAgent(BaseAgent, DefaultsMixin):
 
         # Download HDRI based on lighting mood
         try:
-            from deepblender.assets.polyhaven import get_client
+            from DeepBl4nder.assets.polyhaven import get_client
             polyhaven = get_client()
             mood_tags = {
                 "warm": ["warm", "sunset"],
@@ -296,7 +296,7 @@ class BlenderAgent(BaseAgent, DefaultsMixin):
 
         # Download character assets
         try:
-            from deepblender.assets.characters import get_character_client
+            from DeepBl4nder.assets.characters import get_character_client
             char_client = get_character_client()
             for char in spec.characters:
                 if char.asset_id:
@@ -314,7 +314,7 @@ class BlenderAgent(BaseAgent, DefaultsMixin):
 
         # Download textures based on environment description
         try:
-            from deepblender.assets.polyhaven import get_client
+            from DeepBl4nder.assets.polyhaven import get_client
             polyhaven = get_client()
             desc = spec.environment.description.lower()
             tex_tags = []

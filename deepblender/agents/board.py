@@ -7,9 +7,9 @@ from typing import Any
 from nooa import CodeActStrategy, strategy
 from nooa.config.strategy_config import CodeActConfig
 
-from deepblender.agents.base import BaseAgent, DefaultsMixin, storyboard_spec_postcondition
-from deepblender.domain.narrative import StorySpec, StoryboardSpec
-from deepblender.skills.registry import SkillRegistry
+from DeepBl4nder.agents.base import BaseAgent, DefaultsMixin, storyboard_spec_postcondition
+from DeepBl4nder.domain.narrative import StorySpec, StoryboardSpec
+from DeepBl4nder.skills.registry import SkillRegistry
 
 
 class StoryboardAgent(BaseAgent, DefaultsMixin):

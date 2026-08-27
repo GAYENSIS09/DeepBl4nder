@@ -8,12 +8,12 @@ from __future__ import annotations
 
 import asyncio
 
-from deepblender.agents import DirectorAgent
-from deepblender.domain.project import Brief
+from DeepBl4nder.agents import DirectorAgent
+from DeepBl4nder.domain.project import Brief
 
 
 async def main() -> None:
-    from deepblender.llm import build_llm
+    from DeepBl4nder.llm import build_llm
 
     llm = build_llm()
     print(f"Modèle : {llm.model}")

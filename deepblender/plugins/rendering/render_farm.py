@@ -7,15 +7,15 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING, cast
 
-from deepblender.bridges.blender.scheduler import WorkerScheduler
-from deepblender.bridges.blender.bridge import BlenderBridge
-from deepblender.bridge.worker import ProcessResult
-from deepblender.domain.scene import BlenderScript
-from deepblender.plugins.base import Plugin
+from DeepBl4nder.bridges.blender.scheduler import WorkerScheduler
+from DeepBl4nder.bridges.blender.bridge import BlenderBridge
+from DeepBl4nder.bridge.worker import ProcessResult
+from DeepBl4nder.domain.scene import BlenderScript
+from DeepBl4nder.plugins.base import Plugin
 
 if TYPE_CHECKING:
-    from deepblender.plugins.rendering.blender import BlenderPlugin
-    from deepblender.plugins.registry import PluginRegistry
+    from DeepBl4nder.plugins.rendering.blender import BlenderPlugin
+    from DeepBl4nder.plugins.registry import PluginRegistry
 
 
 @dataclass
@@ -41,7 +41,7 @@ class RenderFarmPlugin(Plugin):
 
     def _get_bridge(self) -> BlenderBridge:
         if self.plugins is None:
-            from deepblender.plugins.registry import PluginRegistry
+            from DeepBl4nder.plugins.registry import PluginRegistry
             self.plugins = PluginRegistry()
         return cast("BlenderPlugin", self.plugins.get("blender")).bridge
 

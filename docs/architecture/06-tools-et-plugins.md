@@ -32,11 +32,11 @@ Exemple — `BlenderPlugin` : `inspect_scene()`, `execute_python()`, `render()`,
 
 ## Statut d'implémentation
 
-- `deepblender/plugins/` : `Plugin` (ABC), `PluginRegistry` (10 plugins : blender,
+- `DeepBl4nder/plugins/` : `Plugin` (ABC), `PluginRegistry` (10 plugins : blender,
   render-farm, ffmpeg, audio, tts, storage, asset-library, subtitle, git,
   knowledge-graph), `BlenderPlugin` (inspect / execute / render / save / load,
   fail-closed via le validateur AST) ;
-- `deepblender/plugins/tools.py` : `Tool` + `ToolRegistry`, liste canonique des
+- `DeepBl4nder/plugins/tools.py` : `Tool` + `ToolRegistry`, liste canonique des
   8 tools importants, tous fonctionnels (branchés sur Blender, audio, ffmpeg) ;
 - exposés par la gateway (`/plugins`, `/tools`, `/skills`, `/workers`, `/status`)
   et le CLI `inspect`.

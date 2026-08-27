@@ -1,4 +1,4 @@
-# Guide de démarrage et d'arrêt (DeepBlender SaaS)
+# Guide de démarrage et d'arrêt (DeepBl4nder SaaS)
 
 L'application SaaS comporte **deux processus** à lancer :
 
@@ -31,7 +31,7 @@ le CORS depuis `http://localhost:3000`.
 Depuis la racine du projet :
 
 ```bash
-python -m deepblender.api.app --host 127.0.0.1 --port 8000
+python -m DeepBl4nder.api.app --host 127.0.0.1 --port 8000
 ```
 
 Options :
@@ -40,19 +40,19 @@ Options :
 |---|---|---|
 | `--host` | `0.0.0.0` (env `DEEPBENDER_HOST`) | Adresse d'écoute |
 | `--port` | `8000` (env `DEEPBENDER_PORT`) | Port d'écoute |
-| `--db` | `deepblender.db` (env `DEEPBLENDER_DB`) | Base SQLAlchemy : **chemin de fichier** (`deepblender.db`) ou **URL** (`sqlite:///deepblender.db`, `postgresql://…`) |
+| `--db` | `DeepBl4nder.db` (env `DeepBl4nder_DB`) | Base SQLAlchemy : **chemin de fichier** (`DeepBl4nder.db`) ou **URL** (`sqlite:///DeepBl4nder.db`, `postgresql://…`) |
 
 Variables d'environnement utiles (à définir dans `.env` ou le shell) :
 
 | Variable | Rôle |
 |---|---|
-| `DEEPBLENDER_DB` | Base de données (équivalent de `--db`) |
-| `DEEPBLENDER_DATA_DIR` | Dossier des workdirs de runs (défaut `data`) |
-| `DEEPBLENDER_SECRET_KEY` | Clé de signature des jetons — **définissez-la** : sinon clé aléatoire à chaque boot et les sessions expirent au redémarrage |
-| `DEEPBLENDER_BUDGET` | Budget max par production (USD, défaut `1.0`) |
-| `DEEPBLENDER_QUOTA_PRODUCTIONS` | Quota de productions (laissé vide = illimité) |
-| `DEEPBLENDER_QUOTA_COST` | Quota de coût cumulé en USD (laissé vide = illimité) |
-| `DEEPBLENDER_CORS_ORIGINS` | Origines CORS séparées par des virgules (défaut `http://localhost:3000`) |
+| `DeepBl4nder_DB` | Base de données (équivalent de `--db`) |
+| `DeepBl4nder_DATA_DIR` | Dossier des workdirs de runs (défaut `data`) |
+| `DeepBl4nder_SECRET_KEY` | Clé de signature des jetons — **définissez-la** : sinon clé aléatoire à chaque boot et les sessions expirent au redémarrage |
+| `DeepBl4nder_BUDGET` | Budget max par production (USD, défaut `1.0`) |
+| `DeepBl4nder_QUOTA_PRODUCTIONS` | Quota de productions (laissé vide = illimité) |
+| `DeepBl4nder_QUOTA_COST` | Quota de coût cumulé en USD (laissé vide = illimité) |
+| `DeepBl4nder_CORS_ORIGINS` | Origines CORS séparées par des virgules (défaut `http://localhost:3000`) |
 
 ### LLM multi-fournisseurs (robuste au rate limiting)
 
@@ -77,10 +77,10 @@ La santé du routeur est visible sur le tableau de bord (carte « Worker intégr
 Exemple avec base et données dédiées :
 
 ```bash
-$env:DEEPBLENDER_DB="sqlite:///C:/data/deepblender.db"
-$env:DEEPBLENDER_DATA_DIR="C:/data/runs"
-$env:DEEPBLENDER_SECRET_KEY="une-cle-longue-et-secrete-32-octets-min"
-python -m deepblender.api.app --host 127.0.0.1 --port 8000
+$env:DeepBl4nder_DB="sqlite:///C:/data/DeepBl4nder.db"
+$env:DeepBl4nder_DATA_DIR="C:/data/runs"
+$env:DeepBl4nder_SECRET_KEY="une-cle-longue-et-secrete-32-octets-min"
+python -m DeepBl4nder.api.app --host 127.0.0.1 --port 8000
 ```
 
 **Vérifier que l'API tourne :**
@@ -150,7 +150,7 @@ npm run dev
 | `npm run build` échoue avec `EBUSY` / `EINVAL` sur `.next` | Le dossier `.next` a été pollué (OneDrive). Purger puis relancer : `Remove-Item .next -Recurse -Force` dans `frontend/` |
 | L'API répond « impossible de joindre le serveur » dans l'UI | L'API n'est pas lancée, ou `NEXT_PUBLIC_API_URL` pointe ailleurs que le port réel |
 | `Could not parse SQLAlchemy URL` | (normalement corrigé) `--db` accepte désormais un simple chemin de fichier ; en cas de doute utiliser `sqlite:///…` |
-| Connexion impossible après redémarrage de l'API | `DEEPBLENDER_SECRET_KEY` non définie → clé aléatoire à chaque boot. La définir pour garder les sessions |
+| Connexion impossible après redémarrage de l'API | `DeepBl4nder_SECRET_KEY` non définie → clé aléatoire à chaque boot. La définir pour garder les sessions |
 | Un run échoue immédiatement au step `director` | Aucune clé LLM configurée dans `.env` — comportement attendu hors production |
 | Le run échoue avec `model … is no longer available` (LiteLLM) | Le modèle a été retiré chez le fournisseur. Définir un modèle actuel : `GEMINI_LLM_MODEL=gemini/gemini-3.6-flash`, ou utiliser plusieurs fournisseurs dans `.env` (le routeur bascule automatiquement). Relancer l'API |
 | Le run échoue avec `Model has been deprecated: …` (ex. Cloudflare `@cf/meta/llama-3.1-8b-instruct`) | Le modèle a été déprécié par le fournisseur. Mettre à jour `<FOURNISSEUR>_MODEL` dans `.env` vers un modèle du catalogue actuel (ex. `CLOUDFLARE_MODEL=cloudflare/@cf/google/gemma-4-26b-a4b-it`), puis relancer l'API |
@@ -162,7 +162,7 @@ npm run dev
 
 ```powershell
 # API (dev)
-python -m deepblender.api.app --host 127.0.0.1 --port 8000
+python -m DeepBl4nder.api.app --host 127.0.0.1 --port 8000
 
 # Frontend (dev)
 Set-Location frontend; npm run dev; Set-Location ..

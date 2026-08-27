@@ -10,7 +10,7 @@ Moteur leger pour scenes web-ready et prototypage rapide.
 ## Architecture
 
 ```
-DeepBlender API  →  REST API  →  Godot Headless (GDScript)
+DeepBl4nder API  →  REST API  →  Godot Headless (GDScript)
                                   ├── Scene creation
                                   ├── PBR materials
                                   ├── Animation

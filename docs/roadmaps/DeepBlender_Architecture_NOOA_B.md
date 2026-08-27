@@ -1,4 +1,4 @@
-# DeepBlender — Architecture de référence et feuille de route
+# DeepBl4nder — Architecture de référence et feuille de route
 
 > **Statut :** architecture cible et feuille de route initiale  
 > **Version :** 0.1  
@@ -9,7 +9,7 @@
 
 ## 1. Vision
 
-DeepBlender est un runtime de production audiovisuelle assistée par agents IA.
+DeepBl4nder est un runtime de production audiovisuelle assistée par agents IA.
 
 L'objectif initial est de transformer un brief créatif en une courte séquence Blender exploitable, reproductible, observable et itérable, tout en gardant l'humain dans la boucle.
 
@@ -45,7 +45,7 @@ Le MVP vise des séquences de **5 à 10 secondes**, et non la génération auton
 
 # 2. Principe architectural fondamental
 
-DeepBlender ne doit pas reconstruire un framework d'agents complet autour de NOOA.
+DeepBl4nder ne doit pas reconstruire un framework d'agents complet autour de NOOA.
 
 NOOA constitue la couche agentique :
 
@@ -62,10 +62,10 @@ NOOA
 └── Code-as-action
 ```
 
-DeepBlender apporte la couche métier :
+DeepBl4nder apporte la couche métier :
 
 ```text
-DeepBlender
+DeepBl4nder
 ├── Agents métier
 ├── Skills
 ├── Tools
@@ -81,7 +81,7 @@ DeepBlender
 
 Principe :
 
-> **NOOA fournit le runtime agentique ; DeepBlender fournit le monde de production audiovisuelle dans lequel les agents travaillent.**
+> **NOOA fournit le runtime agentique ; DeepBl4nder fournit le monde de production audiovisuelle dans lequel les agents travaillent.**
 
 ---
 
@@ -170,7 +170,7 @@ Principe :
 # 5. Architecture des dossiers
 
 ```text
-deepblender/
+DeepBl4nder/
 │
 ├── README.md
 ├── LICENSE
@@ -208,7 +208,7 @@ deepblender/
 │       └── testing.md
 │
 ├── src/
-│   └── deepblender/
+│   └── DeepBl4nder/
 │       │
 │       ├── agents/
 │       │   ├── base.py
@@ -1000,7 +1000,7 @@ Le MVP n'automatise pas tout ce pipeline.
 
 # 18. Cas d'usage
 
-DeepBlender doit progressivement couvrir :
+DeepBl4nder doit progressivement couvrir :
 
 - génération de scènes Blender ;
 - storyboard ;
@@ -1114,8 +1114,8 @@ BlenderAgent
 Le premier MVP doit être beaucoup plus petit que l'architecture cible.
 
 ```text
-deepblender/
-├── src/deepblender/
+DeepBl4nder/
+├── src/DeepBl4nder/
 │   ├── agents/
 │   │   ├── director.py
 │   │   ├── blender.py
@@ -1365,7 +1365,7 @@ Event infrastructure
 Observability de base
 ```
 
-DeepBlender doit s'appuyer sur les capacités de NOOA et ne créer une abstraction supplémentaire que lorsqu'elle répond à un besoin métier.
+DeepBl4nder doit s'appuyer sur les capacités de NOOA et ne créer une abstraction supplémentaire que lorsqu'elle répond à un besoin métier.
 
 ### Ne pas exécuter directement le code généré
 
@@ -1473,7 +1473,7 @@ Le premier jalon est :
 
 > **Prendre un brief inédit, produire une séquence Blender de 5–10 secondes, tracer sa production, détecter ses défauts, effectuer une correction et produire une version améliorée.**
 
-La boucle fondamentale de DeepBlender est donc :
+La boucle fondamentale de DeepBl4nder est donc :
 
 ```text
 Intent

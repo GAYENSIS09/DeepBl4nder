@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from deepblender.codegen.policy import CodePolicy
-from deepblender.codegen.validator import ASTValidator, validate_for_worker
+from DeepBl4nder.codegen.policy import CodePolicy
+from DeepBl4nder.codegen.validator import ASTValidator, validate_for_worker
 
 SAFE_SCRIPT = (
     "import bpy\n"

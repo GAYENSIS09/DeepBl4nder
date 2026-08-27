@@ -1,6 +1,6 @@
 """Scheduler de workers : pool extensible à chaud, CPU et GPU, 1 worker/scène.
 
-Le scheduler appartient à DeepBlender (Roadmap C §13/§29). Le pool démarre
+Le scheduler appartient à DeepBl4nder (Roadmap C §13/§29). Le pool démarre
 avec un nombre de workers configurable et accepte l'ajout de workers **sans
 redémarrage** via `add_workers` (contrat ADD : « l'ajout d'un worker se fait
 sans redémarrage »). Chaque worker porte un `worker_id` et une ressource
@@ -50,7 +50,7 @@ class WorkerScheduler:
 
     def _spawn(self, kind: str) -> WorkerInfo:
         info = WorkerInfo(id=uuid.uuid4().hex[:8], kind=kind)
-        thread = threading.Thread(target=self._run_loop, name=f"deepblender-{kind}-worker", daemon=True)
+        thread = threading.Thread(target=self._run_loop, name=f"DeepBl4nder-{kind}-worker", daemon=True)
         thread.start()
         with self._lock:
             self._threads.add(thread)
@@ -111,7 +111,7 @@ class WorkerScheduler:
 
 
 def main(argv: list[str] | None = None) -> int:
-    """Point d'entrée `python -m deepblender.bridges.blender.scheduler`.
+    """Point d'entrée `python -m DeepBl4nder.bridges.blender.scheduler`.
 
     Démarre le pool de workers (CPU/GPU) et maintient le statut en boucle.
     Les jobs sont soumis programmatiquement via `WorkerScheduler.submit`.
@@ -120,13 +120,13 @@ def main(argv: list[str] | None = None) -> int:
     import signal
     import time
 
-    parser = argparse.ArgumentParser(prog="deepblender.bridges.blender.scheduler", description="Coordinateur de render farm (pool de workers).")
-    parser.add_argument("--workers", type=int, default=int(os.environ.get("DEEPBLENDER_WORKERS", "3")))
-    parser.add_argument("--gpu-workers", type=int, default=int(os.environ.get("DEEPBLENDER_GPU_WORKERS", "0")))
+    parser = argparse.ArgumentParser(prog="DeepBl4nder.bridges.blender.scheduler", description="Coordinateur de render farm (pool de workers).")
+    parser.add_argument("--workers", type=int, default=int(os.environ.get("DeepBl4nder_WORKERS", "3")))
+    parser.add_argument("--gpu-workers", type=int, default=int(os.environ.get("DeepBl4nder_GPU_WORKERS", "0")))
     args = parser.parse_args(argv)
 
     scheduler = WorkerScheduler(workers=args.workers, gpu_workers=args.gpu_workers)
-    print(f"DeepBlender scheduler : {scheduler.worker_count} workers (gpu: {scheduler.gpu_count})")
+    print(f"DeepBl4nder scheduler : {scheduler.worker_count} workers (gpu: {scheduler.gpu_count})")
 
     def _stop(_signum: int, _frame: object) -> None:
         raise KeyboardInterrupt

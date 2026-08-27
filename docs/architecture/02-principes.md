@@ -16,22 +16,22 @@ plutôt qu'une forêt de micro-tools.
 ```
 NOOA sait-il déjà le faire ?  → oui → utiliser NOOA
                                → non → est-ce une responsabilité du domaine audiovisuel ?
-                                        → oui → DeepBlender
+                                        → oui → DeepBl4nder
                                         → non → ne pas ajouter
 ```
 
 ## Matrice de responsabilité (résumé)
 
-| Capacité | NOOA | DeepBlender |
+| Capacité | NOOA | DeepBl4nder |
 |---|---:|---:|
 | Runtime agentique, objet-agent, état, contexte, événements | **Natif** | Utilise |
 | Typed I/O, live objects, code-as-action, stratégies, tracing | **Natif** | Utilise |
 | Skills (mécanisme), MCP, sandbox, évaluation, mémoire | **Natif** | Utilise |
 | Mémoire long terme | **Natif** (`nooa-memory`) | Stocke la connaissance métier comme objets métier si besoin |
-| Blender, workers, scheduler de rendu | — | **DeepBlender** |
-| Assets, artifacts, provenance, graphes de production | — | **DeepBlender** |
-| QA métier, budgets, politiques de sécurité | — | **DeepBlender** |
-| Approbations humaines | — | **DeepBlender** |
+| Blender, workers, scheduler de rendu | — | **DeepBl4nder** |
+| Assets, artifacts, provenance, graphes de production | — | **DeepBl4nder** |
+| QA métier, budgets, politiques de sécurité | — | **DeepBl4nder** |
+| Approbations humaines | — | **DeepBl4nder** |
 
 ## Ce qui ne doit PAS être créé
 
@@ -42,7 +42,7 @@ Sauf nécessité démontrée : `GenericAgentRuntime`, `GenericAgentLoop`, `Gener
 Avant de créer l'un de ces composants : 1) vérifier NOOA, 2) lire l'exemple, 3) lire le code
 source, 4) tester l'API, 5) seulement ensuite décider.
 
-## Ce qui DOIT rester DeepBlender
+## Ce qui DOIT rester DeepBl4nder
 
 Domaine de production, domaine Blender, production state, artifact registry, provenance de
 production, graphes de production, scheduling de rendu, workers Blender, cycle de vie des
@@ -63,4 +63,4 @@ production, politiques de sécurité de production.
 ## Règle d'or
 
 > **« Est-ce que NOOA sait déjà faire cela ? »** Si oui → utiliser NOOA. Sinon → est-ce une
-> responsabilité du domaine audiovisuel ? Si oui → l'ajouter à DeepBlender. Sinon → ne pas ajouter.
+> responsabilité du domaine audiovisuel ? Si oui → l'ajouter à DeepBl4nder. Sinon → ne pas ajouter.

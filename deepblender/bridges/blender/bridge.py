@@ -1,7 +1,7 @@
 """BlenderBridge : lance Blender headless sur un script bpy validé.
 
 Le bridge exécute `blender -b -P <script>` dans un sous-processus via la
-frontière isolée (`deepblender.bridge.worker`). `BLENDER_EXE` permet de
+frontière isolée (`DeepBl4nder.bridge.worker`). `BLENDER_EXE` permet de
 surcharger le binaire (ADR-009, Dockerfile).
 
 Sécurité (fail-closed) : aucun script n'est exécuté sans avoir passé le
@@ -19,9 +19,9 @@ import subprocess
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from deepblender.bridge.worker import ProcessResult, WorkerCommand, WorkerProcess
-from deepblender.codegen import CodePolicyViolation, validate_for_worker
-from deepblender.domain.scene import BlenderScript
+from DeepBl4nder.bridge.worker import ProcessResult, WorkerCommand, WorkerProcess
+from DeepBl4nder.codegen import CodePolicyViolation, validate_for_worker
+from DeepBl4nder.domain.scene import BlenderScript
 
 
 class BlenderNotFoundError(RuntimeError):

@@ -1,6 +1,6 @@
 """Événements de production : journal persistant (JSONL) et reprise.
 
-La fiabilité DeepBlender repose sur un journal append-only : chaque
+La fiabilité DeepBl4nder repose sur un journal append-only : chaque
 transition d'étape est persistée avant d'être appliquée. Après un crash,
 `ProductionRun.recover` rejoue le journal et resoumet les étapes démarrées
 mais jamais terminées (événements non consommés) — ADD, objectif « reprise

@@ -14,7 +14,7 @@ import json
 from pathlib import Path
 from typing import Any
 
-from deepblender.domain.qa import QAReport
+from DeepBl4nder.domain.qa import QAReport
 
 
 class ContextInjector:

@@ -4,7 +4,7 @@ Communique avec un serveur UE5 (Python plugin) via HTTP REST.
 Le serveur UE5 doit tourner sur le port configuré (defaut : 8080).
 
 Architecture :
-  DeepBlender → UE5Bridge → REST API → UE5 Server (Python plugin)
+  DeepBl4nder → UE5Bridge → REST API → UE5 Server (Python plugin)
                                            ├── Level creation
                                            ├── Material setup (Lumen)
                                            ├── Lighting (Lumen GI)
@@ -21,7 +21,7 @@ from typing import Any
 
 import requests
 
-logger = logging.getLogger("deepblender.bridges.ue5")
+logger = logging.getLogger("DeepBl4nder.bridges.ue5")
 
 
 class UE5ConnectionError(RuntimeError):
@@ -76,7 +76,7 @@ class UE5Bridge:
         self._session = requests.Session()
         self._session.headers.update({
             "Content-Type": "application/json",
-            "User-Agent": "DeepBlender-UE5/0.3",
+            "User-Agent": "DeepBl4nder-UE5/0.3",
         })
 
     def available(self) -> bool:

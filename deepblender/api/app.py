@@ -1,4 +1,4 @@
-"""Application FastAPI : socle SaaS multi-tenant DeepBlender.
+"""Application FastAPI : socle SaaS multi-tenant DeepBl4nder.
 
 Endpoints : auth (register/login/me), organisations (membres + RBAC),
 workspaces, projets et productions. L'isolation par tenant est garantie par
@@ -6,7 +6,7 @@ workspaces, projets et productions. L'isolation par tenant est garantie par
 
 La persistance (SQLite) et la clé secrète JWT sont configurables via
 `create_app(database_url=..., secret_key=...)` ou les variables
-d'environnement `DEEPBLENDER_DB` / `DEEPBLENDER_SECRET_KEY`.
+d'environnement `DeepBl4nder_DB` / `DeepBl4nder_SECRET_KEY`.
 """
 
 from __future__ import annotations
@@ -27,11 +27,11 @@ from fastapi.responses import FileResponse, StreamingResponse
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 
-from deepblender import __version__
-from deepblender.api.bus import AsyncEventBus
-from deepblender.api.db import Base, DbSession, create_engine_for, create_session_factory
-from deepblender.codegen.validator import ASTValidator, ValidationReport
-from deepblender.api.deps import (
+from DeepBl4nder import __version__
+from DeepBl4nder.api.bus import AsyncEventBus
+from DeepBl4nder.api.db import Base, DbSession, create_engine_for, create_session_factory
+from DeepBl4nder.codegen.validator import ASTValidator, ValidationReport
+from DeepBl4nder.api.deps import (
     ROLE_MANAGE,
     ROLE_READ,
     ROLE_WRITE,
@@ -43,9 +43,9 @@ from deepblender.api.deps import (
     scoped_project,
     scoped_workspace,
 )
-from deepblender.api.models import Membership, Organization, Production, Project, User, Workspace, Sequence, Scene, Patch, ArtifactRecord, RefreshToken
-from deepblender.api.pipeline import run_production
-from deepblender.api.schemas import (
+from DeepBl4nder.api.models import Membership, Organization, Production, Project, User, Workspace, Sequence, Scene, Patch, ArtifactRecord, RefreshToken
+from DeepBl4nder.api.pipeline import run_production
+from DeepBl4nder.api.schemas import (
     ArtifactOut,
     ArtifactRecordOut,
     ArtifactRecordsOut,
@@ -81,12 +81,12 @@ from deepblender.api.schemas import (
     SceneOut,
     ShotOut,
 )
-from deepblender.api.security import create_token, create_refresh_token, hash_password, hash_token, verify_password
-from deepblender.api.state import WorkerStatus, configure, get_secret_key, get_session_factory
-from deepblender.llm import routing_stats as llm_routing_stats
-from deepblender.logging_setup import setup_logging
+from DeepBl4nder.api.security import create_token, create_refresh_token, hash_password, hash_token, verify_password
+from DeepBl4nder.api.state import WorkerStatus, configure, get_secret_key, get_session_factory
+from DeepBl4nder.llm import routing_stats as llm_routing_stats
+from DeepBl4nder.logging_setup import setup_logging
 
-logger = logging.getLogger("deepblender.api")
+logger = logging.getLogger("DeepBl4nder.api")
 
 
 class _RateLimitMiddleware:
@@ -114,8 +114,8 @@ class _RateLimitMiddleware:
 
 
 _rate_limit_buckets: dict[str, list[float]] = {}
-_RATE_LIMIT_MAX = int(os.environ.get("DEEPBLENDER_RATE_LIMIT_MAX", "60"))
-_RATE_LIMIT_WINDOW = int(os.environ.get("DEEPBLENDER_RATE_LIMIT_WINDOW", "60"))
+_RATE_LIMIT_MAX = int(os.environ.get("DeepBl4nder_RATE_LIMIT_MAX", "60"))
+_RATE_LIMIT_WINDOW = int(os.environ.get("DeepBl4nder_RATE_LIMIT_WINDOW", "60"))
 
 
 def _check_rate_limit(request: Request) -> None:
@@ -133,10 +133,10 @@ def _check_rate_limit(request: Request) -> None:
 
 
 def _default_secret_key() -> str:
-    configured = os.environ.get("DEEPBLENDER_SECRET_KEY")
+    configured = os.environ.get("DeepBl4nder_SECRET_KEY")
     if configured:
         return configured
-    logger.warning("DEEPBLENDER_SECRET_KEY non définie — clé aléatoire (jetons perdus au redémarrage).")
+    logger.warning("DeepBl4nder_SECRET_KEY non définie — clé aléatoire (jetons perdus au redémarrage).")
     return secrets.token_hex(32)
 
 
@@ -147,7 +147,7 @@ def _default_org_name(full_name: str, email: str) -> str:
 
 
 def _default_data_dir() -> str:
-    return os.environ.get("DEEPBLENDER_DATA_DIR", "data")
+    return os.environ.get("DeepBl4nder_DATA_DIR", "data")
 
 
 def _run_workdir(data_dir: str, production_id: str) -> Path:
@@ -211,7 +211,7 @@ async def _launch_tracked_run(
             workdir=workdir,
             bus=app.state.bus,
             session_factory=get_session_factory(),
-            budget_limit=float(os.environ.get("DEEPBLENDER_BUDGET", "1.0")),
+            budget_limit=float(os.environ.get("DeepBl4nder_BUDGET", "1.0")),
         )
         status.finish(production_id)
     except asyncio.CancelledError:
@@ -260,7 +260,7 @@ def create_app(
 ) -> FastAPI:
     """Fabrique l'application FastAPI avec son moteur SQLAlchemy."""
     setup_logging()
-    url = database_url or os.environ.get("DEEPBLENDER_DB", "deepblender.db")
+    url = database_url or os.environ.get("DeepBl4nder_DB", "DeepBl4nder.db")
     engine = create_engine_for(url)
 
     # Essayer Alembic en priorité ; fallback sur create_all (tests / dev)
@@ -273,7 +273,7 @@ def create_app(
     configure(engine, create_session_factory(engine), secret_key or _default_secret_key())
 
     app = FastAPI(
-        title="DeepBlender API",
+        title="DeepBl4nder API",
         description="AI-powered audiovisual production platform. Transform text prompts into complete animations/videos.",
         version=__version__,
         docs_url="/api/docs",
@@ -282,7 +282,7 @@ def create_app(
     )
     origins = [
         o.strip()
-        for o in os.environ.get("DEEPBLENDER_CORS_ORIGINS", "http://localhost:3000").split(",")
+        for o in os.environ.get("DeepBl4nder_CORS_ORIGINS", "http://localhost:3000").split(",")
         if o.strip()
     ]
     app.add_middleware(
@@ -306,7 +306,7 @@ def _register_routes(app: FastAPI) -> None:
     @app.get("/api/health", tags=["health"])
     def health_check() -> dict[str, Any]:
         """Health check endpoint for load balancers and monitoring."""
-        from deepblender import __version__ as ver
+        from DeepBl4nder import __version__ as ver
         return {"status": "ok", "version": ver, "timestamp": time.time()}
 
     @app.post("/api/auth/register", response_model=TokenResponse, status_code=201)
@@ -1068,8 +1068,8 @@ def _register_routes(app: FastAPI) -> None:
             return UsageOut(
                 productions=0, runs=0, total_cost=0.0,
                 quotas=UsageQuotas(
-                    productions=_env_int("DEEPBLENDER_QUOTA_PRODUCTIONS"),
-                    cost=_env_float("DEEPBLENDER_QUOTA_COST"),
+                    productions=_env_int("DeepBl4nder_QUOTA_PRODUCTIONS"),
+                    cost=_env_float("DeepBl4nder_QUOTA_COST"),
                 ),
             )
         total_cost = db.scalar(
@@ -1094,8 +1094,8 @@ def _register_routes(app: FastAPI) -> None:
             runs=runs or 0,
             total_cost=float(total_cost or 0.0),
             quotas=UsageQuotas(
-                productions=_env_int("DEEPBLENDER_QUOTA_PRODUCTIONS"),
-                cost=_env_float("DEEPBLENDER_QUOTA_COST"),
+                productions=_env_int("DeepBl4nder_QUOTA_PRODUCTIONS"),
+                cost=_env_float("DeepBl4nder_QUOTA_COST"),
             ),
         )
 
@@ -1135,17 +1135,17 @@ async def sse_event_stream(
 
 
 def main(argv: list[str] | None = None) -> int:
-    """Point d'entrée `python -m deepblender.api.app --host ... --port ...`."""
+    """Point d'entrée `python -m DeepBl4nder.api.app --host ... --port ...`."""
     import argparse
 
     import uvicorn
 
-    parser = argparse.ArgumentParser(prog="deepblender.api.app", description="API SaaS DeepBlender (FastAPI).")
-    parser.add_argument("--host", default=os.environ.get("DEEPBLENDER_HOST", "0.0.0.0"))
-    parser.add_argument("--port", type=int, default=int(os.environ.get("DEEPBLENDER_PORT", "8000")))
-    parser.add_argument("--db", default=os.environ.get("DEEPBLENDER_DB", "deepblender.db"))
+    parser = argparse.ArgumentParser(prog="DeepBl4nder.api.app", description="API SaaS DeepBl4nder (FastAPI).")
+    parser.add_argument("--host", default=os.environ.get("DeepBl4nder_HOST", "0.0.0.0"))
+    parser.add_argument("--port", type=int, default=int(os.environ.get("DeepBl4nder_PORT", "8000")))
+    parser.add_argument("--db", default=os.environ.get("DeepBl4nder_DB", "DeepBl4nder.db"))
     args = parser.parse_args(argv)
-    # Journal complet (console + fichier rotatif data/logs/deepblender.log) :
+    # Journal complet (console + fichier rotatif data/logs/DeepBl4nder.log) :
     # étapes pipeline, appels/votes/échecs LLM, découvertes de modèles.
     log_path = setup_logging()
     logger.info("Journal arrière-plan : %s", log_path)

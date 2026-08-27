@@ -6,10 +6,10 @@ import sys
 
 import pytest
 
-from deepblender.bridges.blender.bridge import BlenderBridge, BlenderNotFoundError
-from deepblender.bridge.worker import WorkerCommand, WorkerProcess
-from deepblender.codegen import CodePolicyViolation
-from deepblender.domain.scene import BlenderScript
+from DeepBl4nder.bridges.blender.bridge import BlenderBridge, BlenderNotFoundError
+from DeepBl4nder.bridge.worker import WorkerCommand, WorkerProcess
+from DeepBl4nder.codegen import CodePolicyViolation
+from DeepBl4nder.domain.scene import BlenderScript
 
 
 def test_worker_runs_command() -> None:

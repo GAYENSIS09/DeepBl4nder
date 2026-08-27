@@ -2,7 +2,7 @@
 
 Produit un `AudioPlan` typé à partir de la `SceneSpec`. L'agent ne génère pas
 d'audio directement : la production effective passe par les plugins audio/TTS
-dans un worker dédié (voir deepblender.plugins).
+dans un worker dédié (voir DeepBl4nder.plugins).
 
 Utilise les skills : sound-design, music, voice.
 """
@@ -14,10 +14,10 @@ from typing import Any
 from nooa import CodeActStrategy, strategy
 from nooa.config import CodeActConfig
 
-from deepblender.agents.base import BaseAgent, DefaultsMixin
-from deepblender.domain.media import AudioPlan
-from deepblender.domain.scene import SceneSpec
-from deepblender.skills.registry import SkillRegistry
+from DeepBl4nder.agents.base import BaseAgent, DefaultsMixin
+from DeepBl4nder.domain.media import AudioPlan
+from DeepBl4nder.domain.scene import SceneSpec
+from DeepBl4nder.skills.registry import SkillRegistry
 
 
 def _audio_postcondition(result: AudioPlan) -> str | None:

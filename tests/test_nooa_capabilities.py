@@ -1,4 +1,4 @@
-"""Couverture des capacités NOOA 0.0.8 exploitées par les agents DeepBlender.
+"""Couverture des capacités NOOA 0.0.8 exploitées par les agents DeepBl4nder.
 
 Vérifie sans réseau (FakeLLMClient) :
 - TemplateStrategy  : ``build_probe_script`` déterministe, zéro appel LLM
@@ -18,10 +18,10 @@ import json
 
 import pytest
 
-from deepblender.agents import BlenderAgent, CompositingAgent, QAAgent
-from deepblender.agents.base import BaseAgent
-from deepblender.domain.qa import QAReport
-from deepblender.domain.scene import (
+from DeepBl4nder.agents import BlenderAgent, CompositingAgent, QAAgent
+from DeepBl4nder.agents.base import BaseAgent
+from DeepBl4nder.domain.qa import QAReport
+from DeepBl4nder.domain.scene import (
     BlenderScript,
     CharacterSpec,
     SceneSpec,
@@ -229,7 +229,7 @@ def test_recent_run_history_reads_agent_events() -> None:
 
 
 def test_event_query_wired_from_env(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv("DEEPBLENDER_EVENT_QUERY", "Task")
+    monkeypatch.setenv("DeepBl4nder_EVENT_QUERY", "Task")
     from nooa.unifiedllm import FakeLLMClient
 
     agent = BaseAgent(llm=FakeLLMClient())
@@ -280,7 +280,7 @@ def test_validate_script_detects_empty_code() -> None:
 def test_validate_spec_detects_no_shots() -> None:
     from nooa.unifiedllm import FakeLLMClient
 
-    from deepblender.agents.director import DirectorAgent
+    from DeepBl4nder.agents.director import DirectorAgent
 
     d = DirectorAgent(llm=FakeLLMClient())
     empty = SceneSpec(brief="vide")

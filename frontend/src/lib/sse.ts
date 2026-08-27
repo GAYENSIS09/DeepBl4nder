@@ -1,7 +1,7 @@
 'use client';
 
 /**
- * Client SSE pour l'API SaaS DeepBlender.
+ * Client SSE pour l'API SaaS DeepBl4nder.
  *
  * Le navigateur natif `EventSource` ne peut pas envoyer d'en-têtes
  * (Authorization requis), on passe donc par `fetch` + `ReadableStream`.

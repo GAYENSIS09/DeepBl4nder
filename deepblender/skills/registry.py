@@ -1,7 +1,7 @@
 """Registry de skills : découverte, chargement et progressive disclosure.
 
 Le mécanisme est celui de NOOA (TextSkill lit SKILL.md avec frontmatter) ;
-DeepBlender fournit le contenu métier (Roadmap C §9-10).
+DeepBl4nder fournit le contenu métier (Roadmap C §9-10).
 """
 
 from __future__ import annotations

@@ -1,7 +1,7 @@
 """Découplage NOOA (palier 3 de la CI).
 
 Deux propriétés structurelles :
-1. Les agents DeepBlender sont des sous-classes directes de `nooa.Agent`
+1. Les agents DeepBl4nder sont des sous-classes directes de `nooa.Agent`
    (aucun runtime agentique propriétaire).
 2. Le domaine métier, le codegen, les artifacts, la production, le bridge
    Blender et l'API n'importent PAS nooa : NOOA est encapsulé derrière les
@@ -18,7 +18,7 @@ import pytest
 from nooa import Agent
 from nooa.unifiedllm import FakeLLMClient
 
-from deepblender.agents import (
+from DeepBl4nder.agents import (
     AudioAgent,
     BlenderAgent,
     CompositingAgent,
@@ -26,9 +26,9 @@ from deepblender.agents import (
     LocalizationAgent,
     QAAgent,
 )
-from deepblender.domain.qa import IssueKind
+from DeepBl4nder.domain.qa import IssueKind
 
-PACKAGE = Path(__file__).resolve().parent.parent / "deepblender"
+PACKAGE = Path(__file__).resolve().parent.parent / "DeepBl4nder"
 
 # Modules qui DOIVENT rester indépendants de nooa.
 NOOA_FREE_DIRS = ("domain", "codegen", "artifacts", "production", "bridge", "blender", "api", "plugins")
@@ -123,7 +123,7 @@ def test_deterministic_bodies_are_pure_python() -> None:
 
 
 def test_agents_apply_truncation_config_from_env(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv("DEEPBLENDER_AGENT_TRUNCATION", "1")
+    monkeypatch.setenv("DeepBl4nder_AGENT_TRUNCATION", "1")
     monkeypatch.setenv("LLM_CONTEXT_TOKENS", "32000")
 
     director = DirectorAgent(llm=FakeLLMClient())
@@ -136,7 +136,7 @@ def test_agents_apply_truncation_config_from_env(monkeypatch: pytest.MonkeyPatch
 
 def test_agents_use_sqlite_storage_from_env(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     db = tmp_path / "agent.db"
-    monkeypatch.setenv("DEEPBLENDER_AGENT_STORAGE", str(db))
+    monkeypatch.setenv("DeepBl4nder_AGENT_STORAGE", str(db))
 
     director = DirectorAgent(llm=FakeLLMClient())
 
@@ -147,16 +147,16 @@ def test_agents_use_sqlite_storage_from_env(tmp_path: Path, monkeypatch: pytest.
 def test_scene_spec_postcondition_rejects_empty_shots() -> None:
     from nooa.strategy_validation import InvariantError
 
-    from deepblender.agents.base import scene_spec_postcondition
-    from deepblender.domain.scene import SceneSpec
+    from DeepBl4nder.agents.base import scene_spec_postcondition
+    from DeepBl4nder.domain.scene import SceneSpec
 
     with pytest.raises(InvariantError):
         scene_spec_postcondition(None, SceneSpec(brief="x"), None)
 
 
 def test_scene_spec_postcondition_accepts_spec_with_shots() -> None:
-    from deepblender.agents.base import scene_spec_postcondition
-    from deepblender.domain.scene import SceneSpec, ShotSpec
+    from DeepBl4nder.agents.base import scene_spec_postcondition
+    from DeepBl4nder.domain.scene import SceneSpec, ShotSpec
 
     spec = SceneSpec(brief="x", shots=[ShotSpec()])
     # Aucune levée = pas d'InvariantError
@@ -166,16 +166,16 @@ def test_scene_spec_postcondition_accepts_spec_with_shots() -> None:
 def test_blender_script_postcondition_rejects_empty_code() -> None:
     from nooa.strategy_validation import InvariantError
 
-    from deepblender.agents.base import blender_script_postcondition
-    from deepblender.domain.scene import BlenderScript
+    from DeepBl4nder.agents.base import blender_script_postcondition
+    from DeepBl4nder.domain.scene import BlenderScript
 
     with pytest.raises(InvariantError):
         blender_script_postcondition(None, BlenderScript(code="", scene_name="s"), None)
 
 
 def test_blender_script_postcondition_accepts_valid_code() -> None:
-    from deepblender.agents.base import blender_script_postcondition
-    from deepblender.domain.scene import BlenderScript
+    from DeepBl4nder.agents.base import blender_script_postcondition
+    from DeepBl4nder.domain.scene import BlenderScript
 
     blender_script_postcondition(
         None, BlenderScript(code="import bpy\nscene = bpy.context.scene", scene_name="s"), None

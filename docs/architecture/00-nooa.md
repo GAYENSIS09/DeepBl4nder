@@ -87,13 +87,13 @@ Points clés :
 2. **`visible` est un no-op** : tout est visible par défaut ; `@hidden` (agentdoc) reste l'outil de masquage.
 3. **Sandbox** : NOOA dispose d'un `execution_backend="sandbox"` mais sa documentation précise que les
    contrôles in-process ne sont pas une frontière de confinement suffisante. La frontière réelle doit
-   être OS/container/VM (DeepBlender : workers isolés).
+   être OS/container/VM (DeepBl4nder : workers isolés).
 4. **Mémoire long terme** : via l'extra `nooa-memory`, à activer au besoin.
 5. **`import nooa` charge litellm** : coût d'import non négligeable, à garder en tête pour le serveur HTTP.
 
-## Conséquence pour DeepBlender
+## Conséquence pour DeepBl4nder
 
-- Les agents DeepBlender sont des **sous-classes de `nooa.Agent`** (jamais de `GenericAgentRuntime`).
+- Les agents DeepBl4nder sont des **sous-classes de `nooa.Agent`** (jamais de `GenericAgentRuntime`).
 - Le contexte, les événements, la mémoire et le tracing utilisent **les API NOOA**.
-- DeepBlender n'ajoute que le **domaine de production** : objets métier, Blender, workers, artifacts,
+- DeepBl4nder n'ajoute que le **domaine de production** : objets métier, Blender, workers, artifacts,
   QA, budgets, provenance, politiques de sécurité.

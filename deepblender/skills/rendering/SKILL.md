@@ -118,7 +118,7 @@ scene.render.ffmpeg.ffmpeg_preset = 'GOOD'
 
 ```python
 import os
-render_dir = os.environ.get("DEEPBLENDER_RENDER_DIR", ".")  # or use the injected variable
+render_dir = os.environ.get("DeepBl4nder_RENDER_DIR", ".")  # or use the injected variable
 scene.render.filepath = render_dir + "/output.mp4"
 ```
 

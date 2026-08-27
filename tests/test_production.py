@@ -4,9 +4,9 @@ from __future__ import annotations
 
 import pytest
 
-from deepblender.production.budget import BudgetAlert, BudgetTracker
-from deepblender.production.events import EventLog
-from deepblender.production.runs import ProductionRun, ProductionStep
+from DeepBl4nder.production.budget import BudgetAlert, BudgetTracker
+from DeepBl4nder.production.events import EventLog
+from DeepBl4nder.production.runs import ProductionRun, ProductionStep
 
 
 def _status(run: ProductionRun, name: str) -> str:

@@ -13,14 +13,14 @@ import logging
 from pathlib import Path
 from typing import Any, Callable
 
-from deepblender.domain.narrative import StorySpec, StoryboardSpec
-from deepblender.domain.project import Brief
-from deepblender.domain.qa import Issue, QAReport
-from deepblender.domain.scene import BlenderScript, RenderOutput, SceneSpec
-from deepblender.production.events import EventLog
-from deepblender.production.runs import ProductionRun
+from DeepBl4nder.domain.narrative import StorySpec, StoryboardSpec
+from DeepBl4nder.domain.project import Brief
+from DeepBl4nder.domain.qa import Issue, QAReport
+from DeepBl4nder.domain.scene import BlenderScript, RenderOutput, SceneSpec
+from DeepBl4nder.production.events import EventLog
+from DeepBl4nder.production.runs import ProductionRun
 
-logger = logging.getLogger("deepblender.pipeline")
+logger = logging.getLogger("DeepBl4nder.pipeline")
 
 
 def _safe_name(name: str) -> str:
