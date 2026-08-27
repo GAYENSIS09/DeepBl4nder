@@ -4,13 +4,9 @@ from __future__ import annotations
 
 import time
 from dataclasses import dataclass, field
-from uuid import uuid4
 
 from deepblender.domain.scene import SceneSpec
-
-
-def _new_id() -> str:
-    return uuid4().hex
+from deepblender.domain.utils import new_id as _new_id
 
 
 @dataclass

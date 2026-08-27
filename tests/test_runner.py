@@ -603,7 +603,7 @@ async def test_localization_languages_produced_in_parallel(tmp_path: Path) -> No
     runner._llm_semaphore = asyncio.Semaphore(4)
     scene = SceneSpec(brief="parallelisation")
 
-    packages = await runner._run_localization(scene)
+    packages = await runner.postprod.run_localization(scene)
 
     assert [p.language for p in packages] == ["fr", "en", "wo", "ar"]  # ordre preserve
     assert loc.max_active >= 2  # les langues se chevauchent reellement

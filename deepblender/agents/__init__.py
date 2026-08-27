@@ -10,13 +10,18 @@ from deepblender.agents.animator import AnimatorAgent
 from deepblender.agents.audio import AudioAgent
 from deepblender.agents.base import BaseAgent, DefaultsMixin
 from deepblender.agents.blender import BlenderAgent
-from deepblender.agents.character_designer import CharacterDesignerAgent
-from deepblender.agents.compositing import CompositingAgent
+from deepblender.agents.char import CharacterDesignerAgent
+from deepblender.agents.comp import CompositingAgent
 from deepblender.agents.director import DirectorAgent
-from deepblender.agents.localization import LocalizationAgent
+from deepblender.agents.env import EnvironmentArtistAgent
+from deepblender.agents.loc import LocalizationAgent
+from deepblender.agents.music import MusicComposerAgent
 from deepblender.agents.qa import QAAgent
+from deepblender.agents.review import ReviewAgent
+from deepblender.agents.sfx import SoundDesignerAgent
 from deepblender.agents.story import StoryAgent
-from deepblender.agents.storyboard import StoryboardAgent
+from deepblender.agents.board import StoryboardAgent
+from deepblender.agents.ue5 import UE5Agent
 
 __all__ = [
     "AnimatorAgent",
@@ -27,8 +32,13 @@ __all__ = [
     "CompositingAgent",
     "DefaultsMixin",
     "DirectorAgent",
+    "EnvironmentArtistAgent",
     "LocalizationAgent",
+    "MusicComposerAgent",
     "QAAgent",
+    "ReviewAgent",
+    "SoundDesignerAgent",
     "StoryAgent",
     "StoryboardAgent",
+    "UE5Agent",
 ]

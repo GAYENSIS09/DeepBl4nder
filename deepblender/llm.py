@@ -1100,7 +1100,25 @@ class LLMRouter:
         output_model: type[Any] | None = None,
         **kwargs: Any,
     ) -> Any:
-        """Appel synchrone : même logique de vote que ``acall``."""
+        """Appel synchrone : meme logique de vote que ``acall``.
+
+        Si un event loop tourne deja (contexte async), on utilisera ``acall``
+        a la place. Ce ``call`` est un fallback pour le code sync pur.
+        """
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            loop = None
+
+        if loop is not None and loop.is_running():
+            import concurrent.futures
+            with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
+                future = pool.submit(
+                    asyncio.run,
+                    self.acall(messages, tools=tools, output_model=output_model, **kwargs),
+                )
+                return future.result(timeout=120)
+
         return asyncio.run(self.acall(messages, tools=tools, output_model=output_model, **kwargs))
 
     def close(self) -> None:

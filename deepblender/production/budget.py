@@ -24,7 +24,7 @@ class BudgetAlert:
 
 @dataclass
 class BudgetTracker:
-    """Suivi des coûts d'un run avec politique d'arrêt et alerte."""
+    """Suivi des couts d'un run avec politique d'arret et alerte."""
 
     budget: float
     llm: float = 0.0
@@ -32,12 +32,8 @@ class BudgetTracker:
     storage: float = 0.0
     external: float = 0.0
     run_id: str = ""
-    _remaining: float = field(init=False)
     _listeners: list[Callable[[BudgetAlert], None]] = field(init=False, default_factory=list)
     _alerted: bool = field(init=False, default=False)
-
-    def __post_init__(self) -> None:
-        self._remaining = self.budget
 
     def subscribe(self, listener: Callable[[BudgetAlert], None]) -> None:
         self._listeners.append(listener)
@@ -46,7 +42,6 @@ class BudgetTracker:
         self._alerted = False
 
     def _charge(self, cost: float) -> None:
-        self._remaining -= cost
         if self.over_budget() and not self._alerted:
             self._alerted = True
             alert = BudgetAlert(
@@ -80,7 +75,7 @@ class BudgetTracker:
 
     @property
     def remaining(self) -> float:
-        return self._remaining
+        return round(max(0.0, self.budget - self.total), 10)
 
     def over_budget(self) -> bool:
         return self.total > self.budget

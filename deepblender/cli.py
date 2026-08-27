@@ -42,7 +42,7 @@ def build_parser() -> argparse.ArgumentParser:
 def _cmd_inspect() -> int:
     import nooa
 
-    from deepblender.blender.bridge import BlenderBridge
+    from deepblender.bridges.blender.bridge import BlenderBridge
     from deepblender.bridge.worker import blender_version
 
     registry = get_default_registry()

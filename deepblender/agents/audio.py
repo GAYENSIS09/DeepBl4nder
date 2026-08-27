@@ -12,11 +12,18 @@ from __future__ import annotations
 from typing import Any
 
 from nooa import CodeActStrategy, strategy
+from nooa.config import CodeActConfig
 
 from deepblender.agents.base import BaseAgent, DefaultsMixin
 from deepblender.domain.media import AudioPlan
 from deepblender.domain.scene import SceneSpec
 from deepblender.skills.registry import SkillRegistry
+
+
+def _audio_postcondition(result: AudioPlan) -> str | None:
+    if not result.mood:
+        return "AudioPlan.mood must be non-empty"
+    return None
 
 
 class AudioAgent(BaseAgent, DefaultsMixin):
@@ -40,7 +47,10 @@ class AudioAgent(BaseAgent, DefaultsMixin):
     def __init__(self, *args: Any, skill_registry: SkillRegistry | None = None, **kwargs: Any) -> None:
         super().__init__(*args, skill_registry=skill_registry, **kwargs)
 
-    @strategy(CodeActStrategy())
+    @strategy(CodeActStrategy(config=CodeActConfig(
+        postconditions=[_audio_postcondition],
+        max_tokens=8192,
+    )))
     async def plan_audio(self, spec: SceneSpec) -> AudioPlan:  # type: ignore[return]
         """Turn the scene spec into a structured audio plan.
 

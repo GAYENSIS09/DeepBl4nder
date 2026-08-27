@@ -62,12 +62,12 @@ def _default_event_query() -> Any:
 
 
 def _default_truncation() -> Any:
-    """TruncationConfig depuis l'environnement (None = comportement NOOA par défaut).
+    """TruncationConfig avec valeurs par défaut raisonnables.
 
-    ``DEEPBLENDER_AGENT_TRUNCATION=1`` active ; ``LLM_CONTEXT_TOKENS`` et
-    ``LLM_EVENT_TOKENS`` fixent les budgets (défauts raisonnables sinon).
+    ``DEEPBLENDER_AGENT_TRUNCATION=0`` désactive ; sinon activé par défaut.
+    ``LLM_CONTEXT_TOKENS`` et ``LLM_EVENT_TOKENS`` fixent les budgets.
     """
-    if os.getenv("DEEPBLENDER_AGENT_TRUNCATION", "").lower() not in ("1", "true", "yes", "on"):
+    if os.getenv("DEEPBLENDER_AGENT_TRUNCATION", "").lower() in ("0", "false", "no", "off"):
         return None
     try:
         from nooa.config.truncation_config import TruncationConfig
@@ -100,11 +100,20 @@ def _default_storage() -> Any:
 
 
 def _enable_tracing_if_configured() -> None:
-    """Active le tracing NOOA une fois, si ``DEEPBLENDER_TRACING`` est défini."""
+    """Active le tracing NOOA une fois, sauf si ``DEEPBLENDER_TRACING=0``.
+
+    Le tracing est activé par défaut pour faciliter le debugging.
+    Désactivez avec ``DEEPBLENDER_TRACING=0`` ou ``DEEPBLENDER_ENV=production``.
+    """
     global _TRACING_ENABLED
     if _TRACING_ENABLED:
         return
-    if os.getenv("DEEPBLENDER_TRACING", "").lower() not in ("1", "true", "yes", "on"):
+    # Désactivé explicitement ou en production
+    if os.getenv("DEEPBLENDER_TRACING", "").lower() in ("0", "false", "no", "off"):
+        _TRACING_ENABLED = True
+        return
+    if os.getenv("DEEPBLENDER_ENV", "").lower() in ("production", "prod"):
+        _TRACING_ENABLED = True
         return
     try:
         import nooa.tracing as tracing
@@ -223,20 +232,22 @@ class BaseAgent(Agent):
             kwargs.setdefault("event_query", event_query)
         super().__init__(*args, **kwargs)
         self._enable_memory(memory)
+        self._enable_history_summarizer()
+        self._install_guardrails()
 
     @hidden
     def _enable_memory(self, memory: Any = _SENTINEL) -> bool:
-        """Attache la mémoire long terme (nooa-memory) si demandée.
+        """Attache la mémoire long terme (nooa-memory) par défaut.
 
-        ``memory=True`` ou ``DEEPBLENDER_AGENT_MEMORY=1`` active la mémoire ;
-        la gestion écrit dans ``MEMORY_STORAGE_PATH`` (fourni par l'environnement).
+        ``DEEPBLENDER_AGENT_MEMORY=0`` désactive ; sinon activé par défaut.
+        La mémoire persiste entre les runs via ``MEMORY_STORAGE_PATH``.
         """
         if memory is _SENTINEL:
-            memory = os.getenv("DEEPBLENDER_AGENT_MEMORY", "").lower() in (
-                "1",
-                "true",
-                "yes",
-                "on",
+            memory = os.getenv("DEEPBLENDER_AGENT_MEMORY", "").lower() not in (
+                "0",
+                "false",
+                "no",
+                "off",
             )
         if not memory or self._memory_skill is not None:
             return self._memory_skill is not None
@@ -251,46 +262,74 @@ class BaseAgent(Agent):
         return True
 
     @hidden
-    def _set_dynamic(self, key: str, expr: str) -> None:
+    def _set_dynamic(self, key: str, expr: str, prefix: bool = False) -> None:
         """Contexte dynamique : expression Python réévaluée au début de chaque tour LLM.
 
-        Réserver aux vraies expressions (ex. ``self._compute()``) : un texte
-        libre passé ici serait compilé comme du Python et planterait sur la
-        moindre apostrophe.
+        ``prefix=False`` (défaut) place le bloc dans le suffixe volatile.
+        Utiliser ``prefix=True`` si l'expression est stable entre plusieurs tours.
         """
-        self.context[key] = Context(expr=expr)
+        self.context[key] = Context(expr=expr, prefix=prefix)
 
     @hidden
-    def _set_context(self, key: str, value: str) -> None:
-        """Contexte statique : contenu littéral, jamais évalué comme du Python."""
-        self.context[key] = value
+    def _set_context(self, key: str, value: str, prefix: bool = True) -> None:
+        """Contexte statique : contenu littéral, jamais évalué comme du Python.
+
+        ``prefix=True`` (défaut) place le bloc dans le préfixe cacheable
+        pour maximiser le KV cache cote provider.
+        """
+        self.context[key] = Context(value=value, prefix=prefix)
 
     def memory_skill(self) -> Any:
-        """Skill mémoire attaché (nooa-memory) ou None."""
+        """Skill memoire attache (nooa-memory) ou None."""
         return self._memory_skill
 
     @property
     def memory(self) -> Any:
-        """MemoryManager NOOA (installé par MemorySkill) ou None."""
+        """MemoryManager NOOA (installe par MemorySkill) ou None."""
         return getattr(self, "_memory", None)
 
     @hidden
-    def _load_core_skills(self) -> None:
-        """Injecte les résumés de tous les skills dans le contexte (niveau 1).
+    def _enable_history_summarizer(self) -> None:
+        """Installe un TokenBudgetSummarizer pour comprimer l'historique long.
 
-        Idempotent : ne recharge pas si déjà fait.
+        Empeche les conversations longues de depasser la fenetre de contexte.
+        Controle par DEEPBLENDER_AGENT_HISTORY_BUDGET (tokens, defaut 80000).
+        """
+        if os.getenv("DEEPBLENDER_NO_SUMMARIZER", "").lower() in ("1", "true"):
+            return
+        try:
+            from nooa.agents import TokenBudgetSummarizer
+            from nooa.config import TokenBudgetConfig
+
+            max_tokens = int(os.getenv("DEEPBLENDER_AGENT_HISTORY_BUDGET", "80000"))
+            TokenBudgetSummarizer.install(
+                self,
+                config=TokenBudgetConfig(max_tokens=max_tokens, preserve_recent=10),
+            )
+        except Exception:  # noqa: BLE001 - summarizer ne doit jamais bloquer
+            pass
+
+    @hidden
+    def _load_core_skills(self) -> None:
+        """Injecte les resumes de tous les skills dans le contexte (niveau 1).
+
+        Idempotent : ne recharge pas si deja fait.
+        Les skill summaries sont places dans le prefix stable pour maximiser
+        le cache KV cote provider (contenu qui ne change pas entre les appels).
         """
         if self._core_skills_loaded:
             return
         summaries = self._skill_registry.summaries()
-        self.context.set("available_skills", "\n".join(summaries))
+        self.context["available_skills"] = Context(
+            value="\n".join(summaries), prefix=True,
+        )
         self._core_skills_loaded = True
 
     @hidden
     def _load_skill(self, name: str) -> TextSkill:
         """Charge un skill complet dans le contexte (niveau 2+)."""
         skill = self._skill_registry.resolve(name)
-        self.context.set(f"skill_{name}", skill.__doc__ or "")
+        self.context[f"skill_{name}"] = Context(value=skill.__doc__ or "")
         return skill
 
     @hidden
@@ -324,7 +363,7 @@ class BaseAgent(Agent):
 
         Renseigné quand le client est un routeur multi-fournisseurs exposant
         ``last_provider_id`` / ``last_model`` (vainqueur réel du vote) ;
-        dict vide sinon — l'appelant retombe alors sur ``_get_model_id``.
+        dict vide sinon — l'appelant retombe sur ``_get_model_id``.
         """
         llm = getattr(self, "_llm", None)
         provider = getattr(llm, "last_provider_id", None)
@@ -332,6 +371,38 @@ class BaseAgent(Agent):
         if provider and model:
             return {"provider": str(provider), "model": str(model)}
         return {}
+
+    @hidden
+    def _install_guardrails(self) -> None:
+        """Installe des intercepts middleware pour valider les sorties.
+
+        Guardrails NOOA (nooa-middleware-hooks) :
+        - Validation des sorties trop courtes
+        - Logging des violations pour debugging
+        """
+        if not hasattr(self, "event_manager") or self.event_manager is None:
+            return
+        try:
+            self.event_manager.intercept("agent_call", _guardrail_validate_output)
+        except Exception:  # noqa: BLE001 - guardrails ne doivent jamais bloquer
+            pass
+
+
+def _guardrail_validate_output(ctx: Any, next_fn: Any) -> Any:
+    """Intercept middleware : valide la sortie d'une méthode agentic.
+
+    Signature NOOA middleware : (ctx, next_fn) -> result.
+    Bloque les sorties trop courtes (< 10 chars non vides).
+    """
+    result = getattr(ctx, "result", None)
+    if result is not None and isinstance(result, str) and len(result.strip()) < 10:
+        import logging
+        logging.getLogger("deepblender.guardrails").warning(
+            "Sortie trop courte (%d chars) pour %s",
+            len(result.strip()),
+            getattr(ctx, "method_name", "unknown"),
+        )
+    return next_fn(ctx)
 
 
 class DefaultsMixin:

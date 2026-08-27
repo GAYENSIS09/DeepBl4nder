@@ -1,21 +1,21 @@
-"""Objets domaine : StorySpec, StoryboardSpec (narration et découpage)."""
+"""Objets domaine : StorySpec, StoryboardSpec (narration et découpage).
+
+Structures narratives pour le pipeline de production vidéo/animation.
+"""
 
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass, field, is_dataclass
 from typing import Any
-from uuid import uuid4
 
-
-def _new_id() -> str:
-    return uuid4().hex
+from deepblender.domain.utils import new_id as _new_id
 
 
 def _plain(value: Any) -> Any:
     """Sérialise dataclass OU dict brut tel quel.
 
     NOOA construit les specs sans conversion récursive : quand le modèle
-    renvoie du JSON, les listes imbriquées (acts, shots, dialogues…) peuvent
+    renvoie du JSON, les listes imbriquées (acts, shots, dialogues… peuvent
     contenir des dicts au lieu des dataclass du domaine. Les sérialiseurs
     doivent tolérer les deux.
     """
@@ -26,51 +26,65 @@ def _plain(value: Any) -> Any:
 
 @dataclass
 class StoryBeat:
-    """Un temps fort narratif (beat) dans l'histoire."""
+    """Un temps fort narratif (beat) dans l'histoire.
 
-    description: str
-    characters: list[str] = field(default_factory=list)
-    location: str = ""
-    mood: str = ""
-    duration_estimate: float = 0.0  # en secondes
+    Représente un moment clé de l'intrigue : une révélation, un conflit,
+    une resolution. Les beats constituent la structure granulaire de l'histoire.
+    """
+
+    description: str  # description du beat narratif
+    characters: list[str] = field(default_factory=list)  # noms des personnages impliqués
+    location: str = ""  # lieu où se déroule le beat
+    mood: str = ""  # ambiance émotionnelle : joyeux, tendu, mélancolique...
+    duration_estimate: float = 0.0  # durée estimée en secondes
 
 
 @dataclass
 class Act:
-    """Un acte de l'histoire (structure en 3 actes classique)."""
+    """Un acte de l'histoire (structure en 3 actes classique).
 
-    name: str
-    beats: list[StoryBeat] = field(default_factory=list)
-    order: int = 0
+    Chaque acte contient une séquence de beats qui construisent l'intrigue.
+    """
+
+    name: str  # nom de l'acte (ex: "Acte 1 - Exposition")
+    beats: list[StoryBeat] = field(default_factory=list)  # séquence de beats
+    order: int = 0  # position dans la structure (0, 1, 2...)
 
 
 @dataclass
 class DialogueLine:
-    """Une ligne de dialogue."""
+    """Une ligne de dialogue : personnage, texte, émotion, langue.
 
-    character: str
-    text: str
-    emotion: str = ""
-    language: str = "fr"
-    start_time: float = 0.0
-    end_time: float = 0.0
+    Représente une réplique individuelle avec ses métadonnées.
+    """
+
+    character: str  # nom du personnage qui parle
+    text: str  # texte de la réplique
+    emotion: str = ""  # émotion du personnage : neutre, colère, joie, tristesse...
+    language: str = "fr"  # langue de la réplique (code ISO)
+    start_time: float = 0.0  # timestamp de début en secondes
+    end_time: float = 0.0  # timestamp de fin en secondes
 
 
 @dataclass
 class StorySpec:
-    """Spécification complète de l'histoire (synopsis, structure, dialogues)."""
+    """Spécification complète de l'histoire : synopsis, structure, dialogues.
 
-    logline: str = ""
-    synopsis: str = ""
-    genre: str = ""
-    tone: str = ""
-    target_audience: str = ""
-    acts: list[Act] = field(default_factory=list)
-    characters: list[str] = field(default_factory=list)
-    dialogues: list[DialogueLine] = field(default_factory=list)
-    themes: list[str] = field(default_factory=list)
-    id: str = field(default_factory=_new_id)
-    schema_version: int = 1
+    Produite par StoryAgent. Contient toute l'information narrative nécessaire
+    pour le reste du pipeline (storyboard, direction, audio...).
+    """
+
+    logline: str = ""  # résumé en une phrase (accroche)
+    synopsis: str = ""  # résumé détaillé de l'histoire
+    genre: str = ""  # genre : drame, comédie, thriller, animation, documentaire...
+    tone: str = ""  # ton : sérieux, léger, satirique, dramatique...
+    target_audience: str = ""  # public cible : enfants, adultes, famille...
+    acts: list[Act] = field(default_factory=list)  # structure en actes
+    characters: list[str] = field(default_factory=list)  # noms des personnages principaux
+    dialogues: list[DialogueLine] = field(default_factory=list)  # toutes les répliques
+    themes: list[str] = field(default_factory=list)  # thèmes explorés
+    id: str = field(default_factory=_new_id)  # identifiant unique
+    schema_version: int = 1  # version du schéma
 
     def to_mapping(self) -> dict[str, Any]:
         return {
@@ -101,7 +115,7 @@ class StorySpec:
                 for b in act_data.get("beats", [])
             ]
             acts.append(Act(name=act_data.get("name", ""), beats=beats, order=act_data.get("order", 0)))
-        
+
         dialogues = [
             DialogueLine(
                 character=d.get("character", ""),
@@ -113,7 +127,7 @@ class StorySpec:
             )
             for d in data.get("dialogues", [])
         ]
-        
+
         return cls(
             logline=data.get("logline", ""),
             synopsis=data.get("synopsis", ""),
@@ -130,29 +144,37 @@ class StorySpec:
 
 @dataclass
 class StoryboardShot:
-    """Un plan du storyboard (découpage visuel)."""
+    """Un plan du storyboard : description, caméra, personnages, action.
 
-    index: int
-    description: str = ""
-    duration: float = 5.0
-    camera_angle: str = "medium"  # wide, medium, closeup, extreme_closeup
-    camera_movement: str = "static"  # static, pan, tilt, dolly, crane, handheld
-    characters: list[str] = field(default_factory=list)
-    action: str = ""
+    Représente la vision visuelle d'un plan spécifique du storyboard.
+    Contient les instructions pour la caméra, les personnages et l'action.
+    """
+
+    index: int  # position du plan dans le storyboard (0-based)
+    description: str = ""  # description visuelle du plan
+    duration: float = 5.0  # durée en secondes
+    camera_angle: str = "medium"  # angle : wide, medium, closeup, extreme_closeup
+    camera_movement: str = "static"  # mouvement : static, pan, tilt, dolly, crane, handheld
+    characters: list[str] = field(default_factory=list)  # personnages visibles
+    action: str = ""  # description de l'action du plan
     dialogue_refs: list[int] = field(default_factory=list)  # indices dans StorySpec.dialogues
-    transition: str = "cut"  # cut, fade, dissolve, wipe
-    visual_notes: str = ""
-    order: int = 0
+    transition: str = "cut"  # transition vers le plan suivant : cut, fade, dissolve, wipe
+    visual_notes: str = ""  # notes visuelles supplémentaires
+    order: int = 0  # ordre dans le storyboard
 
 
 @dataclass
 class StoryboardSpec:
-    """Spécification complète du storyboard (liste ordonnée de plans)."""
+    """Spécification complète du storyboard : liste ordonnée de plans.
 
-    shots: list[StoryboardShot] = field(default_factory=list)
-    total_duration: float = 0.0
-    id: str = field(default_factory=_new_id)
-    schema_version: int = 1
+    Produite par StoryboardAgent. Convertit la narrative (StorySpec) en
+    instructions visuelles pour le pipeline de production.
+    """
+
+    shots: list[StoryboardShot] = field(default_factory=list)  # plans du storyboard
+    total_duration: float = 0.0  # durée totale en secondes
+    id: str = field(default_factory=_new_id)  # identifiant unique
+    schema_version: int = 1  # version du schéma
 
     def to_mapping(self) -> dict[str, Any]:
         return {

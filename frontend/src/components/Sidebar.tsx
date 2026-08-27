@@ -9,8 +9,10 @@ const NAV = [
   { href: '/', label: 'Tableau de bord', icon: '◈' },
   { href: '/pipeline', label: 'Pipeline', icon: '▷' },
   { href: '/realtime', label: 'Temps réel', icon: '⇄' },
+  { href: '/library', label: 'Bibliothèque', icon: '☰' },
   { href: '/costs', label: 'Coûts', icon: '¤' },
   { href: '/members', label: 'Membres', icon: '⊕' },
+  { href: '/settings', label: 'Paramètres', icon: '⚙' },
 ];
 
 export function Sidebar() {

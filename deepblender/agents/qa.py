@@ -13,11 +13,18 @@ from typing import Any
 
 from nooa import CodeActStrategy, PredictStrategy, strategy
 from nooa.agentdoc import hidden
+from nooa.config import CodeActConfig, PredictConfig
 
 from deepblender.agents.base import BaseAgent, DefaultsMixin
 from deepblender.domain.qa import QAReport, Issue, IssueKind
 from deepblender.domain.scene import SceneSpec
 from deepblender.skills.registry import SkillRegistry
+
+
+def _qa_postcondition(result: QAReport) -> str | None:
+    if not (0.0 <= result.score <= 1.0):
+        return f"QAReport.score must be between 0.0 and 1.0, got {result.score}"
+    return None
 
 
 class QAAgent(BaseAgent, DefaultsMixin):
@@ -45,7 +52,10 @@ class QAAgent(BaseAgent, DefaultsMixin):
     def __init__(self, *args: Any, skill_registry: SkillRegistry | None = None, **kwargs: Any) -> None:
         super().__init__(*args, skill_registry=skill_registry, **kwargs)
 
-    @strategy(CodeActStrategy())
+    @strategy(CodeActStrategy(config=CodeActConfig(
+        postconditions=[_qa_postcondition],
+        max_tokens=8192,
+    )))
     async def assess(self, spec: SceneSpec, artifact_path: str, code: str = "") -> QAReport:  # type: ignore[return]
         """Assess the rendered artifact against the scene spec.
 
@@ -68,7 +78,9 @@ class QAAgent(BaseAgent, DefaultsMixin):
         # CodeActStrategy generates assessment code, output validated as QAReport
         ...
 
-    @strategy(PredictStrategy())
+    @strategy(PredictStrategy(config=PredictConfig(
+        max_retries=3,
+    )))
     async def quick_scan(self, code: str, spec: SceneSpec) -> QAReport:  # type: ignore[return]
         """Fast semantic first-pass scan of a generated script.
 

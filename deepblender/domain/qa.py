@@ -1,4 +1,7 @@
-"""Objet domaine : QA (QAReport, Issue, RevisionSpec)."""
+"""Objet domaine : QA (QAReport, Issue, RevisionSpec).
+
+Structures pour le contrôle qualité et les demandes de révision.
+"""
 
 from __future__ import annotations
 
@@ -7,25 +10,31 @@ from enum import Enum
 
 
 class QAStatus(str, Enum):
-    PENDING = "pending"
-    PASS = "pass"
-    FAIL = "fail"
+    """Statut du contrôle qualité."""
+    PENDING = "pending"  # en attente d'évaluation
+    PASS = "pass"  # validation OK
+    FAIL = "fail"  # échec, révision nécessaire
 
 
 class IssueKind(str, Enum):
-    TECHNICAL = "technical"
-    VISUAL = "visual"
-    CONTINUITY = "continuity"
-    SEMANTIC = "semantic"
+    """Type de défaut relevé par le QA."""
+    TECHNICAL = "technical"  # erreur technique (script, syntaxe, crash)
+    VISUAL = "visual"  # problème visuel (rendu, texture, animation)
+    CONTINUITY = "continuity"  # incohérence narrative ou visuelle
+    SEMANTIC = "semantic"  # problème de sens ou d'interprétation
 
 
 @dataclass
 class Issue:
-    """Un défaut relevé par le QA."""
+    """Un défaut relevé par le QA : type, message, étape concernée.
 
-    kind: IssueKind
-    message: str
-    step: str = ""
+    Chaque issue cible une étape spécifique du pipeline pour permettre
+    une révision précise (pas de révision sur toute la production).
+    """
+
+    kind: IssueKind  # type de défaut
+    message: str  # description du problème
+    step: str = ""  # étape ciblée : director, blender, qa, animation...
 
     def __post_init__(self) -> None:
         if isinstance(self.kind, str):
@@ -34,12 +43,16 @@ class Issue:
 
 @dataclass
 class QAReport:
-    """Résultat typé du QA (Roadmap B §15)."""
+    """Résultat du contrôle qualité : verdict, score, issues, recommandations.
 
-    passed: bool
-    score: float
-    issues: list[Issue] = field(default_factory=list)
-    recommendations: list[str] = field(default_factory=list)
+    Produit par QAAgent. Le verdict (passed/failed) détermine si le pipeline
+    continue ou déclenche une révision. Le score (0-100) mesure la qualité.
+    """
+
+    passed: bool  # True si le rendu est acceptable
+    score: float  # score de qualité (0.0 à 100.0)
+    issues: list[Issue] = field(default_factory=list)  # liste des défauts trouvés
+    recommendations: list[str] = field(default_factory=list)  # suggestions d'amélioration
 
     @property
     def status(self) -> QAStatus:
@@ -48,8 +61,12 @@ class QAReport:
 
 @dataclass
 class RevisionSpec:
-    """Demande de révision ciblée vers l'étape concernée (jamais toute la production)."""
+    """Demande de révision ciblée vers l'étape concernée.
 
-    issues: list[Issue]
-    target_step: str
-    instructions: str = ""
+    Contient les issues à corriger et les instructions pour l'agent cible.
+    Ne jamais appliquer de révision sur toute la production.
+    """
+
+    issues: list[Issue]  # issues à corriger
+    target_step: str  # étape ciblée : director, blender, animation...
+    instructions: str = ""  # instructions détaillées pour la correction

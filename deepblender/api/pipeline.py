@@ -25,8 +25,12 @@ from deepblender.agents import (
     CharacterDesignerAgent,
     CompositingAgent,
     DirectorAgent,
+    EnvironmentArtistAgent,
     LocalizationAgent,
+    MusicComposerAgent,
     QAAgent,
+    ReviewAgent,
+    SoundDesignerAgent,
     StoryAgent,
     StoryboardAgent,
 )
@@ -43,12 +47,18 @@ logger = logging.getLogger("deepblender.api.pipeline")
 # Coûts estimés par étape (USD) — basés sur les prix LLM typiques
 _STEP_COSTS: dict[str, float] = {
     "director": 0.005,    # ~2k tokens input + 1k output
+    "character_design": 0.004,  # ~1.5k tokens
+    "environment": 0.004,       # ~1.5k tokens
     "blender": 0.010,     # ~4k tokens input + 2k output
     "qa": 0.003,          # ~1k tokens
+    "animation": 0.004,   # ~1.5k tokens
     "render": 0.0,        # GPU local, pas de coût LLM
+    "music": 0.005,       # ~2k tokens
+    "sound_design": 0.004, # ~1.5k tokens
     "audio": 0.005,       # ~2k tokens
     "compositing": 0.003, # ~1k tokens
     "localization": 0.008,# ~3k tokens par langue
+    "review": 0.003,      # ~1k tokens
 }
 
 
@@ -61,7 +71,7 @@ def _utcnow() -> datetime:
     return datetime.now(timezone.utc)
 
 
-def build_agents() -> tuple[Any, Any, Any, Any, Any, Any, Any, Any, Any, Any]:
+def build_agents() -> tuple[Any, Any, Any, Any, Any, Any, Any, Any, Any, Any, Any, Any, Any, Any]:
     """Construit les agents NOOA (story, storyboard, directeur, Blender, QA + post-production)."""
     llm = build_llm()
     return (
@@ -75,6 +85,10 @@ def build_agents() -> tuple[Any, Any, Any, Any, Any, Any, Any, Any, Any, Any]:
         CompositingAgent(llm=llm),
         CharacterDesignerAgent(llm=llm),
         AnimatorAgent(llm=llm),
+        EnvironmentArtistAgent(llm=llm),
+        MusicComposerAgent(llm=llm),
+        SoundDesignerAgent(llm=llm),
+        ReviewAgent(llm=llm),
     )
 
 
@@ -191,25 +205,25 @@ async def run_production(
     bus: Any = None,
     session_factory: Any = None,
     budget_limit: float = 1.0,
-    total_steps: int = 11,  # story + storyboard + director + character_design + animation + blender + qa + render + audio + localization + compositing
-    agents: tuple[Any, Any, Any, Any, Any, Any, Any, Any, Any, Any] | None = None,
+    total_steps: int = 14,  # story + storyboard + director + character_design + environment + blender + qa + animation + render + music + sound_design + audio + localization + compositing
+    agents: tuple[Any, ...] | None = None,
 ) -> None:
     """Lance le pipeline en tâche de fond et tient DB + bus à jour."""
-    story, storyboard, director, blender, qa, audio, localization, compositing, character_designer, animator = agents or build_agents()
+    (
+        story, storyboard, director, blender, qa, audio, localization, compositing,
+        character_designer, animator, environment_artist, music_composer,
+        sound_designer, review,
+    ) = agents or build_agents()
     workdir.mkdir(parents=True, exist_ok=True)
     budget = BudgetTracker(budget=budget_limit, run_id=production_id)
 
     # Create Blender bridge for rendering (lazy import to avoid slow startup)
-    from deepblender.blender.bridge import BlenderBridge
+    from deepblender.bridges.blender.bridge import BlenderBridge
     blender_bridge = BlenderBridge()
 
     # Max render retries from env (default 2)
     import os
     max_render_retries = int(os.environ.get("DEEPBLENDER_MAX_RENDER_RETRIES", "2"))
-
-    # Default total steps: story + storyboard + director + blender + qa + render + audio + localization + compositing = 9
-    if total_steps == 7:
-        total_steps = 9
 
     tracker = RunTracker(
         production_id=production_id,
@@ -226,7 +240,11 @@ async def run_production(
         localization=localization,
         compositing=compositing,
         character_designer=character_designer,
+        environment_artist=environment_artist,
         animator=animator,
+        music_composer=music_composer,
+        sound_designer=sound_designer,
+        review=review,
         workdir=workdir,
         budget=budget,
         event_hook=tracker.on_event,

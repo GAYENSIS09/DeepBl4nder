@@ -7,7 +7,7 @@ from typing import Callable
 
 import pytest
 
-from deepblender.blender.scheduler import WorkerScheduler
+from deepblender.bridges.blender.scheduler import WorkerScheduler
 
 
 def test_submit_returns_result() -> None:

@@ -37,9 +37,9 @@ NOOA_FREE_DIRS = ("domain", "codegen", "artifacts", "production", "bridge", "ble
 NOOA_ALLOWED_FILES = (
     "agents/audio.py",
     "agents/blender.py",
-    "agents/compositing.py",
+    "agents/comp.py",
     "agents/director.py",
-    "agents/localization.py",
+    "agents/loc.py",
     "agents/qa.py",
     "skills/registry.py",
 )

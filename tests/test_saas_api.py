@@ -326,17 +326,53 @@ class _StubStoryboard:
 
 class _StubCharacterDesigner:
     async def design_characters(self, scene):
-        from deepblender.agents.character_designer import CharacterDesignResult, CharacterModel
+        from deepblender.domain.media import CharacterDesignResult, CharacterModel
         return CharacterDesignResult(characters=[
             CharacterModel(name="Hero", description="Main character", geometry_type="primitive"),
         ])
 
 class _StubAnimator:
     async def generate_animations(self, scene):
-        from deepblender.agents.animator import AnimationResult, AnimationClip
+        from deepblender.domain.media import AnimationResult, AnimationClip
         return AnimationResult(clips=[
             AnimationClip(character_name="Hero", shot_index=0, duration=1.0),
         ])
+
+class _StubEnvironmentArtist:
+    async def design_environment(self, scene):
+        from dataclasses import dataclass, field
+        from typing import Any
+
+        @dataclass
+        class EnvResult:
+            mood: str = "neutral"
+            assets: list = field(default_factory=list)
+            def to_mapping(self):
+                return {"mood": self.mood, "assets": self.assets}
+        return EnvResult()
+
+class _StubMusicComposer:
+    async def compose_music(self, scene):
+        from deepblender.domain.media import MusicPlan
+        return MusicPlan(main_theme="stub_theme", total_duration=5.0)
+
+class _StubSoundDesigner:
+    async def design_sound(self, scene):
+        from deepblender.domain.media import SoundDesignPlan
+        return SoundDesignPlan()
+
+class _StubReview:
+    async def review_production(self, scene, render_output=None, audio_plan=None, composite_spec=None):
+        from dataclasses import dataclass
+
+        @dataclass
+        class ReviewReport:
+            approved: bool = True
+            notes: str = "stub review passed"
+            score: float = 1.0
+            def to_mapping(self):
+                return {"approved": self.approved, "notes": self.notes, "score": self.score}
+        return ReviewReport()
 
 def _stub_agents():
     return (
@@ -350,6 +386,10 @@ def _stub_agents():
         _StubCompositing(),
         _StubCharacterDesigner(),
         _StubAnimator(),
+        _StubEnvironmentArtist(),
+        _StubMusicComposer(),
+        _StubSoundDesigner(),
+        _StubReview(),
     )
 
 

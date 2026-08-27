@@ -5,6 +5,9 @@ le validateur AST (CodePolicy) avant exécution dans un worker Blender isolé.
 
 Utilise les skills : blender-python, modeling, shading, rigging, animation,
 camera, lighting, rendering, compositing, simulation, texturing, uv.
+
+Charge automatiquement les assets (PolyHaven HDRI/textures, Quaternius/Mixamo characters)
+pour améliorer la qualité de sortie au-delà des primitives.
 """
 
 from __future__ import annotations
@@ -28,7 +31,7 @@ from deepblender.skills.registry import SkillRegistry
 
 def _blender_reflexion_config() -> ReflexionConfig:
     """Config de réflexion : boucle courte, une itération de révision par défaut."""
-    return ReflexionConfig(max_iterations=1)
+    return ReflexionConfig(max_iterations=2)
 
 
 class BlenderAgent(BaseAgent, DefaultsMixin):
@@ -86,6 +89,75 @@ class BlenderAgent(BaseAgent, DefaultsMixin):
     - For object names, use SHORT identifiers: "alley", "neon_sign", "rain_emitter".
     - For print/log messages, keep them under 60 chars.
 
+    ## CRITICAL: Quality requirements
+    You MUST produce commercial-quality output. Follow these rules:
+
+    ### Render settings
+    - Use Cycles engine with {samples} samples (256+ for production)
+    - Enable denoising: scene.cycles.use_denoising = True
+    - Use GPU if available: cycles.device = 'GPU' (fallback to 'CPU')
+    - Resolution: {resolution}
+    - Output format: OPEN_EXR_MULTILAYER (for compositing)
+
+    ### Compositing nodes (MANDATORY)
+    You MUST set up compositing nodes for every render:
+    1. Render Layers node (input)
+    2. Glare node (type='FOG_GLOW', quality='HIGH', threshold=0.8, size=7)
+    3. Color Balance node (lift/gamma/gain based on lighting_mood)
+    4. Lens Distortion (dispersion=0.005 for subtle chromatic aberration)
+    5. Composite node (output)
+    6. File Output node (save EXR with render passes)
+    Enable render passes: Combined, Depth, Normal, Mist, AO
+
+    ### Materials
+    - Use image-based PBR textures when asset_paths are provided
+    - Use Principled BSDF with proper roughness, metallic, normal maps
+    - For procedural textures, use noise + colorramp for variation
+    - Never use flat colors without any surface detail
+
+    ### Characters
+    - If asset_paths contain .glb/.fbx character files, import them:
+      bpy.ops.import_scene.gltf(filepath=asset_path)
+    - Position characters using their 'position' from SceneSpec
+    - For animations, use NLA strips or keyframe the armature
+
+    ### Lighting
+    - If asset_paths contain .exr HDRI files, use them as world background
+    - Set up 3-point lighting (key, fill, rim) matching lighting_mood
+    - Use area lights for soft shadows, spot lights for dramatic effect
+
+    ### Animation (single script, multi-shot)
+    - ALL shots in ONE script using frame ranges
+    - Shot N: frames [start_frame, end_frame]
+    - Switch cameras by keyframing camera visibility or Track To constraint
+    - Animate character positions with location keyframes
+
+    ### Multi-shot pattern
+    ```python
+    # Setup scene once (environment, characters, lighting)
+    # ...
+
+    # Shot 1: frames 0 to {shot1_frames}
+    cam1 = bpy.data.cameras['Shot1']
+    cam1_obj = bpy.data.objects.new('Shot1', cam1)
+    scene.collection.objects.link(cam1_obj)
+    scene.camera = cam1_obj
+    scene.frame_start = 0
+    scene.frame_end = {shot1_frames}
+    # Animate characters for shot 1...
+    bpy.ops.render.render(animation=True)
+
+    # Shot 2: frames {shot1_frames} to {shot1_frames + shot2_frames}
+    cam2 = bpy.data.cameras['Shot2']
+    cam2_obj = bpy.data.objects.new('Shot2', cam2)
+    scene.collection.objects.link(cam2_obj)
+    scene.camera = cam2_obj
+    scene.frame_start = {shot1_frames}
+    scene.frame_end = {shot1_frames + shot2_frames}
+    # Animate characters for shot 2...
+    bpy.ops.render.render(animation=True)
+    ```
+
     ## Revision
     - On a QA revision, ``revision_feedback`` is set in context with the failing
       issues (kind, step, message) and recommendations. Address each issue
@@ -94,11 +166,12 @@ class BlenderAgent(BaseAgent, DefaultsMixin):
 
     def __init__(self, *args: Any, skill_registry: SkillRegistry | None = None, **kwargs: Any) -> None:
         self._last_spec: SceneSpec | None = None
+        self._asset_paths: dict[str, str] = {}
         super().__init__(*args, skill_registry=skill_registry, **kwargs)
 
     @strategy(codeact_with_sandbox(CodeActConfig(
         postconditions=[blender_script_postcondition],
-        max_tokens=16384,
+        max_tokens=24576,
     )))
     async def build_script(self, spec: SceneSpec) -> BlenderScript:  # type: ignore[return]
         """Turn the scene spec into a deterministic Blender Python script.
@@ -110,16 +183,18 @@ class BlenderAgent(BaseAgent, DefaultsMixin):
 
         Steps:
         1. Load core skill summaries for context
-        2. Analyze SceneSpec: environment, characters, shots
-        3. Load relevant skills (blender-python, modeling, shading, lighting, camera, rendering, animation) as needed
-        4. Generate Python code that:
-           - Clears scene, sets render settings (fps, resolution, engine)
-           - Creates environment (HDRI, ground plane, rain particles if needed)
-           - Creates characters (imports assets or generates primitives)
-           - For each shot: sets camera, lighting, animates characters/objects
+        2. Download assets (HDRI, characters, textures) based on SceneSpec
+        3. Inject asset paths into context for the LLM
+        4. Load relevant skills (blender-python, modeling, shading, lighting, camera, rendering, animation, compositing)
+        5. Generate Python code that:
+           - Clears scene, sets render settings (fps, resolution, engine, denoising, GPU)
+           - Creates environment (HDRI background, ground plane, rain particles if needed)
+           - Creates/imports characters (.glb assets or primitives fallback)
+           - For EACH shot in a single script: sets camera, lighting, animates characters
+           - Sets up compositing nodes (glare, color balance, lens distortion)
            - Sets scene.render.filepath to an ABSOLUTE path inside render_dir
-           - Sets up render passes for compositing
-        5. Return BlenderScript with code, scene_name, version
+           - Enables render passes (Combined, Depth, Normal, Mist, AO)
+        6. Return BlenderScript with code, scene_name, version
         """
         self._load_core_skills()
 
@@ -127,12 +202,16 @@ class BlenderAgent(BaseAgent, DefaultsMixin):
         self._load_skills(
             "blender-python",
             "modeling", "shading", "lighting", "camera", "rendering",
+            "compositing",
         )
         if any(s.animation.description for s in spec.shots):
             self._load_skill("animation")
 
-        # The CodeActStrategy will generate Python code to build the BlenderScript
-        # Output is validated against BlenderScript type annotation
+        # Download and inject assets
+        self._download_assets(spec)
+
+        # Inject asset paths into context
+        self._set_context("asset_paths", self._format_asset_paths())
         self._set_dynamic("scene_summary", "self._current_scene_summary(self._last_spec)")
         self._last_spec = spec
         ...
@@ -159,7 +238,7 @@ class BlenderAgent(BaseAgent, DefaultsMixin):
         ReflexionStrategy(
             base=CodeActStrategy(config=CodeActConfig(
                 postconditions=[blender_script_postcondition],
-                max_tokens=16384,
+                max_tokens=24576,
             )),
             config=_blender_reflexion_config(),
         )
@@ -185,10 +264,88 @@ class BlenderAgent(BaseAgent, DefaultsMixin):
         self._load_skills(
             "blender-python", "blender-api-reference",
             "modeling", "shading", "lighting", "camera", "rendering",
+            "compositing",
         )
-        self.context.set("revision_feedback", revision_feedback)
-        self.context.set("script_version", str(version))
+        self.context["revision_feedback"] = revision_feedback
+        self.context["script_version"] = str(version)
         ...
+
+    @hidden
+    def _download_assets(self, spec: SceneSpec) -> None:
+        """Télécharge les assets nécessaires (HDRI, characters, textures)."""
+        self._asset_paths = {}
+
+        # Download HDRI based on lighting mood
+        try:
+            from deepblender.assets.polyhaven import get_client
+            polyhaven = get_client()
+            mood_tags = {
+                "warm": ["warm", "sunset"],
+                "cold": ["cold", "winter", "blue"],
+                "dramatic": ["dramatic", "dark", "stormy"],
+                "cinematic": ["cinematic", "night", "urban"],
+                "neutral": ["studio", "soft"],
+            }
+            tags = mood_tags.get(spec.environment.lighting_mood, [])
+            hdris = polyhaven.search_hdris(tags=tags, limit=1)
+            if hdris:
+                hdri_path = polyhaven.download_hdri(hdris[0]["name"], resolution="1k")
+                self._asset_paths["hdri"] = str(hdri_path)
+        except Exception:
+            pass
+
+        # Download character assets
+        try:
+            from deepblender.assets.characters import get_character_client
+            char_client = get_character_client()
+            for char in spec.characters:
+                if char.asset_id:
+                    path = char_client.download(char.asset_id, source=char.asset_source or "quaternius")
+                    self._asset_paths[f"character_{char.name}"] = str(path)
+                elif not char.asset_id:
+                    # Auto-select a character based on description
+                    query = char.description or char.name
+                    results = char_client.search_characters(query, limit=1)
+                    if results:
+                        path = char_client.download(results[0]["name"], source=results[0].get("source", "fallback"))
+                        self._asset_paths[f"character_{char.name}"] = str(path)
+        except Exception:
+            pass
+
+        # Download textures based on environment description
+        try:
+            from deepblender.assets.polyhaven import get_client
+            polyhaven = get_client()
+            desc = spec.environment.description.lower()
+            tex_tags = []
+            if any(w in desc for w in ["metal", "steel", "iron"]):
+                tex_tags.append("metal")
+            if any(w in desc for w in ["wood", "timber", "plank"]):
+                tex_tags.append("wood")
+            if any(w in desc for w in ["stone", "brick", "concrete"]):
+                tex_tags.append("stone")
+            if any(w in desc for w in ["water", "wet", "rain"]):
+                tex_tags.append("water")
+            if tex_tags:
+                textures = polyhaven.search_textures(tags=tex_tags[:3], limit=3)
+                for i, tex in enumerate(textures):
+                    try:
+                        tex_path = polyhaven.download_texture_map(tex["name"], map_type="diffuse")
+                        self._asset_paths[f"texture_{i}"] = str(tex_path)
+                    except Exception:
+                        pass
+        except Exception:
+            pass
+
+    @hidden
+    def _format_asset_paths(self) -> str:
+        """Formate les chemins d'assets pour le contexte LLM."""
+        if not self._asset_paths:
+            return "No assets available. Use procedural generation."
+        lines = ["Available assets (use these absolute paths in bpy.ops.import):"]
+        for key, path in self._asset_paths.items():
+            lines.append(f"  {key}: {path}")
+        return "\n".join(lines)
 
     @hidden
     def _current_scene_summary(self, spec: SceneSpec | None) -> str:
@@ -201,8 +358,15 @@ class BlenderAgent(BaseAgent, DefaultsMixin):
                 "environment": spec.environment.description,
                 "lighting_mood": spec.environment.lighting_mood,
                 "rain": spec.environment.rain,
-                "characters": [c.name for c in spec.characters],
+                "characters": [
+                    f"{c.name} (asset={c.asset_id or 'none'})"
+                    for c in spec.characters
+                ],
                 "shots": len(spec.shots),
+                "render_samples": spec.render.samples,
+                "render_denoise": spec.render.denoise,
+                "render_gpu": spec.render.use_gpu,
+                "assets_loaded": len(self._asset_paths),
             }
         )
 

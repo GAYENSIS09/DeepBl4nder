@@ -11,7 +11,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from deepblender.blender.bridge import BlenderBridge
+from deepblender.bridges.blender.bridge import BlenderBridge
 from deepblender.bridge.worker import ProcessResult
 from deepblender.domain.scene import BlenderScript
 from deepblender.plugins.base import Plugin

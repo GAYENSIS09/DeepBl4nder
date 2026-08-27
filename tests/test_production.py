@@ -39,7 +39,7 @@ def test_budget_within_budget() -> None:
     tracker.add_render(0.46)
     tracker.add_storage(0.02)
     assert tracker.total == 0.66
-    assert tracker.remaining == 0.34
+    assert tracker.remaining == pytest.approx(0.34)
     assert not tracker.over_budget()
 
 

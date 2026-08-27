@@ -13,6 +13,7 @@ from nooa.agentdoc import hidden
 from nooa.config.strategy_config import CodeActConfig
 
 from deepblender.agents.base import BaseAgent, DefaultsMixin
+from deepblender.domain.media import AnimationResult
 from deepblender.domain.scene import SceneSpec, ShotSpec
 from deepblender.skills.registry import SkillRegistry
 
@@ -21,100 +22,6 @@ def _animation_postcondition(result: Any) -> str | None:
     if not hasattr(result, "clips") or not result.clips:
         return "AnimationResult must contain at least one animation clip"
     return None
-
-
-class AnimationClip:
-    """Un clip d'animation pour un personnage dans un plan."""
-
-    def __init__(
-        self,
-        character_name: str,
-        shot_index: int,
-        keyframes: list[Keyframe] | None = None,
-        constraints: list[Constraint] | None = None,
-        lip_sync: bool = False,
-        expression: str | None = None,
-        duration: float = 0.0,
-        fps: int = 24,
-    ) -> None:
-        self.character_name = character_name
-        self.shot_index = shot_index
-        self.keyframes = keyframes or []
-        self.constraints = constraints or []
-        self.lip_sync = lip_sync
-        self.expression = expression
-        self.duration = duration
-        self.fps = fps
-
-    def to_mapping(self) -> dict[str, Any]:
-        return {
-            "character_name": self.character_name,
-            "shot_index": self.shot_index,
-            "keyframes": [k.to_mapping() for k in self.keyframes],
-            "constraints": [c.to_mapping() for c in self.constraints],
-            "lip_sync": self.lip_sync,
-            "expression": self.expression,
-            "duration": self.duration,
-            "fps": self.fps,
-        }
-
-
-class Keyframe:
-    """Un keyframe d'animation."""
-
-    def __init__(
-        self,
-        frame: int,
-        property_path: str,
-        value: Any,
-        interpolation: str = "BEZIER",
-    ) -> None:
-        self.frame = frame
-        self.property_path = property_path
-        self.value = value
-        self.interpolation = interpolation
-
-    def to_mapping(self) -> dict[str, Any]:
-        return {
-            "frame": self.frame,
-            "property_path": self.property_path,
-            "value": self.value,
-            "interpolation": self.interpolation,
-        }
-
-
-class Constraint:
-    """Une contrainte d'animation."""
-
-    def __init__(
-        self,
-        type: str,
-        target: str | None = None,
-        influence: float = 1.0,
-        properties: dict[str, Any] | None = None,
-    ) -> None:
-        self.type = type
-        self.target = target
-        self.influence = influence
-        self.properties = properties or {}
-
-    def to_mapping(self) -> dict[str, Any]:
-        return {
-            "type": self.type,
-            "target": self.target,
-            "influence": self.influence,
-            "properties": self.properties,
-        }
-
-
-class AnimationResult:
-    """Résultat de la génération d'animations."""
-
-    def __init__(self, clips: list[AnimationClip]) -> None:
-        self.clips = clips
-
-    def to_mapping(self) -> dict[str, Any]:
-        return {"clips": [c.to_mapping() for c in self.clips]}
 
 
 class AnimatorAgent(BaseAgent, DefaultsMixin):

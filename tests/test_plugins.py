@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import cast
 
 from deepblender.codegen import CodePolicyViolation
-from deepblender.blender.bridge import BlenderNotFoundError
+from deepblender.bridges.blender.bridge import BlenderNotFoundError
 from deepblender.domain.scene import BlenderScript
 from deepblender.plugins.knowledge.asset_library import AssetLibraryPlugin
 from deepblender.plugins.media.audio import AudioPlugin

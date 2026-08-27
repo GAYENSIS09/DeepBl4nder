@@ -10,73 +10,153 @@ from dataclasses import asdict, dataclass, field
 from typing import Any
 
 
+# Moteurs de rendu supportés
+ENGINE_BLENDER = "BLENDER"
+ENGINE_UE5 = "UE5"
+ENGINE_GODOT = "GODOT"
+ENGINE_AI_VIDEO = "AI_VIDEO"
+SUPPORTED_ENGINES = (ENGINE_BLENDER, ENGINE_UE5, ENGINE_GODOT, ENGINE_AI_VIDEO)
+
+
+@dataclass
+class UE5RenderSpec:
+    """Paramètres spécifiques à Unreal Engine 5.
+
+    Utilisé par UE5Agent pour configurer le rendu Lumen/Nanite/MRQ.
+    """
+
+    use_lumen: bool = True  # Global illumination Lumen (réaliste)
+    use_nanite: bool = True  # Géométrie virtualisée (performant)
+    use_ray_tracing: bool = False  # Ray tracing hardware (lent mais fidèle)
+    quality_preset: str = "cinematic"  # epic | cinematic
+    console_variables: dict[str, float] = field(default_factory=dict)  # CV custom
+
+    def to_mapping(self) -> dict[str, Any]:
+        return {
+            "use_lumen": self.use_lumen,
+            "use_nanite": self.use_nanite,
+            "use_ray_tracing": self.use_ray_tracing,
+            "quality_preset": self.quality_preset,
+            "console_variables": dict(self.console_variables),
+        }
+
+    @classmethod
+    def from_mapping(cls, data: dict[str, Any]) -> "UE5RenderSpec":
+        return cls(
+            use_lumen=data.get("use_lumen", True),
+            use_nanite=data.get("use_nanite", True),
+            use_ray_tracing=data.get("use_ray_tracing", False),
+            quality_preset=data.get("quality_preset", "cinematic"),
+            console_variables=data.get("console_variables", {}),
+        )
+
+
 @dataclass
 class RenderSpec:
-    """Spécification explicite de rendu (résolution, fps, format, échantillons)."""
+    """Paramètres de rendu : résolution, fps, format, moteur.
 
-    resolution: tuple[int, int] = (1920, 1080)
-    fps: int = 24
-    format: str = "mp4"
-    samples: int = 64
-    engine: str = "CYCLES"  # CYCLES | EEVEE
+    Le champ ``engine`` détermine quel agent et bridge sont utilisés :
+    - BLENDER/CYCLES/EEVEE : BlenderAgent → BlenderBridge
+    - UE5 : UE5Agent → UE5Bridge (REST API)
+    - GODOT : GodotAgent → GodotBridge (CLI)
+    - AI_VIDEO : AIVideoAgent → DiffusionBridge (GPU)
+    """
+
+    resolution: tuple[int, int] = (1920, 1080)  # largeur x hauteur en pixels
+    fps: int = 24  # images par seconde
+    format: str = "mp4"  # format de sortie : mp4, png, exr
+    samples: int = 256  # échantillons par pixel (qualité du débruitage)
+    engine: str = "CYCLES"  # moteur : CYCLES | EEVEE | BLENDER | UE5 | GODOT | AI_VIDEO
+    denoise: bool = True  # active le débruitage OIDN (réduit le bruit)
+    use_gpu: bool = True  # utilise le GPU CUDA/OptiX si disponible
+    output_format: str = "OPEN_EXR_MULTILAYER"  # format de sortie Blender (exr, png, mp4)
+    ue5: UE5RenderSpec | None = None  # settings spécifiques UE5 (si engine=UE5)
 
     def __post_init__(self):
         # Ensure resolution is a fixed-length tuple of 2 ints
         if isinstance(self.resolution, (list, tuple)) and len(self.resolution) == 2:
             self.resolution = (int(self.resolution[0]), int(self.resolution[1]))
 
+    def is_blender_engine(self) -> bool:
+        """True si le moteur est un variant de Blender."""
+        return self.engine.upper() in ("CYCLES", "EEVEE", "BLENDER", "")
+
+    def is_ue5_engine(self) -> bool:
+        """True si le moteur est Unreal Engine 5."""
+        return self.engine.upper() == "UE5"
+
     def to_mapping(self) -> dict[str, Any]:
-        return {
+        result = {
             "resolution": list(self.resolution),
             "fps": self.fps,
             "format": self.format,
             "samples": self.samples,
             "engine": self.engine,
+            "denoise": self.denoise,
+            "use_gpu": self.use_gpu,
+            "output_format": self.output_format,
         }
+        if self.ue5 is not None:
+            result["ue5"] = self.ue5.to_mapping()
+        return result
 
     @classmethod
     def from_mapping(cls, data: dict[str, Any]) -> "RenderSpec":
         raw_resolution = data.get("resolution", (1920, 1080))
+        ue5_data = data.get("ue5")
+        ue5 = UE5RenderSpec.from_mapping(ue5_data) if ue5_data else None
         return cls(
             resolution=(int(raw_resolution[0]), int(raw_resolution[1])),
             fps=data.get("fps", 24),
             format=data.get("format", "mp4"),
-            samples=data.get("samples", 64),
+            samples=data.get("samples", 256),
             engine=data.get("engine", "CYCLES"),
+            denoise=data.get("denoise", True),
+            use_gpu=data.get("use_gpu", True),
+            output_format=data.get("output_format", "OPEN_EXR_MULTILAYER"),
+            ue5=ue5,
         )
 
 
 @dataclass
 class CameraSpec:
-    """Spécification de caméra pour un plan."""
+    """Configuration de caméra pour un plan : focale, position, rotation.
 
-    focal_length_mm: float = 50.0
-    position: tuple[float, float, float] = (0.0, -5.0, 1.5)
-    rotation: tuple[float, float, float] = (0.0, 0.0, 0.0)
+    La position et rotation sont en coordonnées Blender (unités métriques).
+    """
+
+    focal_length_mm: float = 50.0  # longueur focale en millimètres
+    position: tuple[float, float, float] = (0.0, -5.0, 1.5)  # (x, y, z) en mètres
+    rotation: tuple[float, float, float] = (0.0, 0.0, 0.0)  # (roll, pitch, yaw) en degrés
 
 
 @dataclass
 class EnvironmentSpec:
-    """Ambiance du plan : décor et conditions."""
+    """Ambiance du plan : décor, éclairage et conditions atmosphériques.
 
-    description: str = ""
-    lighting_mood: str = "neutral"
-    rain: bool = False
+    Décrit l'environnement dans lequel se déroule le plan.
+    """
+
+    description: str = ""  # description textuelle du décor (ex: "forêt sombre et brumeuse")
+    lighting_mood: str = "neutral"  # ambiance lumineuse : neutral, warm, cold, dramatic, cinematic
+    rain: bool = False  # active la pluie et les flaques
 
 
 @dataclass
 class CharacterSpec:
-    """Personnage présent dans la scène.
+    """Personnage présent dans la scène : nom, apparence, position, langues.
 
     Un personnage peut parler plusieurs langues : ``main_language`` est sa
     langue principale, ``languages`` les langues secondaires éventuelles.
     """
 
-    name: str
-    description: str = ""
-    position: tuple[float, float, float] = (0.0, 0.0, 0.0)
-    main_language: str = ""
-    languages: list[str] = field(default_factory=list)
+    name: str  # nom du personnage (identifiant unique dans la scène)
+    description: str = ""  # description visuelle et comportementale
+    position: tuple[float, float, float] = (0.0, 0.0, 0.0)  # (x, y, z) position initiale
+    main_language: str = ""  # langue principale parlée (code ISO : fr, en, wo, ar...)
+    languages: list[str] = field(default_factory=list)  # langues secondaires
+    asset_id: str = ""  # identifiant de l'asset 3D (ex: "quaternius__animated_woman")
+    asset_source: str = ""  # source : "quaternius", "mixamo", "polyhaven", "fallback", ""
 
     def spoken_languages(self) -> list[str]:
         """Langues parlées (principale en premier), sans doublon ni vide."""
@@ -93,36 +173,48 @@ class CharacterSpec:
             "position": list(self.position),
             "main_language": self.main_language,
             "languages": list(self.languages),
+            "asset_id": self.asset_id,
+            "asset_source": self.asset_source,
         }
 
 
 @dataclass
 class AnimationSpec:
-    """Mouvement demandé (personnage / objet / caméra)."""
+    """Mouvement demandé pour un personnage, objet ou caméra dans un plan.
 
-    description: str = ""
+    Décrit l'action à animer en langage naturel.
+    """
+
+    description: str = ""  # ex: "le personnage lève le bras et attrape la tasse"
 
 
 @dataclass
 class LightingSpec:
-    """Configuration d'éclairage."""
+    """Configuration d'éclairage pour un plan : source, intensité, couleur.
 
-    key_light: str = "area"
-    intensity: float = 1.0
-    color: tuple[float, float, float] = (1.0, 1.0, 1.0)
+    Utilisé par EnvironmentArtistAgent pour placer les lights dans la scène 3D.
+    """
+
+    key_light: str = "area"  # type de lumière principale : area, point, sun, spot
+    intensity: float = 1.0  # intensité relative (0.0 à 2.0)
+    color: tuple[float, float, float] = (1.0, 1.0, 1.0) # couleur RGB normalisée (0-1)
 
 
 @dataclass
 class ShotSpec:
-    """Spec d'un plan : caméra, décor, personnages, animation, lumière."""
+    """Spec d'un plan : caméra, décor, personnages, animation, lumière.
 
-    duration: float = 5.0
-    fps: int = 24
-    camera: CameraSpec = field(default_factory=CameraSpec)
-    environment: EnvironmentSpec = field(default_factory=EnvironmentSpec)
-    characters: list[CharacterSpec] = field(default_factory=list)
-    animation: AnimationSpec = field(default_factory=AnimationSpec)
-    lighting: LightingSpec = field(default_factory=LightingSpec)
+    Représente un plan individuel du storyboard. Chaque plan a sa propre
+    configuration de caméra, environnement, personnages et animation.
+    """
+
+    duration: float = 5.0  # durée en secondes
+    fps: int = 24  # images par seconde pour ce plan
+    camera: CameraSpec = field(default_factory=CameraSpec)  # configuration caméra
+    environment: EnvironmentSpec = field(default_factory=EnvironmentSpec)  # décor
+    characters: list[CharacterSpec] = field(default_factory=list)  # personnages présents
+    animation: AnimationSpec = field(default_factory=AnimationSpec)  # mouvement
+    lighting: LightingSpec = field(default_factory=LightingSpec)  # éclairage
 
     def frame_count(self) -> int:
         """Nombre de frames du plan (logique déterministe, P3)."""
@@ -131,13 +223,17 @@ class ShotSpec:
 
 @dataclass
 class SceneSpec:
-    """Spec complète d'une scène, produite par le DirectorAgent."""
+    """Spec complète d'une scène : brief, environnement, personnages, plans.
 
-    brief: str
-    environment: EnvironmentSpec = field(default_factory=EnvironmentSpec)
-    characters: list[CharacterSpec] = field(default_factory=list)
-    shots: list[ShotSpec] = field(default_factory=list)
-    render: RenderSpec = field(default_factory=RenderSpec)
+    Produite par le DirectorAgent à partir du brief. Chaque agent du pipeline
+    lit cette spec pour produire son output (storyboard, script, rendu, audio...).
+    """
+
+    brief: str  # brief initial de l'utilisateur
+    environment: EnvironmentSpec = field(default_factory=EnvironmentSpec)  # décor global
+    characters: list[CharacterSpec] = field(default_factory=list)  # tous les personnages
+    shots: list[ShotSpec] = field(default_factory=list)  # liste ordonnée des plans
+    render: RenderSpec = field(default_factory=RenderSpec)  # paramètres de rendu
 
     SCENE_SPEC_VERSION: int = 1
 
@@ -175,6 +271,9 @@ class SceneSpec:
                 float(position[1]),
                 float(position[2]),
             )
+        # Handle new asset fields
+        payload.setdefault("asset_id", "")
+        payload.setdefault("asset_source", "")
         return CharacterSpec(**payload)
 
     @classmethod
@@ -238,24 +337,30 @@ class SceneSpec:
 
 @dataclass
 class BlenderScript:
-    """Script Blender (bpy) généré, prêt à être validé puis exécuté."""
+    """Script Blender (bpy) généré par BlenderAgent, prêt à être validé puis exécuté.
 
-    code: str
-    scene_name: str
-    version: int = 1
+    Contient le code Python complet qui crée la scène 3D dans Blender.
+    """
+
+    code: str  # code Python Blender complet (bpy)
+    scene_name: str  # nom de la scène Blender
+    version: int = 1  # numéro de version du script
 
 
 @dataclass
 class RenderOutput:
-    """Résultat du rendu : fichier vidéo/image produit par Blender."""
+    """Résultat du rendu : fichier vidéo/image produit par Blender.
 
-    video_path: str
-    scene_name: str
-    duration: float = 0.0
-    fps: int = 24
-    resolution: tuple[int, int] = (1920, 1080)
-    format: str = "mp4"
-    version: int = 1
+    Généré après exécution du BlenderScript dans Blender.
+    """
+
+    video_path: str  # chemin vers le fichier vidéo de sortie
+    scene_name: str  # nom de la scène rendue
+    duration: float = 0.0  # durée en secondes
+    fps: int = 24  # images par seconde
+    resolution: tuple[int, int] = (1920, 1080)  # résolution en pixels
+    format: str = "mp4"  # format du fichier
+    version: int = 1  # numéro de version du rendu
 
     def to_mapping(self) -> dict[str, Any]:
         return {
@@ -271,17 +376,20 @@ class RenderOutput:
 
 @dataclass
 class FinalOutput:
-    """Sortie finale : vidéo + audio + sous-titres fusionnés."""
+    """Sortie finale : vidéo + audio + sous-titres fusionnés.
 
-    output_path: str
-    scene_name: str
-    duration: float = 0.0
-    fps: int = 24
-    resolution: tuple[int, int] = (1920, 1080)
-    format: str = "mp4"
-    version: int = 1
-    has_audio: bool = False
-    has_subtitles: bool = False
+    Résultat final du pipeline après compositing et merge.
+    """
+
+    output_path: str  # chemin vers le fichier final
+    scene_name: str  # nom de la scène
+    duration: float = 0.0  # durée en secondes
+    fps: int = 24  # images par seconde
+    resolution: tuple[int, int] = (1920, 1080)  # résolution en pixels
+    format: str = "mp4" # format de sortie
+    version: int = 1  # numéro de version
+    has_audio: bool = False  # contient une piste audio mixée
+    has_subtitles: bool = False  # contient des sous-titres brûlés
 
     def to_mapping(self) -> dict[str, Any]:
         return {

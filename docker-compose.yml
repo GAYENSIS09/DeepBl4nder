@@ -1,53 +1,237 @@
+# DeepBlender — Docker Compose Production
+#
+# Usage:
+#   cp .env.production .env
+#   docker compose up -d
+#
+# Services:
+#   postgres, redis, minio          — infrastructure
+#   langfuse                        — observabilité LLM
+#   deepblender-api                 — FastAPI gateway
+#   deepblender-worker              — Blender + FFmpeg (GPU)
+#   deepblender-scheduler           — Celery workers
+#   ue5-server                      — Unreal Engine 5 REST API (optionnel, profile "ue5")
+#   frontend                        — Next.js UI
+
+x-deepblender-env: &deepblender-env
+  # Database
+  DEEPBLENDER_DB: postgresql://deepblender:${POSTGRES_PASSWORD}@postgres:5432/deepblender
+  # Cache
+  REDIS_URL: redis://redis:6379/0
+  # Object Storage
+  MINIO_ENDPOINT: minio:9000
+  MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY:-deepblender}
+  MINIO_SECRET_KEY: ${MINIO_SECRET_KEY:-minioadmin}
+  MINIO_BUCKET: ${MINIO_BUCKET:-deepblender}
+  # Auth
+  DEEPBLENDER_SECRET_KEY: ${DEEPBLENDER_SECRET_KEY}
+  JWT_SECRET: ${JWT_SECRET:-${DEEPBLENDER_SECRET_KEY}}
+  # CORS
+  DEEPBLENDER_CORS_ORIGINS: http://localhost:3000,http://frontend:3000
+  # LLM Providers
+  GROQ_API_KEY: ${GROQ_API_KEY:-}
+  GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+  OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
+  NVIDIA_API_KEY: ${NVIDIA_API_KEY:-}
+  CLOUDFLARE_API_KEY: ${CLOUDFLARE_API_KEY:-}
+  CLOUDFLARE_ACCOUNT_ID: ${CLOUDFLARE_ACCOUNT_ID:-}
+  # Observability
+  LANGFUSE_SECRET_KEY: ${LANGFUSE_SECRET_KEY:-}
+  LANGFUSE_PUBLIC_KEY: ${LANGFUSE_PUBLIC_KEY:-}
+  LANGFUSE_HOST: http://langfuse:3000
+  DEEPBLENDER_TRACING: "1"
+  # Binaries
+  BLENDER_EXE: /usr/local/bin/blender
+  FFMPEG_EXE: /usr/local/bin/ffmpeg
+  # Workers
+  DEEPBLENDER_WORKER_TIMEOUT: "600"
+  # Budget
+  DEEPBLENDER_BUDGET: ${DEEPBLENDER_BUDGET:-1.0}
+
 services:
+  # ══════════════════════════════════════════════════════════
+  #  Infrastructure
+  # ══════════════════════════════════════════════════════════
+
+  postgres:
+    image: postgres:16-alpine
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    environment:
+      POSTGRES_DB: deepblender
+      POSTGRES_USER: deepblender
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U deepblender -d deepblender"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    volumes:
+      - redis_data:/data
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  minio:
+    image: minio/minio:latest
+    command: server /data --console-address ":9001"
+    volumes:
+      - minio_data:/data
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ACCESS_KEY:-deepblender}
+      MINIO_ROOT_PASSWORD: ${MINIO_SECRET_KEY:-minioadmin}
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  # ══════════════════════════════════════════════════════════
+  #  Observability
+  # ══════════════════════════════════════════════════════════
+
+  langfuse:
+    image: langfuse/langfuse:latest
+    ports:
+      - "3002:3000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://deepblender:${POSTGRES_PASSWORD}@postgres:5432/deepblender
+      NEXTAUTH_URL: http://localhost:3002
+      NEXTAUTH_SECRET: ${LANGFUSE_SECRET:-changeme}
+      SALT: ${LANGFUSE_SALT:-changeme}
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/api/public/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
+
+  # ══════════════════════════════════════════════════════════
+  #  DeepBlender API
+  # ══════════════════════════════════════════════════════════
+
+  deepblender-api:
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_started
+    environment:
+      <<: *deepblender-env
+      DEEPBLENDER_API: "1"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
+
+  # ══════════════════════════════════════════════════════════
+  #  DeepBlender Worker (Blender + FFmpeg)
+  # ══════════════════════════════════════════════════════════
+
   deepblender-worker:
     build:
       context: .
       dockerfile: Dockerfile.worker
-    image: deepblender/worker:latest
-    command: ["blender", "-b", "-P", "/work/script.py"]
     volumes:
       - ./work:/work
       - ./projects:/projects
     environment:
-      - BLENDER_EXE=/usr/local/bin/blender
-      - PYTHONPATH=/app:/work
-      - DEEPBLENDER_WORKER=1
-    # GPU support (requires nvidia-container-toolkit)
-    # deploy:
-    #   resources:
-    #     reservations:
-    #       devices:
-    #         - driver: nvidia
-    #           count: 1
-    #           capabilities: [gpu]
+      <<: *deepblender-env
+      DEEPBLENDER_WORKER: "1"
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
     restart: unless-stopped
 
-  # Optional: render farm coordinator (scheduler)
+  # ══════════════════════════════════════════════════════════
+  #  Celery Scheduler (optional, for async task queue)
+  # ══════════════════════════════════════════════════════════
+
   deepblender-scheduler:
     build:
       context: .
       dockerfile: Dockerfile.worker
-    image: deepblender/scheduler:latest
-    command: python -m deepblender.blender.scheduler
-    volumes:
-      - ./work:/work
-    environment:
-      - PYTHONPATH=/app:/work
+    command: python -m deepblender.tasks.celery_config
     depends_on:
-      - deepblender-worker
+      redis:
+        condition: service_healthy
+    environment:
+      <<: *deepblender-env
     restart: unless-stopped
 
-  # Optional: gateway API
-  deepblender-api:
+  # ══════════════════════════════════════════════════════════
+  #  UE5 Server (optionnel, profile "ue5")
+  # ══════════════════════════════════════════════════════════
+
+  ue5-server:
     build:
-      context: .
-      dockerfile: Dockerfile.worker
-    image: deepblender/api:latest
-    command: python -m deepblender.api.app --host 0.0.0.0 --port 8000
+      context: ./ue5-server
+      dockerfile: Dockerfile
     ports:
-      - "8000:8000"
-    volumes:
-      - ./work:/work
+      - "8080:8080"
     environment:
-      - PYTHONPATH=/app:/work
+      UE5_EXE: /opt/UnrealEngine/Engine/Binaries/Linux/UnrealEditor-Cmd
+      UE5_PROJECT: /ue5-projects/deepblender
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    profiles: ["ue5"]
     restart: unless-stopped
+
+  # ══════════════════════════════════════════════════════════
+  #  Frontend (Next.js)
+  # ══════════════════════════════════════════════════════════
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    ports:
+      - "3000:3000"
+    depends_on:
+      deepblender-api:
+        condition: service_healthy
+    environment:
+      NEXT_PUBLIC_API_URL: http://localhost:8000
+      NEXT_PUBLIC_SSE_URL: http://localhost:8000/api
+    restart: unless-stopped
+
+volumes:
+  pgdata:
+  redis_data:
+  minio_data:

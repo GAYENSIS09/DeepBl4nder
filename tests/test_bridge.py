@@ -6,7 +6,7 @@ import sys
 
 import pytest
 
-from deepblender.blender.bridge import BlenderBridge, BlenderNotFoundError
+from deepblender.bridges.blender.bridge import BlenderBridge, BlenderNotFoundError
 from deepblender.bridge.worker import WorkerCommand, WorkerProcess
 from deepblender.codegen import CodePolicyViolation
 from deepblender.domain.scene import BlenderScript

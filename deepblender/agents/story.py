@@ -70,6 +70,6 @@ class StoryAgent(BaseAgent, DefaultsMixin):
         """Revise a StorySpec based on QA feedback."""
         self._load_core_skills()
         self._load_skills("storytelling", "dialogue")
-        self.context.set("revision_feedback", revision_feedback)
+        self.context["revision_feedback"] = revision_feedback
         self._set_context("current_story", str(story.to_mapping()))
         ...

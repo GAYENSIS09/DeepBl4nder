@@ -105,14 +105,6 @@ class PolyHavenClient:
         """Télécharge une map de texture."""
         return self.download(name, file_type="texture", resolution=resolution, fmt="png")
 
-    def download_model(self, name: str, resolution: str = "1k") -> Path:
-        """Télécharge un modèle 3D (GLB优先)."""
-        files = self.get_files(name)
-        for fmt in ["glb", "fbx", "blend"]:
-            if fmt in files:
-                return self.download(name, file_type=fmt, resolution=resolution, fmt=fmt)
-        raise ValueError(f"No model files found for {name}")
-
     def search_hdris(self, tags: list[str] | None = None, limit: int = 5) -> list[dict[str, Any]]:
         """Recherche des HDRIs."""
         return self.search("hdris", tags=tags, limit=limit)
@@ -120,10 +112,6 @@ class PolyHavenClient:
     def search_textures(self, tags: list[str] | None = None, limit: int = 5) -> list[dict[str, Any]]:
         """Recherche des textures."""
         return self.search("textures", tags=tags, limit=limit)
-
-    def search_models(self, tags: list[str] | None = None, limit: int = 5) -> list[dict[str, Any]]:
-        """Recherche des modèles 3D."""
-        return self.search("models", tags=tags, limit=limit)
 
 
 # Singleton pour usage global
