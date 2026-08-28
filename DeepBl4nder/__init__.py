@@ -24,15 +24,15 @@ def _install_windows_shims() -> None:
 
     if "fcntl" not in sys.modules:
         fcntl = types.ModuleType("fcntl")
-        setattr(fcntl, "LOCK_SH", 1)
-        setattr(fcntl, "LOCK_EX", 2)
-        setattr(fcntl, "LOCK_NB", 4)
-        setattr(fcntl, "LOCK_UN", 8)
+        fcntl.LOCK_SH = 1
+        fcntl.LOCK_EX = 2
+        fcntl.LOCK_NB = 4
+        fcntl.LOCK_UN = 8
 
         def _flock(_fd: int, _operation: int) -> None:
             return None
 
-        setattr(fcntl, "flock", _flock)
+        fcntl.flock = _flock
         sys.modules["fcntl"] = fcntl
 
     for _name, _num in (("SIGUSR1", 10), ("SIGUSR2", 12)):
@@ -53,7 +53,7 @@ def _install_utf8_stdio() -> None:
             continue
         try:
             reconfigure(encoding="utf-8", errors="replace")
-        except (ValueError, OSError):  # noqa: BLE001
+        except (ValueError, OSError):
             pass
 
 
