@@ -1,84 +1,88 @@
 # DeepBl4nder
 
+<p align="center">
+  <img src="public/logo.svg" alt="DeepBl4nder Logo" width="300"/>
+</p>
+
 ---
 
-## Contexte et vision
+## Context and Vision
 
-L'idée centrale est d'utiliser une architecture multi-agents grace a [NVIDIA NeMo Labs OO-Agents](https://github.com/NVIDIA-NeMo/labs-OO-Agents), pour piloter Blender de façon structurée. Avant de parler d'agents, il faut comprendre comment un film ou une animation est réellement produit:
+The core idea is to leverage a multi-agent architecture using [NVIDIA NeMo Labs OO-Agents](https://github.com/NVIDIA-NeMo/labs-OO-Agents) to drive Blender in a structured way. Before discussing agents, it is important to understand how a film or animation is actually produced:
 
-1. Intention & Briefing
-2. Scénario et structure narrative
+1. Intent and Briefing
+2. Script and Narrative Structure
 3. Storyboard
-4. Prévisualisation (Prévis / Animatic) + bande-son de référence
-5. Étude de faisabilité technique
-6. Préparation des assets (Modélisation)
+4. Previsualization (Previs / Animatic) + Reference Soundtrack
+5. Technical Feasibility Study
+6. Asset Preparation (Modeling)
 7. UV Mapping / Texturing / Shading
-8. Rigging et Weight Painting
-9. Mise en scène (Layout) dans Blender
-10. Animation, Caméra et Lumière (ajout des simulations si besoin)
-11. Rendu préliminaire (tests de qualité)
-12. Itérations et corrections (retour aux étapes 9 ou 10)
-13. Rendu final (Render Farm ou local)
+8. Rigging and Weight Painting
+9. Staging (Layout) in Blender
+10. Animation, Camera, and Lighting (add simulations if needed)
+11. Preliminary Render (Quality Tests)
+12. Iterations and Corrections (back to steps 9 or 10)
+13. Final Render (Render Farm or Local)
 14. Compositing
-15. Mixage audio final, sous-titres et langues
-16. Contrôle qualité et export (codec, couleurs, etc.)
+15. Final Audio Mixing, Subtitles, and Languages
+16. Quality Control and Export (codec, colors, etc.)
 
-Cette approche permettrait de passer d'une demande vague comme "fais une scène de suspense dans une ruelle" à une scène Blender exploitable, puis à une version animée ou filmée.
+This approach would allow transforming a vague request such as "make a suspense scene in an alleyway" into a usable Blender scene, then into an animated or filmed version.
 
-## Objectifs et non-objectifs
+## Objectives and Non-Objectives
 
-### Objectifs
+### Objectives
 
-- Transformer une intention textuelle en scène Blender, storyboard, séquence courte ou étude visuelle.
-- Découper la production en compétences précises reliées à des agents et sous-agents bien définis.
-- Fournir un runtime d'orchestration réutilisable, avec une architecture modulaire et extensible.
-- Garantir la traçabilité (provenance, versions), l'observabilité et le contrôle des coûts.
-- Garder l'humain dans la boucle à chaque étape où la décision a de la valeur.
+- Transform a textual intent into a Blender scene, storyboard, short sequence, or visual study.
+- Break down production into precise competencies linked to well-defined agents and sub-agents.
+- Provide a reusable orchestration runtime with a modular and extensible architecture.
+- Ensure traceability (provenance, versions), observability, and cost control.
+- Keep the human in the loop at every step where the decision has value.
 
-### Non-objectifs
+### Non-Objectives
 
-- Générer des longs métrages autonomes dès le départ (le MVP vise des séquences de 5 à 10 secondes).
-- Remplacer l'expertise d'un studio: DeepBl4nder est une production assistée, pas un remplacement.
-- Écrire tout le code d'un coup: ce document décrit la cible, l'implémentation suit un chemin incrémental.
+- Generate autonomous feature films from the start (the MVP targets 5 to 10 second sequences).
+- Replace studio expertise: DeepBl4nder is assisted production, not a replacement.
+- Write all the code at once: this document describes the target; implementation follows an incremental path.
 
-### Qualité et métriques de succès
+### Quality and Success Metrics
 
-L'architecture ne peut pas être jugée sans cibles mesurables. Ces objectifs sont revus à chaque palier d'implémentation:
+The architecture cannot be judged without measurable targets. These objectives are reviewed at each implementation milestone:
 
-- **Latence**: du brief au premier rendu d'essai, cible < 5 min sur scène de démo; < 10 min pour une séquence de 10 s.
-- **Coût**: cible < 1 € par scène de démo (LLM + rendu), mesuré via la provenance des coûts.
-- **Qualité**: taux de passage QA automatique au premier coup ≥ 60 % à maturité, mesuré sur un golden set de scènes de référence.
-- **Évolutivité**: 3 workers parallèles sur une machine, 1 worker par scène, rendu GPU; le système tolère l'ajout d'un worker sans redémarrage.
-- **Fiabilité**: une production interrompue (crash du Runtime Controller) reprend par rejeu des événements non consommés; aucune perte de données acceptée.
-- **Observabilité**: état et coût visibles en temps réel; alerte sur dépassement de budget en moins de 30 s.
-- **Sécurité**: aucun code généré ne s'exécute en dehors du périmètre autorisé; aucune opération non autorisée n'est exécutée silencieusement.
+- **Latency**: from brief to first trial render, target < 5 min on demo scene; < 10 min for a 10 s sequence.
+- **Cost**: target < 1 EUR per demo scene (LLM + render), measured via cost provenance.
+- **Quality**: first-pass QA pass rate >= 60% at maturity, measured on a golden set of reference scenes.
+- **Scalability**: 3 parallel workers on one machine, 1 worker per scene, GPU render; the system tolerates adding a worker without restart.
+- **Reliability**: an interrupted production (Runtime Controller crash) resumes by replaying unconsumed events; no data loss accepted.
+- **Observability**: state and cost visible in real time; budget overrun alert within 30 s.
+- **Security**: no generated code runs outside the authorized perimeter; no unauthorized operation is silently executed.
 
-## Compétences à couvrir
+## Competencies to Cover
 
-- narration et structure dramatique;
-- écriture de dialogues;
-- découpage en plans;
-- composition visuelle;
-- création et gestion d'assets;
-- rigging et pose;
-- animation de personnages et d'objets;
-- caméra et cadrage;
-- éclairage et ambiance;
-- sound design;
-- musique et mixage;
-- voix, accents et diction;
-- traduction et sous-titres;
-- étude de faisabilité et prévisualisation;
-- continuité et contrôle qualité.
+- Narrative and dramatic structure
+- Dialogue writing
+- Shot breakdown
+- Visual composition
+- Asset creation and management
+- Rigging and posing
+- Character and object animation
+- Camera and framing
+- Lighting and ambiance
+- Sound design
+- Music and mixing
+- Voices, accents, and diction
+- Translation and subtitles
+- Feasibility study and previsualization
+- Continuity and quality control
 
-## Cas d'usage
+## Use Cases
 
-- Générer une scène Blender à partir d'un brief textuel.
-- Créer un storyboard simple avant animation.
-- Produire une animatique pour prévisualiser un épisode ou un court métrage.
-- Préparer une séquence stylisée type anime, cartoon ou semi-réaliste.
-- Étudier rapidement plusieurs variantes de décor, d'éclairage ou de caméra avant production.
-- Évaluer si une idée est réalisable techniquement dans un délai et avec des ressources données.
-- Aider un créateur à itérer plus vite sur le décor, la caméra et le mouvement.
-- Ajouter une piste audio, des effets sonores et une musique d'ambiance adaptés à la scène.
-- Gérer plusieurs langues pour les dialogues, les sous-titres et l'interface.
+- Generate a Blender scene from a text brief.
+- Create a simple storyboard before animation.
+- Produce an animatic to preview an episode or short film.
+- Prepare a stylized sequence (anime, cartoon, or semi-realistic).
+- Quickly study several variants of set, lighting, or camera before production.
+- Evaluate if an idea is technically feasible within a given deadline and resources.
+- Help a creator iterate faster on set, camera, and movement.
+- Add an audio track, sound effects, and ambient music suited to the scene.
+- Manage multiple languages for dialogues, subtitles, and interface.
