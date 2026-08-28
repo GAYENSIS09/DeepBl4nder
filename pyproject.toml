@@ -34,10 +34,10 @@ dependencies = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/GAYENSIS09/DeepBlender"
-Repository = "https://github.com/GAYENSIS09/DeepBlender"
-Issues = "https://github.com/GAYENSIS09/DeepBlender/issues"
-Documentation = "https://github.com/GAYENSIS09/DeepBlender/tree/main/docs"
+Homepage = "https://github.com/GAYENSIS09/DeepBl4nder"
+Repository = "https://github.com/GAYENSIS09/DeepBl4nder"
+Issues = "https://github.com/GAYENSIS09/DeepBl4nder/issues"
+Documentation = "https://github.com/GAYENSIS09/DeepBl4nder/tree/main/docs"
 
 [project.optional-dependencies]
 memory = ["nooa-memory==0.0.8"]

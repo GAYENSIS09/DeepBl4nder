@@ -64,8 +64,8 @@ By participating in this project, you agree to maintain a respectful and inclusi
 
 ```bash
 # Clone the repo
-git clone https://github.com/GAYENSIS09/DeepBlender.git
-cd DeepBlender
+git clone https://github.com/GAYENSIS09/DeepBl4nder.git
+cd DeepBl4nder
 
 # Create a virtual environment
 python -m venv .venv

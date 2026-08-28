@@ -105,8 +105,8 @@ The architecture cannot be judged without measurable targets. These objectives a
 ### Docker (Recommended)
 
 ```bash
-git clone https://github.com/GAYENSIS09/DeepBlender.git
-cd DeepBlender
+git clone https://github.com/GAYENSIS09/DeepBl4nder.git
+cd DeepBl4nder
 
 # Configure environment
 cp .env.example .env
@@ -125,8 +125,8 @@ curl http://localhost:8000/health
 ### Local Development
 
 ```bash
-git clone https://github.com/GAYENSIS09/DeepBlender.git
-cd DeepBlender
+git clone https://github.com/GAYENSIS09/DeepBl4nder.git
+cd DeepBl4nder
 
 # Create virtual environment
 python -m venv .venv
