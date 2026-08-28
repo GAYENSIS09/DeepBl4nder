@@ -7,14 +7,14 @@ import json
 from pathlib import Path
 
 import pytest
+from nooa.errors import GenerationError
 
-from DeepBl4nder.domain.project import Brief
-from DeepBl4nder.domain.qa import QAReport, Issue, IssueKind
-from DeepBl4nder.domain.scene import BlenderScript, SceneSpec
 from DeepBl4nder.domain.media import LanguagePackage
+from DeepBl4nder.domain.project import Brief
+from DeepBl4nder.domain.qa import Issue, IssueKind, QAReport
+from DeepBl4nder.domain.scene import BlenderScript, SceneSpec
 from DeepBl4nder.production.budget import BudgetTracker
 from DeepBl4nder.production.runner import PipelineRunner, RunOutcome
-from nooa.errors import GenerationError
 
 VALID_SCRIPT = "import bpy\nscene = bpy.context.scene\nscene.frame_end = 120\n"
 INVALID_SCRIPT = "import os\nprint(os.system('whoami'))\n"
@@ -90,7 +90,7 @@ def _events(path: Path) -> list[dict]:
 
 @pytest.mark.asyncio
 async def test_happy_path_produces_traced_run(tmp_path: Path) -> None:
-    runner, outcome = await _run(tmp_path)
+    _, outcome = await _run(tmp_path)
 
     assert outcome.run.status == "completed"
     assert outcome.revisions == 0
@@ -123,7 +123,7 @@ async def test_happy_path_produces_traced_run(tmp_path: Path) -> None:
 
 @pytest.mark.asyncio
 async def test_invalid_script_blocks_and_targets_blender(tmp_path: Path) -> None:
-    runner, outcome = await _run(tmp_path, blender=StubBlender([INVALID_SCRIPT]), max_revisions=2)
+    _runner, outcome = await _run(tmp_path, blender=StubBlender([INVALID_SCRIPT]), max_revisions=2)
 
     assert outcome.run.status == "blocked"
     assert outcome.revisions == 2
@@ -147,7 +147,7 @@ async def test_invalid_script_blocks_and_targets_blender(tmp_path: Path) -> None
 @pytest.mark.asyncio
 async def test_revision_recovers_and_completes(tmp_path: Path) -> None:
     blender = StubBlender([INVALID_SCRIPT, VALID_SCRIPT])
-    runner, outcome = await _run(tmp_path, blender=blender, max_revisions=1)
+    _runner, outcome = await _run(tmp_path, blender=blender, max_revisions=1)
 
     assert blender.calls == 2
     assert outcome.run.status == "completed"
@@ -167,7 +167,7 @@ async def test_qa_failure_targets_director_when_issue_says_so(tmp_path: Path) ->
                 issues=[Issue(kind=IssueKind.SEMANTIC, message="brief non respecté", step="director")],
             )
 
-    runner, outcome = await _run(tmp_path, qa=FailingQA(), max_revisions=1)
+    _runner, outcome = await _run(tmp_path, qa=FailingQA(), max_revisions=1)
 
     assert outcome.run.status == "blocked"
     assert outcome.revisions == 1
@@ -202,7 +202,7 @@ async def test_revision_injects_feedback_into_agent_context(tmp_path: Path) -> N
             )
 
     blender = ContextBlender()
-    runner, outcome = await _run(tmp_path, blender=blender, qa=FailingQA(), max_revisions=1)
+    _runner, outcome = await _run(tmp_path, blender=blender, qa=FailingQA(), max_revisions=1)
 
     assert outcome.revisions == 1
     feedback = blender.context.static.get("revision_feedback", "")
@@ -224,7 +224,7 @@ async def test_revision_spec_instructions_carry_formatted_issues(tmp_path: Path)
                 issues=[Issue(kind=IssueKind.VISUAL, message="exposition surexposée", step="blender")],
             )
 
-    _, outcome = await _run(tmp_path, qa=FailingQA(), max_revisions=1)
+    _, _outcome = await _run(tmp_path, qa=FailingQA(), max_revisions=1)
 
     payload = json.loads((tmp_path / "revision_1_blender.json").read_text(encoding="utf-8"))
     assert payload["target_step"] == "blender"
@@ -236,7 +236,7 @@ async def test_revision_spec_instructions_carry_formatted_issues(tmp_path: Path)
 async def test_qa_receives_script_code_inline(tmp_path: Path) -> None:
     """Régression : l'agent QA (sandboxé) reçoit le code, pas un chemin hôte."""
     qa = StubQA()
-    runner, outcome = await _run(tmp_path, qa=qa)
+    _runner, outcome = await _run(tmp_path, qa=qa)
 
     assert outcome.run.status == "completed"
     assert qa.received_code == [VALID_SCRIPT]
@@ -260,7 +260,7 @@ async def test_budget_exhausted_blocks_before_execution(tmp_path: Path) -> None:
     budget.add_llm(1.0)
     assert budget.over_budget()
 
-    runner, outcome = await _run(tmp_path, budget=budget)
+    _runner, outcome = await _run(tmp_path, budget=budget)
 
     assert outcome.run.status == "blocked"
     assert outcome.revisions == 0
@@ -300,7 +300,7 @@ async def test_human_revision_injects_comment_into_target_agent(tmp_path: Path) 
     }
     (tmp_path / "revision_request_123.json").write_text(json.dumps(revision), encoding="utf-8")
 
-    runner, outcome = await _run(tmp_path, blender=blender)
+    _runner, outcome = await _run(tmp_path, blender=blender)
 
     assert outcome.run.status == "completed"
     feedback = blender.context.static.get("revision_feedback", "")

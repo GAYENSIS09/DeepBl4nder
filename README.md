@@ -104,23 +104,100 @@ The architecture cannot be judged without measurable targets. These objectives a
 
 ### Docker (Recommended)
 
+#### Prerequisites
+
+- [Docker Desktop](https://www.docker.com/products/docker-desktop/) (with Docker Compose v2)
+- [NVIDIA Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/install-guide.html) (for GPU rendering with Blender)
+- At least one LLM API key (Groq, Gemini, NVIDIA, OpenRouter, or Cloudflare)
+
+#### Quick Start
+
 ```bash
 git clone https://github.com/GAYENSIS09/DeepBl4nder.git
 cd DeepBl4nder
 
-# Configure environment
+# Copy environment template and configure your keys
 cp .env.example .env
-# Edit .env with your API keys and database credentials
+```
 
-# Start all services
+Edit `.env` and set at least one LLM provider key:
+
+```env
+GROQ_API_KEY=gsk_...
+# or
+GEMINI_API_KEY=...
+# or
+NVIDIA_API_KEY=nvapi-...
+```
+
+Then start all services:
+
+```bash
 docker compose up -d
+```
 
-# Access the API
+#### Services Overview
+
+| Service | Port | Description |
+|---------|------|-------------|
+| `DeepBl4nder-api` | 8000 | FastAPI REST API + SSE streaming |
+| `frontend` | 3000 | Next.js web interface |
+| `postgres` | 5432 | PostgreSQL database |
+| `redis` | 6379 | Cache and task queue |
+| `minio` | 9000 | Object storage (artifacts, renders) |
+| `langfuse` | 3001 | LLM observability dashboard |
+| `DeepBl4nder-worker` | - | Blender + FFmpeg (GPU required) |
+
+#### Verify Installation
+
+```bash
+# Check API health
 curl http://localhost:8000/health
 
-# Access the frontend
-# Open http://localhost:3000
+# Check all containers
+docker compose ps
+
+# View logs
+docker compose logs -f DeepBl4nder-api
 ```
+
+#### Seed Default Account
+
+```bash
+docker compose exec DeepBl4nder-api python -m DeepBl4nder.api.seed
+```
+
+Default credentials: `admin@DeepBl4nder.local` / `changeme`
+
+#### Common Commands
+
+```bash
+# Stop all services
+docker compose down
+
+# Stop and remove volumes (fresh start)
+docker compose down -v
+
+# Rebuild after code changes
+docker compose build DeepBl4nder-api
+docker compose up -d DeepBl4nder-api
+
+# View real-time logs
+docker compose logs -f --tail=100
+
+# Run database migrations
+docker compose exec DeepBl4nder-api python -m alembic upgrade head
+```
+
+#### Troubleshooting
+
+| Issue | Solution |
+|-------|----------|
+| Worker fails to start | Ensure NVIDIA Container Toolkit is installed: `docker run --gpus all nvidia/cuda:12.0-base nvidia-smi` |
+| `DeepBl4nder-api` exits immediately | Check logs: `docker compose logs DeepBl4nder-api` — usually a missing `.env` or wrong DB credentials |
+| Port 8000 already in use | Change `ports` in `docker-compose.yml` or stop the conflicting service |
+| MinIO connection refused | Wait 10s after `docker compose up` — MinIO needs time to initialize |
+| GPU not detected | Verify `nvidia-smi` works on host and `docker compose` has `deploy.resources.reservations.devices` configured |
 
 ### Local Development
 

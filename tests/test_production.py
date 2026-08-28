@@ -74,7 +74,7 @@ def test_budget_alert_fires_once_on_overflow() -> None:
     assert len(alerts) == 1
 
 
-def test_event_log_append_and_load(tmp_path) -> None:  # noqa: ANN001
+def test_event_log_append_and_load(tmp_path) -> None:
     log = EventLog(tmp_path / "events.jsonl")
     log.append("step_started", {"step": "brief"})
     log.append("step_completed", {"step": "brief"})
@@ -84,13 +84,13 @@ def test_event_log_append_and_load(tmp_path) -> None:  # noqa: ANN001
     assert log.last_seq() == 2
 
 
-def test_event_log_skips_corrupt_lines(tmp_path) -> None:  # noqa: ANN001
+def test_event_log_skips_corrupt_lines(tmp_path) -> None:
     path = tmp_path / "events.jsonl"
     path.write_text('{"seq": 1, "kind": "run_started", "ts": 0.0, "payload": {}}\nnot-json\n')
     assert len(EventLog(path).load()) == 1
 
 
-def test_run_step_transitions_are_persisted(tmp_path) -> None:  # noqa: ANN001
+def test_run_step_transitions_are_persisted(tmp_path) -> None:
     log = EventLog(tmp_path / "events.jsonl")
     run = ProductionRun(project_id="p", log=log)
     run.add_step(ProductionStep(name="brief"))
@@ -99,7 +99,7 @@ def test_run_step_transitions_are_persisted(tmp_path) -> None:  # noqa: ANN001
     assert [event.kind for event in log.load()] == ["step_started", "step_completed"]
 
 
-def test_recovery_resumes_unconsumed_steps(tmp_path) -> None:  # noqa: ANN001
+def test_recovery_resumes_unconsumed_steps(tmp_path) -> None:
     log = EventLog(tmp_path / "events.jsonl")
     log.append("run_started", {})
     log.append("step_started", {"step": "brief"})
@@ -111,7 +111,7 @@ def test_recovery_resumes_unconsumed_steps(tmp_path) -> None:  # noqa: ANN001
     assert run.pending_steps() == ["render"]
 
 
-def test_recovery_keeps_failed_steps(tmp_path) -> None:  # noqa: ANN001
+def test_recovery_keeps_failed_steps(tmp_path) -> None:
     log = EventLog(tmp_path / "events.jsonl")
     log.append("step_started", {"step": "qa"})
     log.append("step_failed", {"step": "qa"})
@@ -120,7 +120,7 @@ def test_recovery_keeps_failed_steps(tmp_path) -> None:  # noqa: ANN001
     assert run.pending_steps() == []
 
 
-def test_approval_workflow(tmp_path) -> None:  # noqa: ANN001
+def test_approval_workflow(tmp_path) -> None:
     log = EventLog(tmp_path / "events.jsonl")
     run = ProductionRun(project_id="p", log=log)
     run.add_step(ProductionStep(name="previs"))
@@ -132,7 +132,7 @@ def test_approval_workflow(tmp_path) -> None:  # noqa: ANN001
     assert _status(run, "previs") == "approved"
 
 
-def test_reject_sets_revision(tmp_path) -> None:  # noqa: ANN001
+def test_reject_sets_revision(tmp_path) -> None:
     log = EventLog(tmp_path / "events.jsonl")
     run = ProductionRun(project_id="p", log=log)
     run.add_step(ProductionStep(name="story"))
@@ -142,7 +142,7 @@ def test_reject_sets_revision(tmp_path) -> None:  # noqa: ANN001
     assert _status(run, "story") == "rejected"
 
 
-def test_recovery_restores_pending_approval(tmp_path) -> None:  # noqa: ANN001
+def test_recovery_restores_pending_approval(tmp_path) -> None:
     log = EventLog(tmp_path / "events.jsonl")
     log.append("run_started", {})
     log.append("approval_requested", {"step": "previs"})
@@ -151,7 +151,7 @@ def test_recovery_restores_pending_approval(tmp_path) -> None:  # noqa: ANN001
     assert _status(run, "previs") == "awaiting_approval"
 
 
-def test_recovery_approval_granted(tmp_path) -> None:  # noqa: ANN001
+def test_recovery_approval_granted(tmp_path) -> None:
     log = EventLog(tmp_path / "events.jsonl")
     log.append("approval_requested", {"step": "previs"})
     log.append("approval_granted", {"step": "previs"})
