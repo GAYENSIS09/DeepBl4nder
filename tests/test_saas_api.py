@@ -341,7 +341,6 @@ class _StubAnimator:
 class _StubEnvironmentArtist:
     async def design_environment(self, scene):
         from dataclasses import dataclass, field
-        from typing import Any
 
         @dataclass
         class EnvResult:

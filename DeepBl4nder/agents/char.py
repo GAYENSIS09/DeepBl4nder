@@ -14,7 +14,7 @@ from nooa.config.strategy_config import CodeActConfig
 
 from DeepBl4nder.agents.base import BaseAgent, DefaultsMixin, InvariantError
 from DeepBl4nder.domain.media import CharacterDesignResult
-from DeepBl4nder.domain.scene import CharacterSpec, SceneSpec
+from DeepBl4nder.domain.scene import SceneSpec
 from DeepBl4nder.skills.registry import SkillRegistry
 
 

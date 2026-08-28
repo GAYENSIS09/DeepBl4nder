@@ -11,14 +11,14 @@ from __future__ import annotations
 
 from typing import Any
 
-from nooa import CodeActStrategy, strategy
+from nooa import strategy
 from nooa.agentdoc import hidden, pformat
 from nooa.config.strategy_config import CodeActConfig
 from nooa.strategy_validation import InvariantError
 
 from DeepBl4nder.agents.base import BaseAgent, DefaultsMixin, codeact_with_sandbox
 from DeepBl4nder.domain.scene import SceneSpec
-from DeepBl4nder.domain.ue5 import UE5Command, UE5Commands
+from DeepBl4nder.domain.ue5 import UE5Commands
 from DeepBl4nder.skills.registry import SkillRegistry
 
 
@@ -134,6 +134,8 @@ class UE5Agent(BaseAgent, DefaultsMixin):
             "fps": spec.render.fps,
         }
         return pformat(summary)
+
+    def _ue5_lighting_preset(self, mood: str) -> dict:
         """Convertit un lighting_mood en configuration UE5 Lumen."""
         presets = {
             "neutral": {

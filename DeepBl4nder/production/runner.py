@@ -750,7 +750,7 @@ class PipelineRunner(PluginShortcuts):
                     # Poll render status from UE5 server
                     if self.ue5_bridge and self.ue5_bridge.available():
                         try:
-                            status = self.ue5_bridge.get_render_status()
+                            self.ue5_bridge.get_render_status()
                             # Create a minimal RenderOutput for the pipeline
                             render_dir = self.workdir / "render"
                             render_dir.mkdir(parents=True, exist_ok=True)

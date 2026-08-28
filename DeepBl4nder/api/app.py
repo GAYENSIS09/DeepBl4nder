@@ -81,7 +81,7 @@ from DeepBl4nder.api.schemas import (
     SceneOut,
     ShotOut,
 )
-from DeepBl4nder.api.security import create_token, create_refresh_token, hash_password, hash_token, verify_password
+from DeepBl4nder.api.security import create_token, create_refresh_token, decode_token_full, hash_password, hash_token, verify_password
 from DeepBl4nder.api.state import WorkerStatus, configure, get_secret_key, get_session_factory
 from DeepBl4nder.llm import routing_stats as llm_routing_stats
 from DeepBl4nder.logging_setup import setup_logging
@@ -289,7 +289,6 @@ def _mark_production_failed(production_id: str, message: str) -> None:
 
 def _run_alembic_upgrade(url: str) -> None:
     """Exécute les migrations Alembic sur la base donnée."""
-    import tempfile
     from pathlib import Path as _Path
 
     from alembic import command
@@ -451,7 +450,7 @@ def _register_routes(app: FastAPI) -> None:
         db_token = db.scalar(
             select(RefreshToken).where(
                 RefreshToken.token_hash == token_hash,
-                RefreshToken.revoked == False,
+                not RefreshToken.revoked,
             )
         )
         if db_token is None:
@@ -473,7 +472,7 @@ def _register_routes(app: FastAPI) -> None:
     @app.post("/api/auth/logout", status_code=204)
     def logout(payload: LogoutRequest, db: DbSession) -> None:
         """Révoque un refresh token (déconnexion)."""
-        secret = get_secret_key()
+        get_secret_key()
         token_hash = hash_token(payload.refresh_token)
         db_token = db.scalar(
             select(RefreshToken).where(RefreshToken.token_hash == token_hash)

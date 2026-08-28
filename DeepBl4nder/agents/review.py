@@ -14,7 +14,6 @@ from nooa.config.strategy_config import CodeActConfig
 
 from DeepBl4nder.agents.base import BaseAgent, DefaultsMixin, InvariantError
 from DeepBl4nder.domain.media import AudioPlan, CompositeSpec, ReviewReport
-from DeepBl4nder.domain.qa import QAReport
 from DeepBl4nder.domain.scene import SceneSpec, RenderOutput
 from DeepBl4nder.skills.registry import SkillRegistry
 

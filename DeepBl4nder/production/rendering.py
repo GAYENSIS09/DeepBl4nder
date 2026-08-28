@@ -7,7 +7,6 @@ parallel-shots, fusion ffmpeg) dans une classe testable.
 from __future__ import annotations
 
 import asyncio
-import json
 import logging
 import time
 from pathlib import Path

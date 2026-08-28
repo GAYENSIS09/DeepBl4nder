@@ -957,7 +957,7 @@ def test_discover_models_cloudflare_uses_search_route(
 
 def test_compose_litellm_ids_prefixes_native_ids() -> None:
     provider = llm.PROVIDERS["nvidia"]
-    rule = selection_rule = llm.selection_rule_for("nvidia")
+    rule = llm.selection_rule_for("nvidia")
     composed = llm.compose_litellm_ids(
         provider, ("meta/llama-3.3-70b-instruct",), rule
     )

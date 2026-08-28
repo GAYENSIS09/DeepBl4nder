@@ -10,6 +10,7 @@ import pytest
 from nooa.errors import GenerationError
 
 from DeepBl4nder.domain.media import LanguagePackage
+from DeepBl4nder.domain.narrative import Act, StoryBeat, StorySpec
 from DeepBl4nder.domain.project import Brief
 from DeepBl4nder.domain.qa import Issue, IssueKind, QAReport
 from DeepBl4nder.domain.scene import BlenderScript, SceneSpec
@@ -679,9 +680,7 @@ class FixedStory:
         return self.spec
 
 
-def _story_with_beats() -> "StorySpec":
-    from DeepBl4nder.domain.narrative import Act, StoryBeat, StorySpec
-
+def _story_with_beats() -> StorySpec:
     return StorySpec(
         logline="Une nuit décisive.",
         synopsis="Une hackeuse remonte la piste de ses souvenirs vendus.",

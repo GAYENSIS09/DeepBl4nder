@@ -6,7 +6,6 @@ dans des scènes Blender. Les assets sont tous en licence CC0 (public domain).
 
 from __future__ import annotations
 
-import os
 import logging
 from pathlib import Path
 from typing import Any
