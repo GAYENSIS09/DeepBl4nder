@@ -45,3 +45,4 @@ Trois graphes distincts, relationnels (pas un moteur d'exécution imposé) :
   utile pour continuité, recherche, dépendances.
 
 À terme : convergence vers un **Production Knowledge Graph**.
+

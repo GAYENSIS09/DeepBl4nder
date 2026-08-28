@@ -100,3 +100,4 @@ set_hooks(TimingHooks())   # set_hooks(None) removes
 - `nooa-context-and-state` — the event model that `on()` observes; `EventQuery` filtering.
 - `nooa-capturing-traces` — the tracing system that occupies the hooks slot; exporters are usually the right telemetry surface.
 - `nooa-codeact-advanced` — what `execute_python` middleware wraps (validator pipeline, restrictions, cells).
+

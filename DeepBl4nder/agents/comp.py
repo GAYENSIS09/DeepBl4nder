@@ -13,16 +13,21 @@ from typing import Any
 from nooa import CodeActLiteStrategy, strategy
 from nooa.config import CodeActConfig
 
-from DeepBl4nder.agents.base import BaseAgent, DefaultsMixin
+from DeepBl4nder.agents.base import BaseAgent, DefaultsMixin, InvariantError
 from DeepBl4nder.domain.media import CompositeSpec
 from DeepBl4nder.domain.scene import SceneSpec
 from DeepBl4nder.skills.registry import SkillRegistry
 
 
-def _compositing_postcondition(result: CompositeSpec) -> str | None:
+def _compositing_postcondition(agent: Any, result: Any, call: Any) -> None:
+    if not isinstance(result, CompositeSpec):
+        return
     if not result.passes:
-        return "CompositeSpec.passes must be non-empty"
-    return None
+        raise InvariantError(
+            "CompositeSpec.passes ne doit pas être vide : appelez return_result "
+            'avec passes=["diffuse", "direct", "shadow"] — la liste passes ne '
+            "doit pas être vide."
+        )
 
 
 class CompositingAgent(BaseAgent, DefaultsMixin):

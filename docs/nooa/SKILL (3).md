@@ -125,3 +125,4 @@ flush_traces()
 
 - `nooa-trace-viewer` — run the web viewer and browse captured traces.
 - `nooa-trace-explorer` — programmatic/CLI trace analysis and root-cause debugging.
+

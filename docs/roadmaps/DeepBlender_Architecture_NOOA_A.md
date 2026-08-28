@@ -1545,3 +1545,4 @@ et supprimer toute abstraction DeepBl4nder qui ne fait que la reproduire.
 la réponse doit venir de DeepBl4nder.
 
 C'est cette frontière qui permet de garder l'architecture petite, extensible et fidèle à NOOA.
+

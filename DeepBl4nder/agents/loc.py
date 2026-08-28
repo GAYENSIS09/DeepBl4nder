@@ -14,16 +14,20 @@ from typing import Any
 from nooa import CodeActStrategy, strategy
 from nooa.config import CodeActConfig
 
-from DeepBl4nder.agents.base import BaseAgent, DefaultsMixin
+from DeepBl4nder.agents.base import BaseAgent, DefaultsMixin, InvariantError
 from DeepBl4nder.domain.media import LanguagePackage
 from DeepBl4nder.domain.scene import SceneSpec
 from DeepBl4nder.skills.registry import SkillRegistry
 
 
-def _localization_postcondition(result: LanguagePackage) -> str | None:
+def _localization_postcondition(agent: Any, result: Any, call: Any) -> None:
+    if not isinstance(result, LanguagePackage):
+        return
     if not result.language:
-        return "LanguagePackage.language must be non-empty"
-    return None
+        raise InvariantError(
+            "LanguagePackage.language ne doit pas être vide : appelez "
+            'return_result avec language="fr" — la langue cible est requise.'
+        )
 
 
 class LocalizationAgent(BaseAgent, DefaultsMixin):

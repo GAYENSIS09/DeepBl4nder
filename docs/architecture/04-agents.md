@@ -76,3 +76,4 @@ avant tout workflow engine propriétaire.
 
 Brief → Story → Storyboard → **[APPROVAL]** → Previs → **[APPROVAL]** → Production → Preview
 → **[APPROVAL]** → Final.
+

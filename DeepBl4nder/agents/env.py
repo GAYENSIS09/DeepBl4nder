@@ -13,16 +13,22 @@ from nooa import CodeActStrategy, strategy
 from nooa.agentdoc import hidden
 from nooa.config.strategy_config import CodeActConfig
 
-from DeepBl4nder.agents.base import BaseAgent, DefaultsMixin
+from DeepBl4nder.agents.base import BaseAgent, DefaultsMixin, InvariantError
 from DeepBl4nder.domain.media import EnvironmentDesignResult
 from DeepBl4nder.domain.scene import EnvironmentSpec, SceneSpec
 from DeepBl4nder.skills.registry import SkillRegistry
 
 
-def _environment_postcondition(result: Any) -> str | None:
-    if not hasattr(result, "assets") or not result.assets:
-        return "EnvironmentDesignResult must contain at least one environment asset"
-    return None
+def _environment_postcondition(agent: Any, result: Any, call: Any) -> None:
+    if not isinstance(result, EnvironmentDesignResult):
+        return
+    if not result.assets:
+        raise InvariantError(
+            "EnvironmentDesignResult.assets ne doit pas être vide : appelez "
+            'return_result avec assets=[{"name": "sol", "asset_type": '
+            '"primitive", "description": "rue pavée sous la pluie"}] — la liste '
+            "assets ne doit pas être vide."
+        )
 
 
 class EnvironmentArtistAgent(BaseAgent, DefaultsMixin):

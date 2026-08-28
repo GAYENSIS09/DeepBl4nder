@@ -173,3 +173,4 @@ Invoke-WebRequest -Uri http://localhost:8000/docs
 # Arrêt API + frontend
 Get-NetTCPConnection -LocalPort 8000,3000 -State Listen | ForEach-Object { Stop-Process -Id $_.OwningProcess -Force }
 ```
+

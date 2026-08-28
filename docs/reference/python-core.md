@@ -1,18 +1,18 @@
 # Documentation Python — DeepBl4nder (Core)
 
 > **Version du projet :** `0.2.0`
-> **Couverture :** Tous les modules Python du package `deepblender/` à l'exclusion de `plugins/` et `production/`.
+> **Couverture :** Tous les modules Python du package `DeepBl4nder/` à l'exclusion de `plugins/` et `production/`.
 
 ---
 
 ## Table des matières
 
 1. [Modules racines](#1-modules-racines)
-   - 1.1 [`deepblender/__init__.py`](#11-deepblender__init__py)
-   - 1.2 [`deepblender/cli.py`](#12-deepblenderclipy)
-   - 1.3 [`deepblender/llm.py`](#13-deepblenderllmpy)
-   - 1.4 [`deepblender/logging_setup.py`](#14-deepblenderlogging_setuppy)
-   - 1.5 [`deepblender/nooa_compat.py`](#15-deepblendernooa_compatpy)
+   - 1.1 [`DeepBl4nder/__init__.py`](#11-DeepBl4nder__init__py)
+   - 1.2 [`DeepBl4nder/cli.py`](#12-DeepBl4nderclipy)
+   - 1.3 [`DeepBl4nder/llm.py`](#13-DeepBl4nderllmpy)
+   - 1.4 [`DeepBl4nder/logging_setup.py`](#14-DeepBl4nderlogging_setuppy)
+   - 1.5 [`DeepBl4nder/nooa_compat.py`](#15-DeepBl4ndernooa_compatpy)
 2. [Agents](#2-agents)
    - 2.1 [`agents/__init__.py`](#21-agents__init__py)
    - 2.2 [`agents/base.py`](#22-agentsbasepy)
@@ -78,7 +78,7 @@
 
 ## 1. Modules racines
 
-### 1.1 `deepblender/__init__.py`
+### 1.1 `DeepBl4nder/__init__.py`
 
 Module racine du package. Effectue l'initialisation globale au moment de l'import.
 
@@ -112,24 +112,24 @@ def _install_utf8_stdio() -> None
 
 **Comportement au chargement :**
 
-Lorsque `deepblender` est importé, le module :
+Lorsque `DeepBl4nder` est importé, le module :
 1. Charge les variables d'environnement depuis `.env` via `dotenv` (`load_dotenv(override=False)`)
 2. Appelle `_install_windows_shims()` si la plateforme est Windows
 3. Appelle `_install_utf8_stdio()`
 
 ---
 
-### 1.2 `deepblender/cli.py`
+### 1.2 `DeepBl4nder/cli.py`
 
 Interface en ligne de commande (CLI) pour DeepBl4nder. Fournit des sous-commandes pour l'inspection, la validation, le service API et le seeding de la base de données.
 
 **Imports principaux :**
 
-- `deepblender.codegen.validator.ASTValidator`
-- `deepblender.codegen.policy.CodePolicy`
-- `deepblender.skills.registry.get_default_registry`
-- `deepblender.api.seed.main` (seed_command)
-- `deepblender.api.state`
+- `DeepBl4nder.codegen.validator.ASTValidator`
+- `DeepBl4nder.codegen.policy.CodePolicy`
+- `DeepBl4nder.skills.registry.get_default_registry`
+- `DeepBl4nder.api.seed.main` (seed_command)
+- `DeepBl4nder.api.state`
 
 **Constantes :**
 
@@ -184,7 +184,7 @@ def main(argv: list[str] | None = None) -> None
 
 ---
 
-### 1.3 `deepblender/llm.py`
+### 1.3 `DeepBl4nder/llm.py`
 
 Module de gestion des fournisseurs LLM, du routage intelligent et de la découverte dynamique de modèles. Constitue le cœur du système de résolution de modèles pour les agents.
 
@@ -438,7 +438,7 @@ def get_router() -> LLMRouter
 
 ---
 
-### 1.4 `deepblender/logging_setup.py`
+### 1.4 `DeepBl4nder/logging_setup.py`
 
 Module de configuration du système de logging.
 
@@ -464,7 +464,7 @@ def log_file_path() -> Path
 
 **Description :** Retourne le chemin du fichier de log principal.
 
-**Chemin retourné :** `<DeepBl4nder_DATA_DIR>/logs/deepblender.log`
+**Chemin retourné :** `<DeepBl4nder_DATA_DIR>/logs/DeepBl4nder.log`
 
 **Valeur de retour :** `Path` — chemin absolu vers le fichier de log.
 
@@ -493,7 +493,7 @@ def setup_logging(level: int = logging.INFO) -> None
 
 ---
 
-### 1.5 `deepblender/nooa_compat.py`
+### 1.5 `DeepBl4nder/nooa_compat.py`
 
 Module de compatibilité avec le framework NOOA. Contient un monkeypatch pour corriger des problèmes d'enveloppe de réponse provenant de fournisseurs LLM non standard.
 
@@ -551,9 +551,9 @@ Module de base pour tous les agents. Définit la classe abstraite `BaseAgent`, l
 
 - `nooa.agents.CodeActStrategy` / `PredictStrategy` / `ReflexionStrategy` / `CodeActLiteStrategy`
 - `nooa.agents.Strategy` (type)
-- `deepblender.domain` (tous les types de domaine)
-- `deepblender.codegen.validator.validate_for_worker`
-- `deepblender.logging_setup.setup_logging`
+- `DeepBl4nder.domain` (tous les types de domaine)
+- `DeepBl4nder.codegen.validator.validate_for_worker`
+- `DeepBl4nder.logging_setup.setup_logging`
 
 **Classes :**
 
@@ -2275,7 +2275,7 @@ Module vide. Sert de namespace pour le package API.
 
 Application FastAPI principale. Configure le serveur, les routes, le CORS et le streaming SSE.
 
-**Imports :** `fastapi`, `fastapi.middleware.cors`, `starlette.responses`, `deepblender.api.*` (tous les modules API)
+**Imports :** `fastapi`, `fastapi.middleware.cors`, `starlette.responses`, `DeepBl4nder.api.*` (tous les modules API)
 
 **Fonctions :**
 
@@ -4289,7 +4289,7 @@ def _download_file(self, url: str, destination: Path) -> Path
 ## Annexe : Vue d'ensemble de l'architecture
 
 ```
-deepblender/
+DeepBl4nder/
 ├── __init__.py          # Initialisation, shims Windows, .env
 ├── cli.py               # CLI (inspect, validate, serve, seed)
 ├── llm.py               # Routage LLM, fournisseurs, discovery
@@ -4366,3 +4366,5 @@ deepblender/
 ---
 
 *Généré automatiquement pour DeepBl4nder v0.2.0*
+
+

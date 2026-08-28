@@ -12,16 +12,22 @@ from nooa import CodeActStrategy, strategy
 from nooa.agentdoc import hidden
 from nooa.config.strategy_config import CodeActConfig
 
-from DeepBl4nder.agents.base import BaseAgent, DefaultsMixin
+from DeepBl4nder.agents.base import BaseAgent, DefaultsMixin, InvariantError
 from DeepBl4nder.domain.media import AnimationResult
 from DeepBl4nder.domain.scene import SceneSpec, ShotSpec
 from DeepBl4nder.skills.registry import SkillRegistry
 
 
-def _animation_postcondition(result: Any) -> str | None:
-    if not hasattr(result, "clips") or not result.clips:
-        return "AnimationResult must contain at least one animation clip"
-    return None
+def _animation_postcondition(agent: Any, result: Any, call: Any) -> None:
+    if not isinstance(result, AnimationResult):
+        return
+    if not result.clips:
+        raise InvariantError(
+            "AnimationResult.clips ne doit pas être vide : appelez return_result "
+            'avec clips=[{"character_name": "Héros", "shot_index": 0, '
+            '"keyframes": [], "duration": 4.0}] — la liste clips ne doit pas '
+            "être vide."
+        )
 
 
 class AnimatorAgent(BaseAgent, DefaultsMixin):

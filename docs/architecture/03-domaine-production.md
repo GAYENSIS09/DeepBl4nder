@@ -74,3 +74,4 @@ NOOA state et production state sont **corrélés** mais ne sont pas la même cho
 ## Transition Worker → Artifact
 
 Worker → exécution → output → registration artifact → hash → version → provenance → production state.
+

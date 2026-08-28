@@ -3,7 +3,7 @@
 ## Table des matières
 
 - [Vue d'ensemble de l'architecture](#vue-densemble-de-larchitecture)
-- [Module racine : `deepblender/plugins/__init__.py`](#module-racine--deepblenderplugins__init__py)
+- [Module racine : `DeepBl4nder/plugins/__init__.py`](#module-racine--deepbl4nderplugins__init__py)
 - [Fondations](#fondations)
   - [base.py — Classe abstraite Plugin](#basepy--classe-abstraite-plugin)
   - [registry.py — PluginRegistry](#registrypy--pluginregistry)
@@ -44,7 +44,7 @@
 L'architecture plugins de DeepBl4nder suit un modèle **frontière externe** : chaque plugin est une passerelle vers un système externe (Blender, FFmpeg, TTS, Redis, Stripe…). Les agents NOOA restent le runtime agnostique ; ils interagissent avec les plugins via des **tools** ou du Python généré.
 
 ```
-deepblender/plugins/
+DeepBl4nder/plugins/
 ├── __init__.py              # Exports publics (TOUTES les classes)
 ├── base.py                  # Plugin (ABC) + PluginError
 ├── registry.py              # PluginRegistry (registre central, 10 builtins)
@@ -91,13 +91,13 @@ deepblender/plugins/
 
 ---
 
-## Module racine : `deepblender/plugins/__init__.py`
+## Module racine : `DeepBl4nder/plugins/__init__.py`
 
-**Fichier** : `deepblender/plugins/__init__.py`
+**Fichier** : `DeepBl4nder/plugins/__init__.py`
 
 ### Rôle
 
-Point d'entrée public du package. Ré-exporte **toutes** les classes et constants des sous-packages vers le namespace `deepblender.plugins`.
+Point d'entrée public du package. Ré-exporte **toutes** les classes et constants des sous-packages vers le namespace `DeepBl4nder.plugins`.
 
 ### Imports et exports
 
@@ -146,7 +146,7 @@ Tous les autres modules du projet importent les plugins via ce point d'entrée o
 
 ### base.py — Classe abstraite Plugin
 
-**Fichier** : `deepblender/plugins/base.py` (29 lignes)
+**Fichier** : `DeepBl4nder/plugins/base.py` (29 lignes)
 
 #### Rôle
 
@@ -186,7 +186,7 @@ Aucune méthode spécifique. Utilisé comme type d'erreur générique dans tous 
 
 ### registry.py — PluginRegistry
 
-**Fichier** : `deepblender/plugins/registry.py` (68 lignes)
+**Fichier** : `DeepBl4nder/plugins/registry.py` (68 lignes)
 
 #### Rôle
 
@@ -239,7 +239,7 @@ _BUILTINS: dict[str, type[Plugin]] = {
 
 ### tools.py — ToolRegistry
 
-**Fichier** : `deepblender/plugins/tools.py` (62 lignes)
+**Fichier** : `DeepBl4nder/plugins/tools.py` (62 lignes)
 
 #### Rôle
 
@@ -299,7 +299,7 @@ Définit les 8 **tools canoniques** (primitives d'action importantes) qui consti
 
 ### media/\_\_init\_\_.py
 
-**Fichier** : `deepblender/plugins/media/__init__.py` (12 lignes)
+**Fichier** : `DeepBl4nder/plugins/media/__init__.py` (12 lignes)
 
 #### Rôle
 
@@ -318,7 +318,7 @@ __all__ = [
 
 ### media/audio.py — AudioPlugin
 
-**Fichier** : `deepblender/plugins/media/audio.py` (63 lignes)
+**Fichier** : `DeepBl4nder/plugins/media/audio.py` (63 lignes)
 
 #### Rôle
 
@@ -365,7 +365,7 @@ _RATE = 44100  # Fréquence d'échantillonnage (Hz)
 
 ### media/tts.py — TTSPlugin
 
-**Fichier** `deepblender/plugins/media/tts.py` (204 lignes)
+**Fichier** `DeepBl4nder/plugins/media/tts.py` (204 lignes)
 
 #### Rôle
 
@@ -429,7 +429,7 @@ emotion_map = {
 
 ### media/music.py — MusicPlugin
 
-**Fichier** : `deepblender/plugins/media/music.py` (182 lignes)
+**Fichier** : `DeepBl4nder/plugins/media/music.py` (182 lignes)
 
 #### Rôle
 
@@ -490,7 +490,7 @@ key_offsets = {"C": 0, "D": 2, "E": 4, "F": 5, "G": 7, "A": 9, "B": 11}
 
 ### media/lipsync.py — LipSyncPlugin
 
-**Fichier** : `deepblender/plugins/media/lipsync.py` (285 lignes)
+**Fichier** : `DeepBl4nder/plugins/media/lipsync.py` (285 lignes)
 
 #### Rôle
 
@@ -606,7 +606,7 @@ Fenêtre glissante de 3 frames par défaut, moyenne arithmétique sur chaque ble
 
 ### media/subtitle.py — SubtitlePlugin
 
-**Fichier** : `deepblender/plugins/media/subtitle.py` (64 lignes)
+**Fichier** : `DeepBl4nder/plugins/media/subtitle.py` (64 lignes)
 
 #### Rôle
 
@@ -672,7 +672,7 @@ Regex de parsing SRT : capture index, timestamps start/end, et texte.
 
 ### rendering/\_\_init\_\_.py
 
-**Fichier** : `deepblender/plugins/rendering/__init__.py` (21 lignes)
+**Fichier** : `DeepBl4nder/plugins/rendering/__init__.py` (21 lignes)
 
 #### Exports
 
@@ -691,7 +691,7 @@ Inclut les classes plugin, les classes preset, les dictionnaires de presets pré
 
 ### rendering/blender.py — BlenderPlugin
 
-**Fichier** : `deepblender/plugins/rendering/blender.py` (72 lignes)
+**Fichier** : `DeepBl4nder/plugins/rendering/blender.py` (72 lignes)
 
 #### Rôle
 
@@ -754,7 +754,7 @@ _RENDER_TEMPLATE = (
 
 ### rendering/ffmpeg.py — FFmpegPlugin
 
-**Fichier** : `deepblender/plugins/rendering/ffmpeg.py` (259 lignes)
+**Fichier** : `DeepBl4nder/plugins/rendering/ffmpeg.py` (259 lignes)
 
 #### Rôle
 
@@ -906,7 +906,7 @@ Champ privé initialisé dans `__post_init__` :
 
 ### rendering/render_farm.py — RenderFarmPlugin
 
-**Fichier** : `deepblender/plugins/rendering/render_farm.py` (58 lignes)
+**Fichier** : `DeepBl4nder/plugins/rendering/render_farm.py` (58 lignes)
 
 #### Rôle
 
@@ -961,7 +961,7 @@ Distribution des rendus sur un pool de workers CPU/GPU via `WorkerScheduler`.
 
 ### storage/\_\_init\_\_.py
 
-**Fichier** : `deepblender/plugins/storage/__init__.py` (7 lignes)
+**Fichier** : `DeepBl4nder/plugins/storage/__init__.py` (7 lignes)
 
 #### Exports
 
@@ -973,7 +973,7 @@ __all__ = ["StoragePlugin", "GitPlugin", "CachePlugin"]
 
 ### storage/storage.py — StoragePlugin
 
-**Fichier** : `deepblender/plugins/storage/storage.py` (43 lignes)
+**Fichier** : `DeepBl4nder/plugins/storage/storage.py` (43 lignes)
 
 #### Rôle
 
@@ -1011,7 +1011,7 @@ Vérification de containment : `str(destination).startswith(str(self.root.resolv
 
 ### storage/git.py — GitPlugin
 
-**Fichier** : `deepblender/plugins/storage/git.py` (48 lignes)
+**Fichier** : `DeepBl4nder/plugins/storage/git.py` (48 lignes)
 
 #### Rôle
 
@@ -1058,7 +1058,7 @@ Champ privé :
 
 ### storage/cache.py — CachePlugin
 
-**Fichier** : `deepblender/plugins/storage/cache.py` (143 lignes)
+**Fichier** : `DeepBl4nder/plugins/storage/cache.py` (143 lignes)
 
 #### Rôle
 
@@ -1110,7 +1110,7 @@ Clés Redis préfixées par `db:cache:` pour les opérations clé-valeur, `db:qu
 
 ### knowledge/\_\_init\_\_.py
 
-**Fichier** : `deepblender/plugins/knowledge/__init__.py` (7 lignes)
+**Fichier** : `DeepBl4nder/plugins/knowledge/__init__.py` (7 lignes)
 
 #### Exports
 
@@ -1122,7 +1122,7 @@ __all__ = ["KnowledgeGraphPlugin", "AssetLibraryPlugin", "ObservabilityPlugin"]
 
 ### knowledge/knowledge_graph.py — KnowledgeGraphPlugin
 
-**Fichier** : `deepblender/plugins/knowledge/knowledge_graph.py` (67 lignes)
+**Fichier** : `DeepBl4nder/plugins/knowledge/knowledge_graph.py` (67 lignes)
 
 #### Rôle
 
@@ -1179,7 +1179,7 @@ Graphe de connaissances de la production : relie les entités (scènes, plans, a
 
 ### knowledge/asset_library.py — AssetLibraryPlugin
 
-**Fichier** : `deepblender/plugins/knowledge/asset_library.py` (81 lignes)
+**Fichier** : `DeepBl4nder/plugins/knowledge/asset_library.py` (81 lignes)
 
 #### Rôle
 
@@ -1232,7 +1232,7 @@ Catalogue local des assets : enregistrement, recherche et import avec hash de pr
 
 ### knowledge/observability.py — ObservabilityPlugin
 
-**Fichier** : `deepblender/plugins/knowledge/observability.py` (194 lignes)
+**Fichier** : `DeepBl4nder/plugins/knowledge/observability.py` (194 lignes)
 
 #### Rôle
 
@@ -1325,7 +1325,7 @@ span_path = Path(os.environ.get("DeepBl4nder_DATA_DIR", "data")) / "logs" / "llm
 
 ### integrations/\_\_init\_\_.py
 
-**Fichier** : `deepblender/plugins/integrations/__init__.py` (5 lignes)
+**Fichier** : `DeepBl4nder/plugins/integrations/__init__.py` (5 lignes)
 
 #### Exports
 
@@ -1337,7 +1337,7 @@ __all__ = ["BillingPlugin"]
 
 ### integrations/billing.py — BillingPlugin
 
-**Fichier** : `deepblender/plugins/integrations/billing.py` (141 lignes)
+**Fichier** : `DeepBl4nder/plugins/integrations/billing.py` (141 lignes)
 
 #### Rôle
 
@@ -1503,3 +1503,5 @@ Agents NOOA
          ├──→ ObservabilityPlugin ──→ Langfuse / JSONL
          └──→ BillingPlugin ──→ Stripe
 ```
+
+

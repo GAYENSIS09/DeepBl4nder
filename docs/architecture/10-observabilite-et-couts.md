@@ -49,3 +49,4 @@ La gateway expose l'état et les coûts en temps réel :
 - `/budget` : état du `BudgetTracker` (total, budget, restant, `over_budget`) ;
 - `/events` : flux SSE sur le bus ; `BudgetTracker` publie une alerte dès le
   franchissement du budget (objectif < 30 s).
+

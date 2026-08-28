@@ -89,3 +89,4 @@ class MySkill(Skill):
 - `nooa-tools-and-skills` — the Skill/TextSkill/SkillRegistry model these libraries plug into.
 - `nooa-codeact-advanced` — the validator rules that shape what generated code may define.
 - `nooa-agent-authoring` — standalone `@strategy` functions share generation-method semantics (docstring prompt, return-type contract).
+

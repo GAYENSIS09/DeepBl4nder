@@ -142,3 +142,4 @@ These still work but emit `DeprecationWarning`:
 | `self.context.disable("k")` | `self.context["k"] = None` |
 | `self.context.enable("k")` | `self.context["k"] = Context(expr="<original_expr>", prefix=True)` |
 | `DynamicContext("expr")` | `Context(expr="expr")` |
+

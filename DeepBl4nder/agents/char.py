@@ -12,17 +12,23 @@ from nooa import CodeActStrategy, strategy
 from nooa.agentdoc import hidden
 from nooa.config.strategy_config import CodeActConfig
 
-from DeepBl4nder.agents.base import BaseAgent, DefaultsMixin
+from DeepBl4nder.agents.base import BaseAgent, DefaultsMixin, InvariantError
 from DeepBl4nder.domain.media import CharacterDesignResult
 from DeepBl4nder.domain.scene import CharacterSpec, SceneSpec
 from DeepBl4nder.skills.registry import SkillRegistry
 
 
 # Postcondition: CharacterDesignResult must have at least one character
-def _character_design_postcondition(result: Any) -> str | None:
-    if not hasattr(result, "characters") or not result.characters:
-        return "CharacterDesignResult must contain at least one character design"
-    return None
+def _character_design_postcondition(agent: Any, result: Any, call: Any) -> None:
+    if not isinstance(result, CharacterDesignResult):
+        return
+    if not result.characters:
+        raise InvariantError(
+            "CharacterDesignResult.characters ne doit pas être vide : appelez "
+            'return_result avec characters=[{"name": "Héros", "description": '
+            '"jeune hackeuse", "geometry_type": "primitive", "material": '
+            '"PBR_Skin"}] — la liste characters ne doit pas être vide.'
+        )
 
 
 class CharacterDesignerAgent(BaseAgent, DefaultsMixin):

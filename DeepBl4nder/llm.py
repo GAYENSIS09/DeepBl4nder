@@ -97,10 +97,7 @@ class LLMProvider:
         return bool(self.api_key())
 
     def api_base(self) -> str | None:
-        """Base URL : celle du registre pour un serveur local, sinon None
-        (litellm connaît l'URL officielle du fournisseur)."""
-        if self.id == "local":
-            return self.base_url
+        """Base URL : None pour tous les fournisseurs cloud (litellm connaît l'URL officielle)."""
         return None
 
     def resolved_base_url(self) -> str:
@@ -179,15 +176,6 @@ PROVIDERS: dict[str, LLMProvider] = {
             "cloudflare/@cf/meta/llama-3.3-70b-instruct",
         ),
     ),
-    "local": LLMProvider(
-        id="local",
-        api_key_env="LLM_API_KEY",
-        base_url="http://localhost:11434/v1",
-        models=(
-            "openai/llama3.2",
-            "openai/gpt-4o-mini",
-        ),
-    ),
 }
 
 
@@ -263,7 +251,6 @@ MODEL_SELECTION_RULES: dict[str, ModelSelectionRule] = {
         prefer=(r"@cf/meta/llama-3\.3-70b-instruct", r"@cf/google/gemma"),
         max_models=3,
     ),
-    "local": ModelSelectionRule(exclude=("embed",), prefer=(), max_models=3),
 }
 
 _DEFAULT_RULE = ModelSelectionRule(
@@ -574,6 +561,34 @@ def _afford_cap(error: Exception) -> int | None:
     return int(match.group(1)) if match else None
 
 
+def _global_max_tokens() -> int | None:
+    """Plafond global de complétion via ``DeepBl4nder_MAX_TOKENS`` (tokens).
+
+    Permet de plafonner la sortie d'UN SEUL endroit pour respecter les
+    capacités des fournisseurs gratuits (ex. OpenRouter plafonne la sortie du
+    modèle free, Groq a un TPM bas). ``0``/absent = sans plafond global.
+    """
+    raw = os.environ.get("DeepBl4nder_MAX_TOKENS", "").strip()
+    if not raw:
+        return None
+    try:
+        value = int(raw)
+    except ValueError:
+        return None
+    return None if value <= 0 else value
+
+
+def _apply_global_max_tokens(kwargs: dict[str, Any]) -> dict[str, Any]:
+    """Plafonne ``max_tokens`` par la limite globale (si définie et plus basse)."""
+    cap = _global_max_tokens()
+    if cap is None:
+        return kwargs
+    requested = kwargs.get("max_tokens")
+    if isinstance(requested, int) and not isinstance(requested, bool) and requested > cap:
+        kwargs = {**kwargs, "max_tokens": cap}
+    return kwargs
+
+
 async def _acall_with_budget_retry(
     client: UnifiedLLM,
     messages: list[dict[str, Any]],
@@ -743,7 +758,7 @@ class LLMRouter:
         else:
             msg += (
                 " Définissez au moins une clé d'API (GEMINI_API_KEY, GROQ_API_KEY, "
-                "NVIDIA_API_KEY, OPENROUTER_API_KEY, CLOUDFLARE_API_KEY, LLM_API_KEY)."
+                "NVIDIA_API_KEY, OPENROUTER_API_KEY, CLOUDFLARE_API_KEY)."
             )
         return msg
 
@@ -993,6 +1008,8 @@ class LLMRouter:
             voters = list(self._providers)
         if not voters:
             raise RuntimeError(self._missing_keys_message())
+
+        kwargs = _apply_global_max_tokens(kwargs)
 
         if self._mode == "fallback":
             return await self._acall_fallback(messages, tools, output_model, voters, kwargs)

@@ -12,16 +12,21 @@ from nooa import CodeActStrategy, strategy
 from nooa.agentdoc import hidden
 from nooa.config.strategy_config import CodeActConfig
 
-from DeepBl4nder.agents.base import BaseAgent, DefaultsMixin
+from DeepBl4nder.agents.base import BaseAgent, DefaultsMixin, InvariantError
 from DeepBl4nder.domain.media import SoundDesignPlan
 from DeepBl4nder.domain.scene import SceneSpec
 from DeepBl4nder.skills.registry import SkillRegistry
 
 
-def _sound_design_postcondition(result: Any) -> str | None:
-    if not hasattr(result, "layers") or not result.layers:
-        return "SoundDesignPlan must contain at least one audio layer"
-    return None
+def _sound_design_postcondition(agent: Any, result: Any, call: Any) -> None:
+    if not isinstance(result, SoundDesignPlan):
+        return
+    if not result.layers:
+        raise InvariantError(
+            "SoundDesignPlan.layers ne doit pas être vide : appelez return_result "
+            'avec layers=[{"name": "Ambiance pluie", "layer_type": "ambience"}] '
+            "— la liste layers ne doit pas être vide."
+        )
 
 
 class SoundDesignerAgent(BaseAgent, DefaultsMixin):

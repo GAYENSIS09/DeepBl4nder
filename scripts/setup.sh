@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
-# DeepBlender — Initial Setup
+# DeepBl4nder — Initial Setup
 #
 # Usage:
 #   ./scripts/setup.sh
 
 set -euo pipefail
 
-echo "=== DeepBlender Setup ==="
+echo "=== DeepBl4nder Setup ==="
 
 # Check prerequisites
 echo "Checking prerequisites..."
@@ -29,8 +29,8 @@ mkdir -p work projects data
 # Create MinIO bucket (if minio client available)
 if command -v mc >/dev/null 2>&1; then
     echo "Setting up MinIO bucket..."
-    mc alias set local http://localhost:9000 deepblender minioadmin 2>/dev/null || true
-    mc mb local/deepblender 2>/dev/null || true
+    mc alias set local http://localhost:9000 DeepBl4nder minioadmin 2>/dev/null || true
+    mc mb local/DeepBl4nder 2>/dev/null || true
 fi
 
 echo ""
@@ -46,3 +46,4 @@ echo "Optional services:"
 echo "  - UE5: docker compose --profile ue5 up -d"
 echo "  - Langfuse: http://localhost:3002"
 echo "  - MinIO: http://localhost:9001"
+

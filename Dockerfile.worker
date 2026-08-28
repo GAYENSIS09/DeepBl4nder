@@ -34,11 +34,15 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libxinerama1 \
     && rm -rf /var/lib/apt/lists/*
 
-# Install Blender 4.1 (LTS) from official tarball
+# Install Blender 4.1 (LTS) from official tarball with retries and fallback mirror
 ARG BLENDER_VERSION=4.1.1
 ARG BLENDER_URL=https://download.blender.org/release/Blender4.1/blender-${BLENDER_VERSION}-linux-x64.tar.xz
+ARG BLENDER_MIRROR=https://mirror.clarkson.edu/blender/release/Blender4.1/blender-${BLENDER_VERSION}-linux-x64.tar.xz
 
-RUN curl -fsSL "${BLENDER_URL}" -o /tmp/blender.tar.xz \
+RUN for url in "${BLENDER_URL}" "${BLENDER_MIRROR}"; do \
+      echo "Trying $url..." && \
+      curl -fsSL --retry 3 --retry-delay 5 --connect-timeout 30 "$url" -o /tmp/blender.tar.xz && break; \
+    done \
     && tar -xf /tmp/blender.tar.xz -C /opt \
     && ln -s /opt/blender-${BLENDER_VERSION}-linux-x64 /opt/blender \
     && ln -s /opt/blender/blender /usr/local/bin/blender \

@@ -84,3 +84,4 @@ Toute capacité déjà fournie par NOOA est utilisée, jamais réimplémentée.
 3. `00-nooa.md` — sur quoi on s'appuie
 4. `04-agents.md`, `07-workers-blender.md`, `09-qa-et-revision.md` — le cœur du système
 5. `11-roadmap.md` — par quoi commencer
+

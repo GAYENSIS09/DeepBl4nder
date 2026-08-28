@@ -1,6 +1,6 @@
 # Référence Production Pipeline — DeepBl4nder
 
-> Document de référence exhaustif pour le module `deepblender/production/`.
+> Document de référence exhaustif pour le module `DeepBl4nder/production/`.
 > Dernière mise à jour : 2026-08-27
 
 ---
@@ -28,7 +28,7 @@
 
 ## 1. Vue d'ensemble
 
-Le package `deepblender/production/` constitue le **cœur orchestrateur** du pipeline DeepBl4nder. Il connecte les agents IA (NOOA) aux briques de production (rendu, post-production, plugins) en garantissant :
+Le package `DeepBl4nder/production/` constitue le **cœur orchestrateur** du pipeline DeepBl4nder. Il connecte les agents IA (NOOA) aux briques de production (rendu, post-production, plugins) en garantissant :
 
 - **Traçabilité** : chaque transition d'étape est journalisée avant d'être appliquée (append-only).
 - **Observabilité** : événements temps réel via `EventBus` (SSE gateway) et hooks.
@@ -110,7 +110,7 @@ AnimationAgent (optionnel)
 
 ### 3.1 `__init__.py`
 
-**Chemin** : `deepblender/production/__init__.py`
+**Chemin** : `DeepBl4nder/production/__init__.py`
 
 **Description** : Définit l'interface publique du package via `__all__`.
 
@@ -132,7 +132,7 @@ AnimationAgent (optionnel)
 
 ### 3.2 `runner.py` — Orchestrateur principal
 
-**Chemin** : `deepblender/production/runner.py` (1334 lignes)
+**Chemin** : `DeepBl4nder/production/runner.py` (1334 lignes)
 
 **Description** : Le fichier central du pipeline. Il relie les agents NOOA aux briques de production, orchestre l'exécution complète d'un brief en un `RunOutcome`, et gère les boucles de révision, la reprise, le cache LLM, et les plugins.
 
@@ -364,7 +364,7 @@ def __init__(
 
 ### 3.3 `postprod.py` — Post-production
 
-**Chemin** : `deepblender/production/postprod.py` (428 lignes)
+**Chemin** : `DeepBl4nder/production/postprod.py` (428 lignes)
 
 **Description** : Extrait de `PipelineRunner` pour décomposer le runner principal. Gère : audio, musique, sound design, compositing, review, merge final, localization.
 
@@ -437,7 +437,7 @@ Pour chaque langue cible :
 
 ### 3.4 `events.py` — Journal d'événements
 
-**Chemin** : `deepblender/production/events.py` (111 lignes)
+**Chemin** : `DeepBl4nder/production/events.py` (111 lignes)
 
 **Description** : Journal persistant append-only (JSONL) et bus pub/sub mémoire. La fiabilité DeepBl4nder repose sur ce journal : chaque transition d'étape est persistée avant d'être appliquée.
 
@@ -508,7 +508,7 @@ def __init__(self) -> None
 
 ### 3.5 `context.py` — Injection de contexte NOOA
 
-**Chemin** : `deepblender/production/context.py` (192 lignes)
+**Chemin** : `DeepBl4nder/production/context.py` (192 lignes)
 
 **Description** : Centralise la logique d'injection de variables de contexte (`run_history`, `revision_feedback`, etc.) dans les agents du pipeline. Utilisé en duck-typing : chaque agent peut exposer un attribut `context` (behaviour `__setitem__`).
 
@@ -560,7 +560,7 @@ Instructions du producteur :
 
 ### 3.6 `budget.py` — Suivi budgétaire
 
-**Chemin** : `deepblender/production/budget.py` (92 lignes)
+**Chemin** : `DeepBl4nder/production/budget.py` (92 lignes)
 
 **Description** : Suivi des coûts d'un run avec politique d'arrêt et alerte de dépassement (Roadmap C §19). L'alerte est émise à la transition budget franchi (temps réel < 30s).
 
@@ -615,7 +615,7 @@ Instructions du producteur :
 
 ### 3.7 `checkpoints.py` — Points de contrôle
 
-**Chemin** : `deepblender/production/checkpoints.py` (248 lignes)
+**Chemin** : `DeepBl4nder/production/checkpoints.py` (248 lignes)
 
 **Description** : Gestion des checkpoints de reprise du pipeline. Responsable de la persistance et de la lecture des étapes validées (brief fingerprint, chaîne de checkpoints, reprise depuis un run interrompu).
 
@@ -688,7 +688,7 @@ def __init__(
 
 ### 3.8 `runs.py` — Runs de production
 
-**Chemin** : `deepblender/production/runs.py` (163 lignes)
+**Chemin** : `DeepBl4nder/production/runs.py` (163 lignes)
 
 **Description** : Modèles `ProductionRun` et `ProductionStep` pour la corrélation production/agent, le suivi d'étapes et la reprise.
 
@@ -752,7 +752,7 @@ RunStatus = Literal["created", "planned", "running", "awaiting_approval",
 
 ### 3.9 `rendering.py` — Gestion du rendu
 
-**Chemin** : `deepblender/production/rendering.py` (377 lignes)
+**Chemin** : `DeepBl4nder/production/rendering.py` (377 lignes)
 
 **Description** : Extrait de `runner.py` pour isoler la logique de rendu (single-shot, parallel-shots, fusion ffmpeg) dans une classe testable.
 
@@ -818,7 +818,7 @@ def __init__(
 
 ### 3.10 `plugins.py` — Raccourcis plugins
 
-**Chemin** : `deepblender/production/plugins.py` (45 lignes)
+**Chemin** : `DeepBl4nder/production/plugins.py` (45 lignes)
 
 **Description** : Mixin pour les raccourcis d'accès aux plugins par nom depuis un `PluginRegistry`.
 
@@ -846,7 +846,7 @@ def __init__(
 
 ### 3.11 `fallbacks.py` — Fallbacks déterministes
 
-**Chemin** : `deepblender/production/fallbacks.py` (254 lignes)
+**Chemin** : `DeepBl4nder/production/fallbacks.py` (254 lignes)
 
 **Description** : Fallbacks déterministes pour les étapes Storyboard et Blender. Ces fonctions produisent des sorties structurellement valides quand les générations LLM échouent deux fois de suite. Elles n'utilisent que des types du domaine.
 
@@ -907,19 +907,19 @@ def synthesize_blender_script(scene: SceneSpec, workdir: Path) -> BlenderScript
 
 | Module source | Symboles utilisés |
 |---|---|
-| `deepblender.agents.base` | `GenerationError` |
-| `deepblender.artifacts.provenance` | `ProvenanceGraph` |
-| `deepblender.artifacts.registry` | `Artifact`, `ArtifactRegistry` |
-| `deepblender.codegen.validator` | `ValidationReport`, `validate_for_worker` |
-| `deepblender.domain.patch` | `Patch`, `apply_patches` |
-| `deepblender.domain.project` | `Brief` |
-| `deepblender.domain.qa` | `Issue`, `IssueKind`, `QAReport`, `RevisionSpec` |
-| `deepblender.domain.scene` | `BlenderScript`, `SceneSpec`, `RenderOutput`, `ShotSpec`, `ENGINE_UE5` |
-| `deepblender.domain.ue5` | `UE5Commands`, `UE5Command` |
-| `deepblender.domain.media` | `AudioPlan`, `AudioMaster`, `CompositeSpec`, `LanguagePackage`, `MusicPlan`, `SoundDesignPlan` |
-| `deepblender.domain.narrative` | `StorySpec`, `StoryboardSpec`, `StoryboardShot` |
-| `deepblender.plugins.registry` | `PluginRegistry` |
-| `deepblender.qa.visual` | `assess_render`, `visual_qa_to_report` |
+| `DeepBl4nder.agents.base` | `GenerationError` |
+| `DeepBl4nder.artifacts.provenance` | `ProvenanceGraph` |
+| `DeepBl4nder.artifacts.registry` | `Artifact`, `ArtifactRegistry` |
+| `DeepBl4nder.codegen.validator` | `ValidationReport`, `validate_for_worker` |
+| `DeepBl4nder.domain.patch` | `Patch`, `apply_patches` |
+| `DeepBl4nder.domain.project` | `Brief` |
+| `DeepBl4nder.domain.qa` | `Issue`, `IssueKind`, `QAReport`, `RevisionSpec` |
+| `DeepBl4nder.domain.scene` | `BlenderScript`, `SceneSpec`, `RenderOutput`, `ShotSpec`, `ENGINE_UE5` |
+| `DeepBl4nder.domain.ue5` | `UE5Commands`, `UE5Command` |
+| `DeepBl4nder.domain.media` | `AudioPlan`, `AudioMaster`, `CompositeSpec`, `LanguagePackage`, `MusicPlan`, `SoundDesignPlan` |
+| `DeepBl4nder.domain.narrative` | `StorySpec`, `StoryboardSpec`, `StoryboardShot` |
+| `DeepBl4nder.plugins.registry` | `PluginRegistry` |
+| `DeepBl4nder.qa.visual` | `assess_render`, `visual_qa_to_report` |
 
 ### Dépendances interne du package `production/`
 
@@ -1044,3 +1044,4 @@ fallbacks.py ─────└──▶ domain.scene, domain.narrative
 | `ue5_command_failed` | Commande UE5 échouée | `{endpoint, error}` |
 | `merge_failed` | Fusion FFmpeg échouée | `{error}` |
 | `scene_inspected` | Scène inspectée | `{objects}` |
+

@@ -1,0 +1,117 @@
+title DeepBl4nder Agent Architecture
+
+autonumber
+
+actor User as "User / API Client"
+participant DirectorAgent as "Director Agent\n(Orchestrateur principal)"
+participant StoryAgent as "Story Agent\n(Scénario / Narratif)"
+participant StoryboardAgent as "Storyboard Agent\n(Plan séquence)"
+participant CharacterDesignerAgent as "Character Designer\n(Design perso)"
+participant EnvironmentArtistAgent as "Environment Artist\n(Design env)"
+participant AnimatorAgent as "Animator Agent\n(Animation)"
+participant BlenderAgent as "Blender Agent\n(Exécution Blender)"
+participant CompositingAgent as "Compositing Agent\n(Post-prod)"
+participant AudioAgent as "Audio Agent\n(Sound design)"
+participant MusicComposerAgent as "Music Composer\n(Musique)"
+participant LocalizationAgent as "Localization Agent\n(Sous-titres / i18n)"
+participant QAAgent as "QA Agent\n(Validation qualité)"
+participant ReviewAgent as "Review Agent\n(Revue humaine)"
+participant UE5Agent as "UE5 Agent\n(Unreal Engine)"
+participant Scheduler as "WorkerScheduler\n(Celery + Redis)"
+participant BlenderBridge as "BlenderBridge\n(Worker process)"
+participant MinIO as "MinIO\n(Object Storage)"
+participant Postgres as "PostgreSQL\n(Métadonnées)"
+participant Langfuse as "Langfuse\n(Observabilité LLM)"
+
+== Initialisation ==
+User->DirectorAgent: POST /api/productions (brief)
+DirectorAgent->Postgres: CREATE production + project
+DirectorAgent->MinIO: CREATE bucket assets
+DirectorAgent->Scheduler: Enqueue story task
+
+== Phase 1: Story & Storyboard ==
+DirectorAgent->StoryAgent: generate_story(brief)
+StoryAgent->Langfuse: LLM call (Gemini/Groq)
+StoryAgent-->>DirectorAgent: StorySpec
+DirectorAgent->Postgres: SAVE story
+
+DirectorAgent->StoryboardAgent: generate_storyboard(story)
+StoryboardAgent->Langfuse: LLM call
+StoryboardAgent-->>DirectorAgent: StoryboardSpec (shots)
+DirectorAgent->Postgres: SAVE storyboard
+
+== Phase 2: Assets (parallèle) ==
+par Character Design
+DirectorAgent->CharacterDesignerAgent: design_characters(story)
+CharacterDesignerAgent->Langfuse: LLM call
+CharacterDesignerAgent-->>DirectorAgent: CharacterDesignResult
+DirectorAgent->MinIO: UPLOAD refs
+end
+
+par Environment Design
+DirectorAgent->EnvironmentArtistAgent: design_environments(storyboard)
+EnvironmentArtistAgent->Langfuse: LLM call
+EnvironmentArtistAgent-->>DirectorAgent: EnvironmentDesignResult
+DirectorAgent->MinIO: UPLOAD refs
+end
+
+== Phase 3: Animation & Blender ==
+DirectorAgent->AnimatorAgent: animate_shots(storyboard, characters, env)
+AnimatorAgent->Langfuse: LLM call (génère BlenderScript)
+AnimatorAgent-->>DirectorAgent: BlenderScript[]
+DirectorAgent->Postgres: SAVE scripts
+
+DirectorAgent->Scheduler: Enqueue blender_render tasks
+Scheduler->BlenderBridge: RUN blender -b -P script.py
+BlenderBridge->BlenderAgent: Exécution headless Blender 4.1
+BlenderAgent->MinIO: UPLOAD renders (EXR/PNG/MP4)
+BlenderAgent-->>Scheduler: RenderOutput (paths, metadata)
+Scheduler-->>DirectorAgent: Render completed
+
+== Phase 4: Audio & Music (parallèle) ==
+par Sound Design
+DirectorAgent->AudioAgent: create_audio_plan(renders)
+AudioAgent->Langfuse: LLM call
+AudioAgent-->>DirectorAgent: AudioPlan
+DirectorAgent->Scheduler: Enqueue tts/sfx tasks
+end
+
+par Music Composition
+DirectorAgent->MusicComposerAgent: compose_music(story, mood)
+MusicComposerAgent->Langfuse: LLM call
+MusicComposerAgent-->>DirectorAgent: MusicPlan
+DirectorAgent->Scheduler: Enqueue music generation
+end
+
+== Phase 5: Compositing & Localization ==
+DirectorAgent->CompositingAgent: composite(renders, audio, music)
+CompositingAgent->Scheduler: Enqueue ffmpeg/blender compositing
+CompositingAgent-->>DirectorAgent: CompositeSpec
+
+DirectorAgent->LocalizationAgent: localize(dialogs, target_langs)
+LocalizationAgent->Langfuse: LLM call
+LocalizationAgent-->>DirectorAgent: LanguagePackage[]
+
+== Phase 6: QA & Review ==
+DirectorAgent->QAAgent: validate_all(outputs)
+QAAgent->Langfuse: LLM call (visual QA si dispo)
+QAAgent-->>DirectorAgent: QAReport (issues, score)
+
+alt QA passed
+DirectorAgent->ReviewAgent: request_human_review(production)
+ReviewAgent-->>User: Notification review required
+User->ReviewAgent: APPROVE / REQUEST_CHANGES
+else QA failed
+DirectorAgent->DirectorAgent: Retry failed steps (max 3)
+end
+
+== Livraison ==
+DirectorAgent->MinIO: Package final assets
+DirectorAgent->Postgres: UPDATE production status=DELIVERED
+DirectorAgent-->>User: Production ready (URLs MinIO)
+
+== Observabilité ==
+note right of Langfuse: Tous les appels LLM tracés\n(traces, spans, coûts, tokens)
+note right of Scheduler: Celery + Redis\n(retries, timeouts, priority)
+note right of MinIO: Versioning assets\n(previews, finals, checkpoints)
+note right of Postgres: Productions, Projects,\nScenes, Shots, Assets, Runs

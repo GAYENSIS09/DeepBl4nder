@@ -116,3 +116,4 @@ Ingestion is queued and written by a single background writer, so a `GET` immedi
 
 - `nooa-capturing-traces` — how spans get produced and exported.
 - `nooa-trace-explorer` — programmatic trace analysis (CLI + Python) on top of files or this viewer.
+

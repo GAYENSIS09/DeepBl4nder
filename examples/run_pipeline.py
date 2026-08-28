@@ -14,11 +14,15 @@ import asyncio
 from DeepBl4nder.agents import BlenderAgent, DirectorAgent
 from DeepBl4nder.codegen.validator import validate_for_worker
 from DeepBl4nder.domain.project import Brief
-from DeepBl4nder.llm import build_llm
+# from DeepBl4nder.llm import build_llm  # remplacé par local router
+from DeepBl4nder.llm_local import register_local_models, get_local_router
+
+register_local_models()
 
 
 async def main() -> None:
-    llm = build_llm()
+    # llm = build_llm()  # remplacé par local router
+    llm = get_local_router(["qwen3-14b-q4"])
     print(f"Modèle : {llm.model}")
 
     brief = Brief(

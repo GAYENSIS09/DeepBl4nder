@@ -12,17 +12,22 @@ from nooa import CodeActStrategy, strategy
 from nooa.agentdoc import hidden
 from nooa.config.strategy_config import CodeActConfig
 
-from DeepBl4nder.agents.base import BaseAgent, DefaultsMixin
+from DeepBl4nder.agents.base import BaseAgent, DefaultsMixin, InvariantError
 from DeepBl4nder.domain.media import AudioPlan, CompositeSpec, ReviewReport
 from DeepBl4nder.domain.qa import QAReport
 from DeepBl4nder.domain.scene import SceneSpec, RenderOutput
 from DeepBl4nder.skills.registry import SkillRegistry
 
 
-def _review_postcondition(result: Any) -> str | None:
+def _review_postcondition(agent: Any, result: Any, call: Any) -> None:
+    if not isinstance(result, ReviewReport):
+        return
     if not hasattr(result, "score"):
-        return "ReviewReport must have a score (0-100)"
-    return None
+        raise InvariantError("ReviewReport.score (0-100) est requis dans return_result.")
+    if not isinstance(result.score, (int, float)):
+        raise InvariantError("ReviewReport.score doit être un nombre entre 0 et 100.")
+    if not 0 <= result.score <= 100:
+        raise InvariantError(f"ReviewReport.score doit être entre 0 et 100, got {result.score}.")
 
 
 class ReviewAgent(BaseAgent, DefaultsMixin):

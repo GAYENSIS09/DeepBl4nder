@@ -51,3 +51,4 @@ for path in sorted(Path("skills").glob("*/SKILL.md")):
     print(f"{s.id}: {s.description[:88]}")
 PY
 ```
+

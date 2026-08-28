@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# DeepBlender — Backup
+# DeepBl4nder — Backup
 #
 # Usage:
 #   ./scripts/backup.sh [backup_dir]
@@ -7,14 +7,14 @@
 set -euo pipefail
 
 BACKUP_DIR="${1:-./backups/$(date +%Y%m%d_%H%M%S)}"
-echo "=== DeepBlender Backup ==="
+echo "=== DeepBl4nder Backup ==="
 echo "Backup directory: $BACKUP_DIR"
 
 mkdir -p "$BACKUP_DIR"
 
 # PostgreSQL
 echo "Backing up PostgreSQL..."
-docker compose exec -T postgres pg_dump -U deepblender deepblender | gzip > "$BACKUP_DIR/postgres.sql.gz"
+docker compose exec -T postgres pg_dump -U DeepBl4nder DeepBl4nder | gzip > "$BACKUP_DIR/postgres.sql.gz"
 
 # MinIO data
 echo "Backing up MinIO data..."
@@ -30,3 +30,4 @@ echo ""
 echo "=== Backup Complete ==="
 echo "Location: $BACKUP_DIR"
 ls -lh "$BACKUP_DIR"
+

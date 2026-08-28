@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# DeepBlender — Deploy to Production
+# DeepBl4nder — Deploy to Production
 #
 # Usage:
 #   ./scripts/deploy.sh [environment]
@@ -9,7 +9,7 @@
 set -euo pipefail
 
 ENVIRONMENT="${1:-production}"
-echo "=== DeepBlender Deploy ($ENVIRONMENT) ==="
+echo "=== DeepBl4nder Deploy ($ENVIRONMENT) ==="
 
 # Check prerequisites
 command -v docker >/dev/null 2>&1 || { echo "Error: docker not found"; exit 1; }
@@ -39,7 +39,7 @@ sleep 10
 
 # Run database migrations (if needed)
 echo "Running database migrations..."
-docker compose run --rm deepblender-api python -m alembic upgrade head 2>/dev/null || true
+docker compose run --rm DeepBl4nder-api python -m alembic upgrade head 2>/dev/null || true
 
 # Start all services
 echo "Starting all services..."
@@ -55,7 +55,7 @@ if curl -sf http://localhost:8000/health > /dev/null 2>&1; then
     echo "✅ API is healthy"
 else
     echo "❌ API health check failed"
-    docker compose logs deepblender-api --tail=20
+    docker compose logs DeepBl4nder-api --tail=20
     exit 1
 fi
 
@@ -77,3 +77,4 @@ echo "  MinIO:     http://localhost:9001"
 echo ""
 echo "Logs: docker compose logs -f"
 echo "Stop: docker compose down"
+

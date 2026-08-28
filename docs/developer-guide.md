@@ -137,3 +137,4 @@ python -m pytest tests/test_decoupling.py -q   # découplage NOOA ↔ legacy
 `Dockerfile` : python 3.12-slim + Blender + ffmpeg + `pip install .` (avec NOOA).
 `docker-compose.yml` : gateway HTTP + worker jetable + ollama (LLM local via
 `LLM_BASE_URL` / `LLM_API_KEY`).
+

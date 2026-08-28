@@ -14,16 +14,21 @@ from typing import Any
 from nooa import CodeActStrategy, strategy
 from nooa.config import CodeActConfig
 
-from DeepBl4nder.agents.base import BaseAgent, DefaultsMixin
+from DeepBl4nder.agents.base import BaseAgent, DefaultsMixin, InvariantError
 from DeepBl4nder.domain.media import AudioPlan
 from DeepBl4nder.domain.scene import SceneSpec
 from DeepBl4nder.skills.registry import SkillRegistry
 
 
-def _audio_postcondition(result: AudioPlan) -> str | None:
+def _audio_postcondition(agent: Any, result: Any, call: Any) -> None:
+    if not isinstance(result, AudioPlan):
+        return
     if not result.mood:
-        return "AudioPlan.mood must be non-empty"
-    return None
+        raise InvariantError(
+            "AudioPlan.mood ne doit pas être vide : appelez return_result avec "
+            'mood="tendu", music_theme="synthwave nocturne" — l\'ambiance sonore '
+            "est requise."
+        )
 
 
 class AudioAgent(BaseAgent, DefaultsMixin):

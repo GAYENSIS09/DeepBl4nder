@@ -104,3 +104,4 @@ Prefer the thin client when the trace is huge, when exploring interactively (cac
 
 - `nooa-capturing-traces` — produce the `.jsonl` files this tool reads.
 - `nooa-trace-viewer` — the web UI and the server backing `--viewer` / thin-client modes.
+

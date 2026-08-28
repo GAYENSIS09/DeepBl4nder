@@ -274,3 +274,4 @@ Most bugs are visible in the rendered prompt. For runtime behavior, capture trac
 - Examples: `examples/README.md` and `examples/quickstart/`.
 - Runnable examples: `examples/quickstart/01`–`15`.
 - Related skills: `nooa-codeact-advanced`, `nooa-context-and-state`, `nooa-tools-and-skills`, `nooa-agentdoc`, `nooa-channels`, `nooa-capturing-traces`, `nooa-trace-viewer`, `nooa-trace-explorer`.
+

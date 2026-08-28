@@ -64,3 +64,4 @@ production, politiques de sécurité de production.
 
 > **« Est-ce que NOOA sait déjà faire cela ? »** Si oui → utiliser NOOA. Sinon → est-ce une
 > responsabilité du domaine audiovisuel ? Si oui → l'ajouter à DeepBl4nder. Sinon → ne pas ajouter.
+

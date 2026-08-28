@@ -1,24 +1,18 @@
 import type { Metadata } from 'next';
-import { Inter, Space_Grotesk, JetBrains_Mono } from 'next/font/google';
+import localFont from 'next/font/local';
 
 import './globals.css';
 import { AuthProvider } from '@/lib/auth-context';
 import { NotificationsProvider } from '@/lib/notifications';
 
-const display = Space_Grotesk({
-  subsets: ['latin'],
+const display = localFont({
+  src: '../../public/fonts/SpaceGrotesk-Variable.woff2',
   variable: '--font-display',
   display: 'swap',
 });
 
-const body = Inter({
-  subsets: ['latin'],
-  variable: '--font-body',
-  display: 'swap',
-});
-
-const mono = JetBrains_Mono({
-  subsets: ['latin'],
+const mono = localFont({
+  src: '../../public/fonts/JetBrainsMono-Variable.woff2',
   variable: '--font-mono',
   display: 'swap',
 });
@@ -35,7 +29,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="fr" className={`${display.variable} ${body.variable} ${mono.variable}`}>
+    <html lang="fr" className={`${display.variable} ${mono.variable}`}>
       <body className="bg-black text-off-white font-body antialiased">
         <AuthProvider>
           <NotificationsProvider>{children}</NotificationsProvider>

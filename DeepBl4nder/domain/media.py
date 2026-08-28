@@ -7,8 +7,44 @@ métadonnées, interface).
 
 from __future__ import annotations
 
+import dataclasses
 from dataclasses import dataclass, field
 from typing import Any
+
+
+def _coerce_mapping(value: Any) -> Any:
+    """Sérialise un objet imbriqué de façon défensive.
+
+    NOOA valide uniquement l'instance racine d'un type de retour (classe
+    simple, non-Pydantic) et ne peut pas garantir le type des objets
+    imbriqués : le LLM peut injecter des classes arbitraires (ex. un
+    ``AssetSpec`` défini dans son propre code) sans méthode ``to_mapping``.
+    Cette fonction normalise n'importe quel objet en mapping JSON-safe
+    pour que la pipeline ne plante jamais à la sérialisation.
+    """
+    if value is None or isinstance(value, (str, int, float, bool)):
+        return value
+    if isinstance(value, dict):
+        return {k: _coerce_mapping(v) for k, v in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_coerce_mapping(v) for v in value]
+    mapper = getattr(value, "to_mapping", None)
+    if callable(mapper):
+        return _coerce_mapping(mapper())
+    if dataclasses.is_dataclass(value) and not isinstance(value, type):
+        return _coerce_mapping(dataclasses.asdict(value))
+    dump = getattr(value, "model_dump", None)
+    if callable(dump):
+        return _coerce_mapping(dump())
+    if hasattr(value, "__dict__"):
+        return _coerce_mapping(vars(value))
+    attrs = getattr(value, "__slots__", None)
+    if attrs:
+        return _coerce_mapping({a: getattr(value, a) for a in attrs if hasattr(value, a)})
+    try:
+        return dict(value)
+    except Exception:
+        return repr(value)
 
 
 class CharacterModel:
@@ -70,7 +106,7 @@ class CharacterDesignResult:
 
     def to_mapping(self) -> dict[str, Any]:
         return {
-            "characters": [c.to_mapping() for c in self.characters],
+            "characters": [_coerce_mapping(c) for c in self.characters],
             "style": self.style,
             "scale": self.scale,
         }
@@ -193,8 +229,8 @@ class EnvironmentDesignResult:
 
     def to_mapping(self) -> dict[str, Any]:
         return {
-            "assets": [a.to_mapping() for a in self.assets],
-            "lighting": self.lighting.to_mapping(),
+            "assets": [_coerce_mapping(a) for a in self.assets],
+            "lighting": _coerce_mapping(self.lighting),
             "ground_type": self.ground_type,
             "ground_size": self.ground_size,
             "sky_type": self.sky_type,
@@ -289,8 +325,8 @@ class AnimationClip:
         return {
             "character_name": self.character_name,
             "shot_index": self.shot_index,
-            "keyframes": [k.to_mapping() for k in self.keyframes],
-            "constraints": [c.to_mapping() for c in self.constraints],
+            "keyframes": [_coerce_mapping(k) for k in self.keyframes],
+            "constraints": [_coerce_mapping(c) for c in self.constraints],
             "lip_sync": self.lip_sync,
             "expression": self.expression,
             "duration": self.duration,
@@ -309,7 +345,7 @@ class AnimationResult:
         self.clips = clips
 
     def to_mapping(self) -> dict[str, Any]:
-        return {"clips": [c.to_mapping() for c in self.clips]}
+        return {"clips": [_coerce_mapping(c) for c in self.clips]}
 
 
 class ReviewReport:
@@ -435,7 +471,7 @@ class MusicPlan:
         return {
             "main_theme": self.main_theme,
             "leitmotifs": self.leitmotifs,
-            "cues": [c.to_mapping() for c in self.cues],
+            "cues": [_coerce_mapping(c) for c in self.cues],
             "total_duration": self.total_duration,
             "genre": self.genre,
             "instrumentation": self.instrumentation,
@@ -490,7 +526,7 @@ class SoundDesignPlan:
 
     def to_mapping(self) -> dict[str, Any]:
         return {
-            "layers": [layer.to_mapping() for layer in self.layers],
+            "layers": [_coerce_mapping(layer) for layer in self.layers],
             "spatial_format": self.spatial_format,
             "sample_rate": self.sample_rate,
             "bit_depth": self.bit_depth,

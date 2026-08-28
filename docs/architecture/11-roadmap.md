@@ -60,3 +60,4 @@ métier manquantes → valider avec une verticale Blender → étendre progressi
 
 - **ADR-001** : `docs/architecture/` = source de vérité unique ; `docs/roadmaps/` archivées.
 - **ADR-002** (cette session) : Consolidation API sur FastAPI `app.py` ; dépréciation `server.py` ; `docker-compose.yml` et CLI `serve` pointent vers FastAPI ; endpoint `/validate` porté.
+

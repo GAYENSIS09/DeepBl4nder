@@ -63,3 +63,4 @@ traduction (dialogues, sous-titres et interface), compositing, QA, render farm.
 
 La boucle fondamentale : `Intent → Plan → Skills → Structured Specs → Code → Worker
 → Render → QA → Revision`. C'est le socle ; le reste est une industrialisation progressive.
+

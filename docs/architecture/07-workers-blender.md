@@ -52,3 +52,4 @@ BlenderAgent : read_scene ALLOW, modify_scene ALLOW, render ALLOW, save ALLOW,
 
 Le LLM raisonne ; le runtime garde la sécurité, le scheduling, les ressources, les retries,
 les timeouts, les workers, les checkpoints et les budgets.
+

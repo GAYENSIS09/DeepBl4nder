@@ -127,3 +127,4 @@ Single LLM turn, no tools, no code. The prompt is the docstring plus each parame
 - `nooa-agent-authoring` — the basics this builds on (strategy selection, contracts, visibility).
 - `nooa-context-and-state` — the context blocks that truncation/eviction act on.
 - `nooa-capturing-traces` / `nooa-trace-explorer` — see every prefill cell, tool call, and validation retry in the trace.
+

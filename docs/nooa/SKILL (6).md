@@ -164,3 +164,4 @@ See `examples/advanced/memory.py` and `examples/quickstart/12_memory.py`.
 
 - `nooa-agent-authoring` — the core authoring model this builds on.
 - `nooa-capturing-traces` — events vs spans: traces are the observability view of the same run.
+

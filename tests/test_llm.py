@@ -21,7 +21,6 @@ _LLM_ENV_VARS = [
     "NVIDIA_API_KEY",
     "OPENROUTER_API_KEY",
     "CLOUDFLARE_API_KEY",
-    "LLM_API_KEY",
 ]
 
 
@@ -67,7 +66,7 @@ class _StubClient:
 
 
 def test_providers_registry_has_expected_providers() -> None:
-    assert set(llm.PROVIDERS) == {"gemini", "groq", "nvidia", "openrouter", "cloudflare", "local"}
+    assert set(llm.PROVIDERS) == {"gemini", "groq", "nvidia", "openrouter", "cloudflare"}
 
 
 def test_each_provider_has_key_env_and_models() -> None:
@@ -112,12 +111,6 @@ def test_provider_api_key_uses_dedicated_env(monkeypatch: pytest.MonkeyPatch) ->
     assert llm.PROVIDERS["groq"].is_available() is True
     assert llm.PROVIDERS["gemini"].api_key() is None
     assert llm.PROVIDERS["gemini"].is_available() is False
-
-
-def test_provider_api_base_local_only() -> None:
-    """Aucune base URL lue dans .env : le registre fournit tout."""
-    assert llm.PROVIDERS["local"].api_base() == "http://localhost:11434/v1"
-    assert llm.PROVIDERS["gemini"].api_base() is None
 
 
 def test_no_env_config_helpers_remain() -> None:
@@ -167,7 +160,6 @@ def test_provider_methods_model_key_base(monkeypatch: pytest.MonkeyPatch) -> Non
     assert gemini.is_available() is True
     assert groq.is_available() is False
     assert gemini.api_base() is None
-    assert llm.PROVIDERS["local"].api_base() == "http://localhost:11434/v1"
     assert gemini.resolved_base_url() == gemini.base_url
     assert gemini.config()["model"] == gemini.model()
 

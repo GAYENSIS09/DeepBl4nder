@@ -129,6 +129,7 @@ services:
   # ══════════════════════════════════════════════════════════
 
   DeepBl4nder-api:
+    image: deepbl4nder-api
     build:
       context: .
       dockerfile: Dockerfile.api
@@ -144,11 +145,13 @@ services:
     environment:
       <<: *DeepBl4nder-env
       DeepBl4nder_API: "1"
+      DeepBl4nder_LLM_MODE: fallback
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/health"]
       interval: 30s
       timeout: 10s
       retries: 3
+      start_period: 30s
     restart: unless-stopped
 
   # ══════════════════════════════════════════════════════════
@@ -156,6 +159,7 @@ services:
   # ══════════════════════════════════════════════════════════
 
   DeepBl4nder-worker:
+    image: deepbl4nder-worker
     build:
       context: .
       dockerfile: Dockerfile.worker
@@ -179,6 +183,7 @@ services:
   # ══════════════════════════════════════════════════════════
 
   DeepBl4nder-scheduler:
+    image: deepbl4nder-scheduler
     build:
       context: .
       dockerfile: Dockerfile.worker
@@ -195,6 +200,7 @@ services:
   # ══════════════════════════════════════════════════════════
 
   ue5-server:
+    image: deepbl4nder-ue5-server
     build:
       context: ./ue5-server
       dockerfile: Dockerfile
@@ -218,6 +224,7 @@ services:
   # ══════════════════════════════════════════════════════════
 
   frontend:
+    image: deepbl4nder-frontend
     build:
       context: ./frontend
       dockerfile: Dockerfile

@@ -456,6 +456,23 @@ def test_run_pipeline_conflict_when_running(client: TestClient, monkeypatch: pyt
     _wait_status(client, token, production["id"])
 
 
+def test_run_times_out_when_providers_hang(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
+    async def _hung_pipeline(*args: object, **kwargs: object) -> None:
+        await asyncio.sleep(30)
+
+    monkeypatch.setattr("DeepBl4nder.api.app.run_production", _hung_pipeline)
+    token = _register(client, "timeout@example.com")
+    production = _project_chain(client, token)
+
+    monkeypatch.setenv("DeepBl4nder_RUN_TIMEOUT", "1")
+    resp = client.post(f"/api/productions/{production['id']}/run", headers=_auth(token))
+    assert resp.status_code == 202
+
+    detail = _wait_status(client, token, production["id"], timeout=15)
+    assert detail["status"] == "failed"
+    assert detail["finished_at"] is not None
+
+
 def test_cancel_production(client: TestClient) -> None:
     token = _register(client, "cancel@example.com")
     production = _project_chain(client, token)

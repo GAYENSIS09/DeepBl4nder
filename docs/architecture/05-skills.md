@@ -47,3 +47,4 @@ Skill  = ce que l'agent sait faire / sait comment faire
 Tool   = action disponible
 Plugin = connexion à un système externe
 ```
+

@@ -159,3 +159,4 @@ dict(len=100, items={0: 0, 1: 1, ..., 99: 99})
 - `nooa-agent-authoring` — visibility rules in the agent context (`doc(self)`, exec_globals).
 - `nooa-codeact-advanced` — how prefill and truncation configs drive `pprint` of your parameters.
 - `nooa-tools-and-skills` — skill docstring conventions (`doc(self.skill)` is the usage guide).
+

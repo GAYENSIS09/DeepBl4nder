@@ -1,10 +1,12 @@
+"use client";
+
 import { Suspense, useState, useCallback } from "react";
 
 import { ProductionStream } from "@/components/ProductionStream";
 import dynamic from "next/dynamic";
 
 // @ts-nocheck -- ScenePreview utilise Three.js dynamiquement
-const ScenePreview = dynamic(() => import("@/components/ScenePreview") as any, { ssr: false });
+const ScenePreview = dynamic(() => import("@/components/ScenePreview").then((m) => m.ScenePreview) as any, { ssr: false });
 import PatchEditor, { PatchParam } from "@/components/PatchEditor";
 
 const DEFAULT_PARAMS: PatchParam[] = [

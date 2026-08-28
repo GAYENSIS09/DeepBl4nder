@@ -12,16 +12,22 @@ from nooa import CodeActStrategy, strategy
 from nooa.agentdoc import hidden
 from nooa.config.strategy_config import CodeActConfig
 
-from DeepBl4nder.agents.base import BaseAgent, DefaultsMixin
+from DeepBl4nder.agents.base import BaseAgent, DefaultsMixin, InvariantError
 from DeepBl4nder.domain.media import MusicPlan
 from DeepBl4nder.domain.scene import SceneSpec
 from DeepBl4nder.skills.registry import SkillRegistry
 
 
-def _music_postcondition(result: Any) -> str | None:
-    if not hasattr(result, "cues") or not result.cues:
-        return "MusicPlan must contain at least one music cue"
-    return None
+def _music_postcondition(agent: Any, result: Any, call: Any) -> None:
+    if not isinstance(result, MusicPlan):
+        return
+    if not result.cues:
+        raise InvariantError(
+            "MusicPlan.cues ne doit pas être vide : appelez return_result avec "
+            'cues=[{"start_time": 0.0, "end_time": 8.0, "description": '
+            '"ouverture synthwave", "tempo": 110}] — la liste cues ne doit pas '
+            "être vide."
+        )
 
 
 class MusicComposerAgent(BaseAgent, DefaultsMixin):

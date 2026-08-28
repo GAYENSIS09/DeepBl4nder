@@ -36,3 +36,4 @@ Exemples de transitions :
 - `Rig failure → RiggingAgent → Animation → Pre-render`
 
 L'agent doit pouvoir **observer le résultat et corriger**, pas seulement produire une première réponse.
+

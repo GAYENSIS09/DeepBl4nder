@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
-# DeepBlender — Health Check
+# DeepBl4nder — Health Check
 #
 # Usage:
 #   ./scripts/health-check.sh
 
 set -euo pipefail
 
-echo "=== DeepBlender Health Check ==="
+echo "=== DeepBl4nder Health Check ==="
 
 STATUS=0
 
@@ -27,7 +27,7 @@ else
 fi
 
 # PostgreSQL
-if docker compose exec -T postgres pg_isready -U deepblender > /dev/null 2>&1; then
+if docker compose exec -T postgres pg_isready -U DeepBl4nder > /dev/null 2>&1; then
     echo "✅ PostgreSQL (port 5432)"
 else
     echo "❌ PostgreSQL (port 5432)"
@@ -72,3 +72,4 @@ else
 fi
 
 exit $STATUS
+

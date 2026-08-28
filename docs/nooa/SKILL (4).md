@@ -84,3 +84,4 @@ qm.spawn(run_job(some_coro(), job_id="batch-7"), channel="jobs")    # {"job_id":
 - `nooa-agent-authoring` — the orchestrator pattern the dispatch loop lives in.
 - `nooa-context-and-state` — `QueueOutput`/`StreamEnd`/`JobError` are events; query them like any others.
 - `nooa-middleware-hooks` — `on()` observers if you only need to react to recorded events, not consume input.
+

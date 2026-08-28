@@ -192,6 +192,25 @@ _PREVIEW_EXTENSIONS = (".png", ".jpg", ".jpeg", ".webp", ".gif", ".mp4", ".webm"
 _PREVIEW_IMAGES = (".png", ".jpg", ".jpeg", ".webp", ".gif")
 
 
+def _run_timeout_seconds() -> float | None:
+    """Timeout global d'un run (0/absent = sans limite).
+
+    ``DeepBl4nder_RUN_TIMEOUT`` en secondes. Sans lui, un run dont tous les
+    fournisseurs LLM échouent peut rester bloqué en statut ``running``
+    pendant de longues minutes (retries NOOA successives) — un erreur
+    silencieuse pour l'utilisateur. Le timeout force l'échec proprement.
+    """
+    raw = os.environ.get("DeepBl4nder_RUN_TIMEOUT", "").strip()
+    if not raw:
+        return None
+    try:
+        value = float(raw)
+    except ValueError:
+        logger.warning("DeepBl4nder_RUN_TIMEOUT invalide (%r) — ignoré", raw)
+        return None
+    return None if value <= 0 else value
+
+
 async def _launch_tracked_run(
     app: FastAPI,
     *,
@@ -200,10 +219,16 @@ async def _launch_tracked_run(
     brief: str,
     workdir: Path,
 ) -> None:
-    """Lance le pipeline en tâche de fond et maintient le statut worker à jour."""
+    """Lance le pipeline en tâche de fond et maintient le statut worker à jour.
+
+    Un timeout configurable (``DeepBl4nder_RUN_TIMEOUT``) met fin à un run
+    qui n'avance plus (ex. tous les fournisseurs LLM en échec persistant) et
+    le marque ``failed`` au lieu de le laisser bloqué en ``running``.
+    """
     status: WorkerStatus = app.state.worker_status
     status.start(production_id)
-    try:
+
+    async def _pipeline() -> None:
         await run_production(
             production_id=production_id,
             project_id=project_id,
@@ -213,7 +238,18 @@ async def _launch_tracked_run(
             session_factory=get_session_factory(),
             budget_limit=float(os.environ.get("DeepBl4nder_BUDGET", "1.0")),
         )
+
+    timeout = _run_timeout_seconds()
+    try:
+        if timeout:
+            await asyncio.wait_for(_pipeline(), timeout=timeout)
+        else:
+            await _pipeline()
         status.finish(production_id)
+    except asyncio.TimeoutError:
+        logger.warning("[run %s] dépassement du délai de %ss → marqué échec", production_id, timeout)
+        status.finish(production_id, failed=True)
+        _mark_production_failed(production_id, f"run dépassé le délai de {timeout}s (fournisseurs LLM indisponibles ?)")
     except asyncio.CancelledError:
         logger.warning("[run %s] tâche annulée (arrêt serveur ?)", production_id)
         status.finish(production_id, failed=True)
@@ -221,6 +257,34 @@ async def _launch_tracked_run(
         # JAMAIS silencieux : l'échec d'arrière-plan est tracé intégralement.
         logger.exception("[run %s] échec inattendu du pipeline", production_id)
         status.finish(production_id, failed=True)
+
+
+def _mark_production_failed(production_id: str, message: str) -> None:
+    """Marque une production en échec, indépendamment du tracker du run.
+
+    Utilisé quand le run est interrompu hors de ``run_production`` (timeout) :
+    le tracker interne n'étant pas notifié, on met la base à jour directement.
+    """
+    from datetime import datetime, timezone
+
+    session = None
+    try:
+        session = get_session_factory()()
+        production = session.get(Production, production_id)
+        if production is not None and production.status in ("running", "queued", "revising"):
+            production.status = "failed"
+            production.error = message[:2000]
+            production.finished_at = datetime.now(timezone.utc)
+            production.updated_at = datetime.now(timezone.utc)
+            session.commit()
+    except Exception:  # noqa: BLE001 - ne masque jamais l'erreur d'origine
+        logger.exception("[run %s] échec de la mise à jour failed en base", production_id)
+    finally:
+        if session is not None:
+            try:
+                session.close()
+            except Exception:  # noqa: BLE001
+                pass
 
 
 def _run_alembic_upgrade(url: str) -> None:
@@ -264,10 +328,15 @@ def create_app(
     engine = create_engine_for(url)
 
     # Essayer Alembic en priorité ; fallback sur create_all (tests / dev)
+    alembic_ok = False
     try:
         _run_alembic_upgrade(url)
+        alembic_ok = True
     except Exception:
-        logger.info("Fallback sur create_all (premier démarrage ou tests)")
+        logger.exception("Échec des migrations Alembic — fallback sur create_all")
+
+    if not alembic_ok:
+        logger.info("Création des tables via create_all (premier démarrage ou tests)")
         Base.metadata.create_all(engine)
 
     configure(engine, create_session_factory(engine), secret_key or _default_secret_key())
@@ -288,7 +357,7 @@ def create_app(
     app.add_middleware(
         CORSMiddleware,
         allow_origins=origins,
-        allow_credentials=False,
+        allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
         expose_headers=["Content-Disposition"],

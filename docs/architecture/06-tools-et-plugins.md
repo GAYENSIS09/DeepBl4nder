@@ -43,3 +43,4 @@ Exemple — `BlenderPlugin` : `inspect_scene()`, `execute_python()`, `render()`,
 - Les frontières dépendant d'un binaire externe (ffmpeg, git, TTS, Blender)
   sont prêtes : `available()` reflète la présence du binaire et les opérations
   échouent explicitement (`PluginError`) s'il manque à l'exécution.
+

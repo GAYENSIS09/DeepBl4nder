@@ -15,16 +15,17 @@ from nooa import CodeActStrategy, PredictStrategy, strategy
 from nooa.agentdoc import hidden
 from nooa.config import CodeActConfig, PredictConfig
 
-from DeepBl4nder.agents.base import BaseAgent, DefaultsMixin
+from DeepBl4nder.agents.base import BaseAgent, DefaultsMixin, InvariantError
 from DeepBl4nder.domain.qa import QAReport, Issue, IssueKind
 from DeepBl4nder.domain.scene import SceneSpec
 from DeepBl4nder.skills.registry import SkillRegistry
 
 
-def _qa_postcondition(result: QAReport) -> str | None:
-    if not (0.0 <= result.score <= 1.0):
-        return f"QAReport.score must be between 0.0 and 1.0, got {result.score}"
-    return None
+def _qa_postcondition(agent: Any, result: Any, call: Any) -> None:
+    if not isinstance(result, QAReport):
+        return
+    if not (0.0 <= result.score <= 100.0):
+        raise InvariantError(f"QAReport.score doit être entre 0.0 et 100.0, got {result.score}")
 
 
 class QAAgent(BaseAgent, DefaultsMixin):

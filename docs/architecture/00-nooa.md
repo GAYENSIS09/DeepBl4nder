@@ -97,3 +97,4 @@ Points clés :
 - Le contexte, les événements, la mémoire et le tracing utilisent **les API NOOA**.
 - DeepBl4nder n'ajoute que le **domaine de production** : objets métier, Blender, workers, artifacts,
   QA, budgets, provenance, politiques de sécurité.
+

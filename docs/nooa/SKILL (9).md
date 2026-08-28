@@ -148,3 +148,4 @@ Only works with multimodal-capable models — text-only models error when handed
 
 - `nooa-agent-authoring` — visibility rules and method design that make tools discoverable.
 - `nooa-capturing-traces` — every tool invocation becomes a `tool_execution.*` span you can inspect.
+

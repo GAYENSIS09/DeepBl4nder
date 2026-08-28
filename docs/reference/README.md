@@ -181,8 +181,8 @@ deepbl4nder/
 
 ```bash
 # 1. Cloner le dépôt
-git clone https://github.com/deepblender/deepblender.git
-cd deepblender
+git clone https://github.com/DeepBl4nder/DeepBl4nder.git
+cd DeepBl4nder
 
 # 2. Lancer le script d'initialisation
 ./scripts/setup.sh
@@ -218,10 +218,10 @@ docker compose up -d
 pip install -e ".[dev]"
 
 # Linter
-python -m ruff check deepblender tests
+python -m ruff check DeepBl4nder tests
 
 # Type check
-python -m mypy deepblender
+python -m mypy DeepBl4nder
 
 # Tests
 python -m pytest -q
@@ -250,7 +250,7 @@ Les variables clés à configurer dans `.env` :
 
 ```bash
 # Sécurité
-DEEPBLENDER_SECRET_KEY=<64-caractères-minimum>
+DEEPBL4NDER_SECRET_KEY=<64-caractères-minimum>
 JWT_SECRET=<secret-jwt>
 
 # Base de données
@@ -262,7 +262,7 @@ GROQ_API_KEY=...
 NVIDIA_API_KEY=...
 
 # Budget max par production
-DEEPBLENDER_BUDGET=1.0
+DEEPBL4NDER_BUDGET=1.0
 ```
 
 ### Dockerfiles
@@ -270,8 +270,8 @@ DEEPBLENDER_BUDGET=1.0
 | Fichier | Image | Usage |
 |---------|-------|-------|
 | `Dockerfile` | Image runtime de base | Python + Blender + FFmpeg, commande `DeepBl4nder` |
-| `Dockerfile.api` | `deepblender/api` | FastAPI Gateway, non-root, healthcheck |
-| `Dockerfile.worker` | `deepblender/worker` | Blender 4.1 LTS headless + FFmpeg, GPU, non-root |
+| `Dockerfile.api` | `DeepBl4nder/api` | FastAPI Gateway, non-root, healthcheck |
+| `Dockerfile.worker` | `DeepBl4nder/worker` | Blender 4.1 LTS headless + FFmpeg, GPU, non-root |
 
 Le worker installe Blender 4.1.1 depuis le tarball officiel et inclut toutes les bibliothèques graphiques nécessaires au rendu headless (X11, OpenGL, Mesa).
 
@@ -419,7 +419,7 @@ alembic upgrade head
 alembic downgrade -1
 ```
 
-Le fichier `alembic/env.py` lit l'URL de la base depuis la variable `DEEPBLENDER_DB` ou fallback SQLite.
+Le fichier `alembic/env.py` lit l'URL de la base depuis la variable `DEEPBL4NDER_DB` ou fallback SQLite.
 
 ### Données non relationnelles
 
@@ -466,7 +466,7 @@ La suite compte **18 fichiers de test** couvrant l'ensemble des composants :
 python -m pytest -q
 
 # Avec couverture
-python -m pytest --cov=deepblender --cov-report=term-missing
+python -m pytest --cov=DeepBl4nder --cov-report=term-missing
 
 # Un fichier spécifique
 python -m pytest tests/test_llm.py -v
@@ -661,8 +661,8 @@ Le déploiement est automatique sur push vers `main`, après validation de tous 
 
 | Outil | Commande | Seuil |
 |-------|----------|-------|
-| Ruff | `python -m ruff check deepblender tests` | 0 erreur |
-| Mypy | `python -m mypy deepblender` | 0 erreur |
+| Ruff | `python -m ruff check DeepBl4nder tests` | 0 erreur |
+| Mypy | `python -m mypy DeepBl4nder` | 0 erreur |
 | Pytest | `python -m pytest -q` | 100% passage |
 
 ---
@@ -719,3 +719,5 @@ Génère un script Blender à partir d'un brief, puis valide le code via le vali
 ---
 
 *Cette documentation estmaintenue par l'équipe DeepBl4nder. Pour toute question, consulter le README racine ou ouvrir un ticket.*
+
+

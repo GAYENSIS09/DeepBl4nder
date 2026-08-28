@@ -1496,3 +1496,4 @@ Revision
 ```
 
 Cette boucle constitue le **socle de départ**. Le reste de l'architecture est une industrialisation progressive de ce cycle.
+
