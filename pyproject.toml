@@ -16,18 +16,12 @@ keywords = ["blender", "ai", "agents", "nooa", "3d", "animation", "pipeline"]
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Intended Audience :: Developers",
-    "License :: OSI Approved :: MIT License",
     "Operating System :: OS Independent",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.12",
     "Topic :: Multimedia :: Graphics :: 3D Rendering",
     "Topic :: Scientific/Engineering :: Artificial Intelligence",
 ]
-[project.urls]
-Homepage = "https://github.com/GAYENSIS09/DeepBlender"
-Repository = "https://github.com/GAYENSIS09/DeepBlender"
-Issues = "https://github.com/GAYENSIS09/DeepBlender/issues"
-Documentation = "https://github.com/GAYENSIS09/DeepBlender/tree/main/docs"
 dependencies = [
     "nooa==0.0.8",
     "python-dotenv>=1.0",
@@ -38,6 +32,12 @@ dependencies = [
     "alembic>=1.13",
     "psycopg2-binary>=2.9",
 ]
+
+[project.urls]
+Homepage = "https://github.com/GAYENSIS09/DeepBlender"
+Repository = "https://github.com/GAYENSIS09/DeepBlender"
+Issues = "https://github.com/GAYENSIS09/DeepBlender/issues"
+Documentation = "https://github.com/GAYENSIS09/DeepBlender/tree/main/docs"
 
 [project.optional-dependencies]
 memory = ["nooa-memory==0.0.8"]
