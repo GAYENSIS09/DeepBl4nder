@@ -11,3 +11,15 @@ venv/
 *.blend1
 .git/
 .note.txt
+.env
+.env.*
+!.env.example
+data/
+artifacts/
+node_modules/
+frontend/.next/
+*.db
+*.sqlite3
+.nooa/
+work/
+projects/

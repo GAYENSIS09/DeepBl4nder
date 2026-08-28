@@ -5,8 +5,29 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "DeepBl4nder"
 version = "0.2.0"
-description = "DeepBl4nder : orchestration d'agents IA (NOOA) avec capacites, scheduler, bus d'evenements, evaluation de scenes et rendu Blender."
+description = "AI agent orchestration (NOOA) with capabilities, scheduler, event bus, scene evaluation, and Blender rendering."
+readme = "README.md"
+license = "MIT"
 requires-python = ">=3.12"
+authors = [
+    { name = "GAYENSIS09" },
+]
+keywords = ["blender", "ai", "agents", "nooa", "3d", "animation", "pipeline"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Multimedia :: Graphics :: 3D Rendering",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+[project.urls]
+Homepage = "https://github.com/GAYENSIS09/DeepBlender"
+Repository = "https://github.com/GAYENSIS09/DeepBlender"
+Issues = "https://github.com/GAYENSIS09/DeepBlender/issues"
+Documentation = "https://github.com/GAYENSIS09/DeepBlender/tree/main/docs"
 dependencies = [
     "nooa==0.0.8",
     "python-dotenv>=1.0",

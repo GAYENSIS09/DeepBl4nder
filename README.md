@@ -4,6 +4,12 @@
   <img src="public/logo.svg" alt="DeepBl4nder Logo" width="300"/>
 </p>
 
+<p align="center">
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="License: MIT"></a>
+  <img src="https://img.shields.io/badge/python-3.12+-blue.svg" alt="Python 3.12+">
+  <img src="https://img.shields.io/badge/blender-4.1+-orange.svg" alt="Blender 4.1+">
+</p>
+
 ---
 
 ## Context and Vision
@@ -86,3 +92,84 @@ The architecture cannot be judged without measurable targets. These objectives a
 - Help a creator iterate faster on set, camera, and movement.
 - Add an audio track, sound effects, and ambient music suited to the scene.
 - Manage multiple languages for dialogues, subtitles, and interface.
+
+## Quick Start
+
+### Prerequisites
+
+- Python 3.12+
+- Blender 4.1+
+- PostgreSQL (or use Docker)
+- An API key for at least one LLM provider (Groq, Gemini, NVIDIA, OpenRouter, or Cloudflare)
+
+### Docker (Recommended)
+
+```bash
+git clone https://github.com/GAYENSIS09/DeepBlender.git
+cd DeepBlender
+
+# Configure environment
+cp .env.example .env
+# Edit .env with your API keys and database credentials
+
+# Start all services
+docker compose up -d
+
+# Access the API
+curl http://localhost:8000/health
+
+# Access the frontend
+# Open http://localhost:3000
+```
+
+### Local Development
+
+```bash
+git clone https://github.com/GAYENSIS09/DeepBlender.git
+cd DeepBlender
+
+# Create virtual environment
+python -m venv .venv
+.venv\Scripts\activate  # Windows
+# source .venv/bin/activate  # Linux/Mac
+
+# Install dependencies
+pip install -e ".[dev]"
+
+# Configure environment
+cp .env.example .env
+# Edit .env with your API keys and database credentials
+
+# Run database migrations
+alembic upgrade head
+
+# Start the API
+python -m uvicorn DeepBl4nder.api.app:app --reload
+
+# Run tests
+pytest
+```
+
+### CLI Usage
+
+```bash
+# Show version
+DeepBl4nder --version
+
+# Inspect a scene spec
+DeepBl4nder inspect scene.json
+
+# Validate a scene spec
+DeepBl4nder validate scene.json
+
+# Seed default accounts
+DeepBl4nder seed
+```
+
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
+
+## License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.

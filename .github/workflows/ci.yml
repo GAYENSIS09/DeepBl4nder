@@ -152,7 +152,7 @@ jobs:
 
       - name: Run tests
         run: |
-          docker compose exec -T DeepBl4nder-api python -m pytest tests/ -q || true
+          docker compose exec -T DeepBl4nder-api python -m pytest tests/ -q
 
       - name: Stop services
         if: always()
