@@ -333,7 +333,7 @@ class _StubCharacterDesigner:
 
 class _StubAnimator:
     async def generate_animations(self, scene):
-        from DeepBl4nder.domain.media import AnimationResult, AnimationClip
+        from DeepBl4nder.domain.media import AnimationClip, AnimationResult
         return AnimationResult(clips=[
             AnimationClip(character_name="Hero", shot_index=0, duration=1.0),
         ])

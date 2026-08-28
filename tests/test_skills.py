@@ -34,7 +34,7 @@ def test_summaries() -> None:
     assert any("blender-python" in s for s in summaries)
 
 
-def test_custom_root(tmp_path) -> None:  # noqa: ANN001
+def test_custom_root(tmp_path) -> None:
     skill_dir = tmp_path / "custom-skill"
     skill_dir.mkdir()
     (skill_dir / "SKILL.md").write_text(

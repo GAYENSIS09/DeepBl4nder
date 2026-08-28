@@ -6,8 +6,8 @@ import sys
 
 import pytest
 
-from DeepBl4nder.bridges.blender.bridge import BlenderBridge, BlenderNotFoundError
 from DeepBl4nder.bridge.worker import WorkerCommand, WorkerProcess
+from DeepBl4nder.bridges.blender.bridge import BlenderBridge, BlenderNotFoundError
 from DeepBl4nder.codegen import CodePolicyViolation
 from DeepBl4nder.domain.scene import BlenderScript
 
@@ -33,7 +33,7 @@ def test_worker_missing_executable() -> None:
     assert "not found" in result.stderr
 
 
-def test_blender_bridge_requires_blender(tmp_path) -> None:  # noqa: ANN001
+def test_blender_bridge_requires_blender(tmp_path) -> None:
     bridge = BlenderBridge(blender_exe="definitely-not-blender")
     assert not bridge.available()
     script = BlenderScript(code="import bpy\n", scene_name="scene")
@@ -41,7 +41,7 @@ def test_blender_bridge_requires_blender(tmp_path) -> None:  # noqa: ANN001
         bridge.run_script(script, tmp_path)
 
 
-def test_bridge_rejects_policy_violation_without_blender(tmp_path) -> None:  # noqa: ANN001
+def test_bridge_rejects_policy_violation_without_blender(tmp_path) -> None:
     """Fail-closed : un script non conforme est refusé avant toute exécution."""
     bridge = BlenderBridge(blender_exe="definitely-not-blender")
     script = BlenderScript(code="import os\nos.system('rm -rf /')\n", scene_name="evil")
@@ -50,7 +50,7 @@ def test_bridge_rejects_policy_violation_without_blender(tmp_path) -> None:  # n
     assert not list(tmp_path.iterdir())
 
 
-def test_bridge_rejects_policy_violation_even_when_blender_present(tmp_path, monkeypatch) -> None:  # noqa: ANN001
+def test_bridge_rejects_policy_violation_even_when_blender_present(tmp_path, monkeypatch) -> None:
     """La validation prime sur la disponibilité du binaire (fail-closed)."""
     monkeypatch.setenv("BLENDER_EXE", sys.executable)
     bridge = BlenderBridge()

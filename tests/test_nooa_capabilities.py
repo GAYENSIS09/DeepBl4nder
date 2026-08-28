@@ -17,6 +17,9 @@ from __future__ import annotations
 import json
 
 import pytest
+from nooa.strategies.codeact_lite import CodeActLiteStrategy
+from nooa.strategies.predict import PredictStrategy
+from nooa.strategies.reflexion import ReflexionStrategy
 
 from DeepBl4nder.agents import BlenderAgent, CompositingAgent, QAAgent
 from DeepBl4nder.agents.base import BaseAgent
@@ -27,9 +30,6 @@ from DeepBl4nder.domain.scene import (
     SceneSpec,
     ShotSpec,
 )
-from nooa.strategies.codeact_lite import CodeActLiteStrategy
-from nooa.strategies.predict import PredictStrategy
-from nooa.strategies.reflexion import ReflexionStrategy
 
 
 def _spec() -> SceneSpec:

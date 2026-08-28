@@ -50,7 +50,7 @@ def test_revision_targets_a_step() -> None:
     assert revision.target_step == "lookdev"
 
 
-def test_sha256_of_file(tmp_path) -> None:  # noqa: ANN001
+def test_sha256_of_file(tmp_path) -> None:
     f = tmp_path / "asset.bin"
     f.write_bytes(b"DeepBl4nder")
     assert sha256_of_file(f) == sha256_of_file(f)

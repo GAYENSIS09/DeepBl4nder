@@ -13,15 +13,15 @@ from unittest.mock import MagicMock
 import pytest
 from pydantic import BaseModel
 
+from DeepBl4nder.domain.narrative import StoryboardShot, StoryboardSpec, StorySpec
+from DeepBl4nder.domain.qa import QAReport
+from DeepBl4nder.domain.scene import BlenderScript
 from DeepBl4nder.nooa_compat import (
     install,
     parse_json_string_result,
     unwrap_return_envelope,
     unwrap_typed_wrappers,
 )
-from DeepBl4nder.domain.narrative import StorySpec, StoryboardShot, StoryboardSpec
-from DeepBl4nder.domain.qa import QAReport
-from DeepBl4nder.domain.scene import BlenderScript
 
 
 class TinySpec(BaseModel):
@@ -173,10 +173,13 @@ def test_structural_invariants_still_strict() -> None:
     SceneSpec sans shots reste rejeté, StorySpec vide reste attrapé par
     la postcondition si elle est enregistrée (filet de sécurité)."""
     import pytest as _pytest
-
-    from DeepBl4nder.agents.base import scene_spec_postcondition, story_spec_postcondition
-    from DeepBl4nder.domain.scene import SceneSpec
     from nooa.strategy_validation import InvariantError
+
+    from DeepBl4nder.agents.base import (
+        scene_spec_postcondition,
+        story_spec_postcondition,
+    )
+    from DeepBl4nder.domain.scene import SceneSpec
 
     with _pytest.raises(InvariantError):
         scene_spec_postcondition(None, SceneSpec(brief="x"), None)

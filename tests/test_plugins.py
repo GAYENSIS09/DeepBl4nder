@@ -2,19 +2,20 @@
 
 from __future__ import annotations
 
-import pytest
 from pathlib import Path
 from typing import cast
 
-from DeepBl4nder.codegen import CodePolicyViolation
+import pytest
+
 from DeepBl4nder.bridges.blender.bridge import BlenderNotFoundError
+from DeepBl4nder.codegen import CodePolicyViolation
 from DeepBl4nder.domain.scene import BlenderScript
 from DeepBl4nder.plugins.knowledge.asset_library import AssetLibraryPlugin
 from DeepBl4nder.plugins.media.audio import AudioPlugin
-from DeepBl4nder.plugins.rendering.blender import BlenderPlugin
-from DeepBl4nder.plugins.registry import PluginRegistry
-from DeepBl4nder.plugins.storage.storage import StoragePlugin
 from DeepBl4nder.plugins.media.subtitle import SubtitleEntry, SubtitlePlugin
+from DeepBl4nder.plugins.registry import PluginRegistry
+from DeepBl4nder.plugins.rendering.blender import BlenderPlugin
+from DeepBl4nder.plugins.storage.storage import StoragePlugin
 from DeepBl4nder.plugins.tools import ToolRegistry
 
 
