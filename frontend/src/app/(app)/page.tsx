@@ -104,7 +104,7 @@ export default function DashboardPage() {
       {!isLoading && !productions.length ? (
         <EmptyState
           title="Aucune production"
-          description="Lancez votre première production : décrivez un brief et les agents NOOA s'occupent de la pipeline (scénario, Blender, QA, audio…)."
+          description="Lancez votre première production : décrivez un brief et les agents NOOA s'occupent de la pipeline (scénario, Blender/UE5/Godot/AI Video, QA, audio…)."
           actions={
             <Link href="/pipeline">
               <Button>Créer une production</Button>

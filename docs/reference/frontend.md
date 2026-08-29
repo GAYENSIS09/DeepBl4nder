@@ -839,7 +839,7 @@ interface Settings {
 #### Panneaux de configuration
 
 1. **Modèle LLM** : Fournisseur (Gemini, Groq, NVIDIA, OpenRouter, Cloudflare, Local), Modèle (Gemini 2.0 Flash/Pro, Llama 3.3 70B, Qwen 3.6 27B, GPT-OSS 120B), Languages cibles
-2. **Moteur de rendu** : Moteur (Blender, Unreal Engine 5, Godot 4, AI Video CogVideoX), Qualité (Brouillon/Moyen/Haute/Ultra), Résolution (720p–4K), FPS (12–60)
+2. **Moteur de rendu** : Moteur (Blender EEVEE/Cycles, Unreal Engine 5, Godot 4, AI Video CogVideoX/SVD/AnimateDiff), Qualité (Brouillon/Moyen/Haute/Ultra), Résolution (720p–4K), FPS (12–60)
 3. **Budget** : Budget max par production ($0.1–100), Révisions max QA (0–5)
 4. **Workflow** : Approbation automatique, Notifications
 
@@ -1194,7 +1194,7 @@ C'est le composant le plus complexe du frontend. Il gère :
 **EVENT_META** : mapping type d'événement → { label, tone } :
 `run_started`, `run_completed`, `run_blocked`, `run_failed`, `step_started`, `step_completed`, `step_resumed`, `step_failed`, `approval_requested`, `approval_granted`, `approval_rejected`, `revision_requested`, `cost_recorded`, `budget_alert`, `llm_call`
 
-**STEP_ICONS** : `director` → 🎬, `blender` → 🧊, `qa` → 🔍, `audio` → 🎵, `compositing` → 🎨, `localization` → 🌍
+**STEP_ICONS** : `director` → 🎬, `blender` → 🧊, `ue5` → 🎮, `godot` → 🤖, `ai-video` → ✨, `qa` → 🔍, `audio` → 🎵, `compositing` → 🎨, `localization` → 🌍
 
 **Extensions de fichiers** : `IMAGE_EXTS`, `VIDEO_EXTS`, `AUDIO_EXTS`, `TEXT_EXTS` — pour déterminer le type de visualiseur.
 

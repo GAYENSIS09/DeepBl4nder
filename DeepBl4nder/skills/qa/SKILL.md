@@ -7,6 +7,31 @@ description: Contrôles de qualité technique, visuel, continuité et sémantiqu
 
 Vérifier les artifacts produits par la production. Le QA est la dernière ligne de défense avant la livraison.
 
+## Sortie obligatoire — QAReport
+
+Vous DEVEZ appeler `return_result` avec un `QAReport` :
+
+```python
+return_result(
+    passed=True,        # True si score >= 70.0, False sinon
+    score=85.0,         # 0.0 (pire) à 100.0 (meilleur), 70+ = pass
+    issues=[],          # liste de Issue(kind, message, step)
+    recommendations=[]  # liste de suggestions d'amélioration
+)
+```
+
+## Format Issue
+
+Chaque issue DOIT cibler une étape pour la révision :
+
+```python
+Issue(kind=IssueKind.TECHNICAL, message="script has syntax error", step="blender")
+Issue(kind=IssueKind.VISUAL, message="image too dark", step="blender")
+Issue(kind=IssueKind.SEMANTIC, message="mood mismatch with brief", step="director")
+```
+
+Étapes valides : `"director"`, `"blender"`, `"qa"`, `"animation"`, `"compositing"`, `"localization"`
+
 ## Hiérarchie des contrôles
 
 ```
@@ -25,17 +50,21 @@ import bpy
 # Vérifier qu'une image existe
 img = bpy.data.images.get("RenderResult")
 if img is None:
-    return {"passed": False, "issues": ["Pas d'image rendue"]}
+    return_result(
+        passed=False, score=0.0,
+        issues=[Issue(kind=IssueKind.TECHNICAL, message="Pas d'image rendue", step="blender")],
+        recommendations=["Vérifier les paramètres de rendu"]
+    )
 
 # Vérifier la résolution
 if img.size[0] < 1920 or img.size[1] < 1080:
-    return {"passed": False, "issues": ["Résolution insuffisante"]}
+    issues.append(Issue(kind=IssueKind.TECHNICAL, message="Résolution insuffisante", step="blender"))
 
 # Vérifier que l'image n'est pas noire
 pixels = list(img.pixels)
 avg_brightness = sum(pixels[:len(pixels)//4]) / (len(pixels)//4)
 if avg_brightness < 0.01:
-    return {"passed": False, "issues": ["Image noire"]}
+    issues.append(Issue(kind=IssueKind.TECHNICAL, message="Image noire", step="blender"))
 ```
 
 ### Script Blender
@@ -69,26 +98,14 @@ if avg_brightness < 0.01:
 - [ ] **Animation** : pas de tremblements, mouvements fluides
 - [ ] **Audio** : niveaux corrects, synchro OK
 
-### Scoring
+### Scoring (0-100)
 
-```python
-qa_report = {
-    "technical_score": 0.0-1.0,  # 0 = échec, 1 = parfait
-    "visual_score": 0.0-1.0,
-    "semantic_score": 0.0-1.0,
-    "overall_score": 0.0-1.0,
-    "issues": [
-        {
-            "type": "technical|visual|semantic",
-            "severity": "critical|major|minor",
-            "description": "...",
-            "step_affected": "render|compositing|...",
-            "recommendation": "..."
-        }
-    ],
-    "passed": True  # overall_score > 0.7
-}
-```
+| Score | Statut | Signification |
+|-------|--------|---------------|
+| 90-100 | passed=True | Excellent, prêt pour la livraison |
+| 70-89 | passed=True | Bon, quelques améliorations possibles |
+| 50-69 | passed=False | Moyen, révision nécessaire |
+| 0-49 | passed=False | Mauvais, révision majeure nécessaire |
 
 ## 3. Contrôles sémantiques (LLM)
 
@@ -115,29 +132,22 @@ narrative_checks = [
 ]
 ```
 
-## Rapport de QA
+## Exemple de sortie complète
 
 ```python
-{
-    "overall_score": 0.85,
-    "technical_score": 0.95,
-    "visual_score": 0.80,
-    "semantic_score": 0.80,
-    "passed": True,
-    "issues": [
-        {
-            "type": "visual",
-            "severity": "minor",
-            "description": "Légère sous-exposition dans le plan 3",
-            "step_affected": "render",
-            "recommendation": "Augmenter l'exposure de 0.3"
-        }
+return_result(
+    passed=True,
+    score=82.0,
+    issues=[
+        Issue(kind=IssueKind.VISUAL, message="Légère sous-exposition dans le plan 3", step="blender"),
+        Issue(kind=IssueKind.TECHNICAL, message="Matériau verre non PBR", step="blender"),
     ],
-    "recommendations": [
+    recommendations=[
+        "Augmenter l'exposure de 0.3 sur le plan 3",
         "Vérifier la synchro audio sur le plan 5",
-        "Ajouter un léger bloom pour la cohérence"
+        "Ajouter un léger bloom pour la cohérence",
     ]
-}
+)
 ```
 
 ## Révision
@@ -161,16 +171,18 @@ narrative_checks = [
 ## Erreurs courantes
 
 1. **QA trop superficiel** : vérifier uniquement "ça marche" sans vérifier "c'est bien".
-2. **Pas de scoring** : impossible de comparer les versions.
+2. **Score toujours 0** : ne jamais retourner 0 sauf artifact complètement cassé.
 3. **Oublier l'audio** : le son est 50% de l'expérience.
 4. **Pas de recommandations** : le rapport dit "échec" sans dire comment corriger.
 5. **QA unique** : ne faire qu'un seul contrôle au lieu de la hiérarchie complète.
+6. **Issue sans step** : chaque issue DOIT cibler une étape pour la révision.
 
 ## Règles
 
 - Appliquer d'abord les contrôles techniques déterministes.
 - Comparer sémantiquement le brief et le rendu.
+- Score >= 70.0 → passed=True. Score < 70.0 → passed=False.
 - Pointer l'étape affectée en cas d'échec pour une révision ciblée.
-- Produire toujours un `QAReport` typé (score, issues, recommandations).
+- Produire toujours un `QAReport` typé via `return_result`.
 - Hiérarchiser : technique > visuel > sémantique.
 - Toujours inclure des recommandations de correction.

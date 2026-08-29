@@ -71,9 +71,9 @@ DirectorAgent ──▶ SceneSpec ──▶ ProvenanceGraph
   │  [optionnel]   ├──▶ CharacterDesignerAgent
   │                └──▶ EnvironmentArtistAgent
   ▼
-BlenderAgent / UE5Agent ──▶ BlenderScript / UE5Commands
+BlenderAgent / UE5Agent / GodotAgent / AIVideoAgent ──▶ BlenderScript / UE5Commands / GodotCommands / AIVideoCommands
   │                          ▼
-  │                     Validation AST / UE5
+  │                     Validation AST / REST API
   ▼
 QAAgent ──▶ QAReport
   │          │
@@ -914,8 +914,10 @@ def synthesize_blender_script(scene: SceneSpec, workdir: Path) -> BlenderScript
 | `DeepBl4nder.domain.patch` | `Patch`, `apply_patches` |
 | `DeepBl4nder.domain.project` | `Brief` |
 | `DeepBl4nder.domain.qa` | `Issue`, `IssueKind`, `QAReport`, `RevisionSpec` |
-| `DeepBl4nder.domain.scene` | `BlenderScript`, `SceneSpec`, `RenderOutput`, `ShotSpec`, `ENGINE_UE5` |
+| `DeepBl4nder.domain.scene` | `BlenderScript`, `SceneSpec`, `RenderOutput`, `ShotSpec`, `ENGINE_BLENDER`, `ENGINE_UE5`, `ENGINE_GODOT`, `ENGINE_AI_VIDEO` |
 | `DeepBl4nder.domain.ue5` | `UE5Commands`, `UE5Command` |
+| `DeepBl4nder.domain.godot` | `GodotCommands`, `GodotCommand` |
+| `DeepBl4nder.domain.ai_video` | `AIVideoCommands`, `AIVideoCommand` |
 | `DeepBl4nder.domain.media` | `AudioPlan`, `AudioMaster`, `CompositeSpec`, `LanguagePackage`, `MusicPlan`, `SoundDesignPlan` |
 | `DeepBl4nder.domain.narrative` | `StorySpec`, `StoryboardSpec`, `StoryboardShot` |
 | `DeepBl4nder.plugins.registry` | `PluginRegistry` |
@@ -932,7 +934,8 @@ runner.py ─────────┬──▶ events.py (EventLog, Productio
                    ├──▶ postprod.py (PostProductionRunner)
                    ├──▶ plugins.py (PluginShortcuts)
                    ├──▶ runs.py (ProductionRun, ProductionStep)
-                   └──▶ fallbacks.py (synthesize_blender_script, synthesize_storyboard)
+                    ├──▶ fallbacks.py (synthesize_blender_script, synthesize_storyboard)
+                    └──▶ (mêmes dépendances artifacts/provenance que runner.py)
 
 postprod.py ──────┬──▶ events.py (EventLog)
                    ├──▶ plugins.py (PluginShortcuts)
@@ -1042,6 +1045,10 @@ fallbacks.py ─────└──▶ domain.scene, domain.narrative
 | `blender_script_synthesized` | Fallback script | `{scene_name, reason}` |
 | `ue5_commands_synthesized` | Fallback UE5 | `{scene, reason}` |
 | `ue5_command_failed` | Commande UE5 échouée | `{endpoint, error}` |
+| `godot_commands_synthesized` | Fallback Godot | `{scene, reason}` |
+| `godot_command_failed` | Commande Godot échouée | `{endpoint, error}` |
+| `ai_video_commands_synthesized` | Fallback AI Video | `{scene, reason}` |
+| `ai_video_command_failed` | Commande AI Video échouée | `{endpoint, error}` |
 | `merge_failed` | Fusion FFmpeg échouée | `{error}` |
 | `scene_inspected` | Scène inspectée | `{objects}` |
 

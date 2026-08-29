@@ -5,13 +5,16 @@
 ## Agents
 
 ```
-DirectorAgent ──► BlenderAgent ──► QAAgent
+DirectorAgent ──► BlenderAgent / UE5Agent / GodotAgent / AIVideoAgent ──► QAAgent
 ```
 
 - **DirectorAgent** : comprend le brief, structure l'intention, crée `SceneSpec`/`ShotSpec`,
   sélectionne les skills, planifie la production.
 - **BlenderAgent** : transforme les specs en actions Blender, génère/fait générer le Python,
   utilise les tools, interagit avec le `BlenderPlugin`, interprète les résultats du worker.
+- **UE5Agent** : transforme les specs en commandes REST pour UE5, utilise Lumen, Nanite et MRQ.
+- **GodotAgent** : transforme les specs en commandes REST pour Godot 4, utilise GDScript et WebGL.
+- **AIVideoAgent** : transforme les specs en commandes de génération vidéo par IA (CogVideoX, SVD, AnimateDiff).
 - **QAAgent** : QA technique, visuel, continuité, sémantique ; diagnostic ; produit un
   `RevisionSpec`.
 

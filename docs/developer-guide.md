@@ -7,9 +7,10 @@ détaillée dans [`docs/architecture/`](architecture/README.md).
 
 ```text
 DeepBl4nder/
-├── agents/          # Sous-classes de nooa.Agent (director, blender, qa)
-├── domain/          # Objets métier typés (Project, SceneSpec, QAReport, …)
+├── agents/          # Sous-classes de nooa.Agent (director, blender, ue5, godot, ai_video, qa)
+├── domain/          # Objets métier typés (Project, SceneSpec, UE5Commands, GodotCommands, …)
 ├── skills/          # Mécanique de skills (registry) + SKILL.md embarqués
+├── bridges/         # Clients REST pour moteurs externes (blender, ue5, godot, ai_video)
 ├── blender/         # Bridge, worker et scheduler Blender
 ├── codegen/         # Génération/validation AST et politique de code
 ├── artifacts/       # Registry, versioning et provenance
@@ -136,5 +137,6 @@ python -m pytest tests/test_decoupling.py -q   # découplage NOOA ↔ legacy
 
 `Dockerfile` : python 3.12-slim + Blender + ffmpeg + `pip install .` (avec NOOA).
 `docker-compose.yml` : gateway HTTP + worker jetable + ollama (LLM local via
-`LLM_BASE_URL` / `LLM_API_KEY`).
+`LLM_BASE_URL` / `LLM_API_KEY`) + serveurs optionnels UE5/Godot/AI Video
+(profils `ue5`, `godot`, `ai-video`).
 

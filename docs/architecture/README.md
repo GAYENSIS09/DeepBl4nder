@@ -14,7 +14,7 @@ construite **au-dessus de NOOA** (NVIDIA NeMo Labs OO-Agents, arXiv:2607.20709).
                 USER
                   │
                   ▼
-         DeepBl4nder (domaine de production + Blender + artifacts + QA)
+         DeepBl4nder (domaine de production + Blender/UE5/Godot/AI Video + artifacts + QA)
                   │
                   ▼
       NOOA (runtime agentique : objet = agent, contexte, événements,
@@ -24,9 +24,10 @@ construite **au-dessus de NOOA** (NVIDIA NeMo Labs OO-Agents, arXiv:2607.20709).
    ▼              ▼              ▼
 Blender       Audio/FFmpeg    Assets/Storage
    │              │              │
-   └───────┬──────┴──────┬───────┘
-           ▼             ▼
-      Workers        Artifacts
+   ├──────────────┼──────────────┤
+   ▼              ▼              ▼
+UE5 Server   Godot Server   AI Video Server
+(Lumen/Nanite) (GDScript/WebGL) (CogVideoX/SVD)
 ```
 
 **La règle d'or** : DeepBl4nder n'est *pas* « un framework d'agents qui utilise NOOA » ;
@@ -71,11 +72,14 @@ Toute capacité déjà fournie par NOOA est utilisée, jamais réimplémentée.
 | Élément | Statut |
 |---|---|
 | Consolidation théorique | Fait (ce dossier) |
-| Paquet Python `DeepBl4nder/` | Fait (domain, agents NOOA, 26 skills, blender, codegen, plugins+tools, production, api, cli) |
+| Paquet Python `DeepBl4nder/` | Fait (domain, agents NOOA, 26 skills, bridges, codegen, plugins+tools, production, api, cli) |
 | Tests (`tests/`, dont `test_decoupling.py`) | Fait (95 tests verts) |
 | CI (ruff, mypy, pytest) | Fait — lint, typecheck et tests passent localement |
 | Docker / docker-compose | Configurés (Dockerfile corrigé : install avec NOOA) ; image non construite |
 | Verticale Blender (render réel) | Code fait ; render à valider dans l'image Docker (Blender absent de l'hôte) |
+| Verticale UE5 (Lumen/Nanite/MRQ) | Bridge + Agent + Server implémentés ; serveur REST avec vrais appels Unreal Python API |
+| Verticale Godot (GDScript/WebGL) | Bridge + Agent + Server implémentés ; serveur REST avec exécution GDScript headless |
+| Verticale AI Video (CogVideoX/SVD) | Bridge + Agent + Server implémentés ; serveur REST avec pipelines de diffusion GPU |
 
 ## Lecture conseillée
 

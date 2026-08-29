@@ -19,7 +19,7 @@ const mono = localFont({
 
 export const metadata: Metadata = {
   title: 'DeepBl4nder — AI Audiovisual Production',
-  description: 'Plateforme SaaS de production audiovisuelle assistée par agents IA. Pipeline complet : scénario, storyboard, Blender/UE5, audio, compositing.',
+  description: 'Plateforme SaaS de production audiovisuelle assistée par agents IA. Pipeline complet : scénario, storyboard, Blender, UE5, Godot, AI Video, audio, compositing.',
   icons: { icon: '/favicon.svg' },
 };
 

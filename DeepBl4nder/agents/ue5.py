@@ -18,7 +18,7 @@ from nooa.strategy_validation import InvariantError
 
 from DeepBl4nder.agents.base import BaseAgent, DefaultsMixin, codeact_with_sandbox
 from DeepBl4nder.domain.scene import SceneSpec
-from DeepBl4nder.domain.ue5 import UE5Commands
+from DeepBl4nder.domain.ue5 import UE5Command, UE5Commands
 from DeepBl4nder.skills.registry import SkillRegistry
 
 
@@ -114,7 +114,181 @@ class UE5Agent(BaseAgent, DefaultsMixin):
 
         self._set_dynamic("scene_summary", "self._current_scene_summary(self._last_spec)")
         self._last_spec = spec
-        ...
+
+        scene_name = spec.brief[:50].replace(" ", "_").replace("'", "")
+        commands: list[UE5Command] = []
+
+        # 1. Create level
+        commands.append(UE5Command(
+            endpoint="level/create",
+            payload={"name": scene_name, "template": "empty"},
+        ))
+
+        # 2. Create materials for environment
+        env_materials = self._extract_materials_from_environment(spec.environment)
+        for mat in env_materials:
+            commands.append(UE5Command(
+                endpoint="material/create",
+                payload=mat,
+            ))
+
+        # 3. Create materials for characters
+        for char in spec.characters:
+            commands.append(UE5Command(
+                endpoint="material/create",
+                payload={
+                    "name": f"Mat_{char.name}",
+                    "base_color": [0.8, 0.8, 0.8],
+                    "metallic": 0.0,
+                    "roughness": 0.5,
+                },
+            ))
+
+        # 4. Create ground plane
+        commands.append(UE5Command(
+            endpoint="actor/create",
+            payload={
+                "type": "StaticMeshActor",
+                "name": "Ground",
+                "transform": {"location": [0, 0, 0], "rotation": [0, 0, 0]},
+            },
+        ))
+
+        # 5. Create character actors
+        for char in spec.characters:
+            pos_cm = [char.position[i] * 100 for i in range(3)]  # meters → centimeters
+            commands.append(UE5Command(
+                endpoint="actor/create",
+                payload={
+                    "type": "StaticMeshActor",
+                    "name": char.name,
+                    "transform": {"location": pos_cm, "rotation": [0, 0, 0]},
+                    "asset": f"/Game/Characters/{char.name}",
+                },
+            ))
+
+        # 6. Apply materials to characters
+        for char in spec.characters:
+            commands.append(UE5Command(
+                endpoint="material/apply",
+                payload={
+                    "actor": char.name,
+                    "material": f"Mat_{char.name}",
+                },
+            ))
+
+        # 7. Setup lighting with Lumen
+        lighting_preset = self._ue5_lighting_preset(spec.environment.lighting_mood)
+        commands.append(UE5Command(
+            endpoint="lighting/setup",
+            payload={
+                "lights": lighting_preset["lights"],
+                "use_lumen": True,
+                "skylight_intensity": lighting_preset["skylight_intensity"],
+                "environment_color": list(lighting_preset["environment_color"]),
+            },
+        ))
+
+        # 8. Create camera for first shot
+        if spec.shots:
+            shot = spec.shots[0]
+            cam_pos_cm = [shot.camera.position[i] * 100 for i in range(3)]
+            commands.append(UE5Command(
+                endpoint="actor/create",
+                payload={
+                    "type": "CameraActor",
+                    "name": "MainCamera",
+                    "transform": {"location": cam_pos_cm, "rotation": list(shot.camera.rotation)},
+                },
+            ))
+
+        # 9. Setup Sequencer for animation
+        total_frames = sum(shot.frame_count() for shot in spec.shots)
+        commands.append(UE5Command(
+            endpoint="sequencer/setup",
+            payload={
+                "name": f"Seq_{scene_name}",
+                "duration_frames": total_frames,
+                "fps": spec.render.fps,
+            },
+        ))
+
+        # 10. Add camera keyframes
+        if spec.shots:
+            current_frame = 0
+            keyframes = []
+            for shot in spec.shots:
+                cam_pos_cm = [shot.camera.position[i] * 100 for i in range(3)]
+                keyframes.append({
+                    "frame": current_frame,
+                    "location": cam_pos_cm,
+                    "rotation": list(shot.camera.rotation),
+                })
+                current_frame += shot.frame_count()
+
+            commands.append(UE5Command(
+                endpoint="sequencer/add_camera",
+                payload={
+                    "sequence": f"Seq_{scene_name}",
+                    "camera": "MainCamera",
+                    "keyframes": keyframes,
+                },
+            ))
+
+        # 11. Start render via MRQ
+        commands.append(UE5Command(
+            endpoint="render/start",
+            payload={
+                "output": f"/Game/RenderOutputs/{scene_name}",
+                "sequence": f"Seq_{scene_name}",
+                "resolution": list(spec.render.resolution),
+                "format": "mp4",
+                "quality": "cinematic",
+            },
+        ))
+
+        return UE5Commands(
+            scene_name=scene_name,
+            commands=commands,
+        )
+
+    @hidden
+    def _extract_materials_from_environment(self, environment) -> list[dict]:
+        """Extrait les matériaux nécessaires de la description de l'environnement."""
+        materials = []
+        desc = environment.description.lower()
+
+        # Ground material
+        if any(w in desc for w in ["metal", "steel", "iron"]):
+            materials.append({
+                "name": "Mat_Ground",
+                "base_color": [0.5, 0.5, 0.5],
+                "metallic": 0.8,
+                "roughness": 0.3,
+            })
+        elif any(w in desc for w in ["wood", "timber"]):
+            materials.append({
+                "name": "Mat_Ground",
+                "base_color": [0.6, 0.4, 0.2],
+                "metallic": 0.0,
+                "roughness": 0.7,
+            })
+        elif any(w in desc for w in ["stone", "brick", "concrete"]):
+            materials.append({
+                "name": "Mat_Ground",
+                "base_color": [0.4, 0.4, 0.4],
+                "metallic": 0.0,
+                "roughness": 0.8,
+            })
+        else:
+            materials.append({
+                "name": "Mat_Ground",
+                "base_color": [0.3, 0.3, 0.3],
+                "metallic": 0.0,
+                "roughness": 0.6,
+            })
+
+        return materials
 
     @hidden
     def _current_scene_summary(self, spec: SceneSpec | None) -> str:

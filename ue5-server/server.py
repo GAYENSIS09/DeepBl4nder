@@ -14,7 +14,6 @@ from __future__ import annotations
 
 import logging
 import os
-import subprocess
 import sys
 from pathlib import Path
 from typing import Any
@@ -36,6 +35,14 @@ UE5_PROJECT = os.environ.get("UE5_PROJECT", "/ue5-projects/DeepBl4nder")
 # Track render status
 _render_status: dict[str, Any] = {"status": "idle", "progress": 0.0}
 
+# Try to import unreal (only available inside UE5 Editor)
+try:
+    import unreal
+    UNREAL_AVAILABLE = True
+except ImportError:
+    UNREAL_AVAILABLE = False
+    logger.warning("unreal module not available — running in stub mode")
+
 
 # ════════════════════════════════════════════════════════════════
 #  Health
@@ -48,6 +55,7 @@ async def health():
     return {
         "status": "ok",
         "ue5_available": ue5_available,
+        "unreal_api_available": UNREAL_AVAILABLE,
         "ue5_exe": UE5_EXE,
         "ue5_project": UE5_PROJECT,
     }
@@ -65,10 +73,14 @@ class LevelCreateRequest(BaseModel):
 async def create_level(req: LevelCreateRequest):
     """Create a new level in UE5."""
     logger.info("Creating level: %s (template=%s)", req.name, req.template)
-    # In production, this would call UE5 Python API:
-    # import unreal
-    # unreal.EditorLevelLibrary.new_level(f"/Game/Levels/{req.name}")
-    return {"status": "ok", "level": req.name, "template": req.template}
+    if UNREAL_AVAILABLE:
+        try:
+            unreal.EditorLevelLibrary.new_level(f"/Game/Levels/{req.name}")
+            return {"status": "ok", "level": req.name, "template": req.template}
+        except Exception as e:
+            logger.error("Failed to create level: %s", e)
+            raise HTTPException(status_code=500, detail=str(e))
+    return {"status": "ok", "level": req.name, "template": req.template, "mode": "stub"}
 
 
 class LevelDeleteRequest(BaseModel):
@@ -78,7 +90,15 @@ class LevelDeleteRequest(BaseModel):
 async def delete_level(req: LevelDeleteRequest):
     """Delete a level."""
     logger.info("Deleting level: %s", req.name)
-    return {"status": "ok", "level": req.name}
+    if UNREAL_AVAILABLE:
+        try:
+            asset_path = f"/Game/Levels/{req.name}"
+            unreal.EditorAssetLibrary.delete_asset(asset_path)
+            return {"status": "ok", "level": req.name}
+        except Exception as e:
+            logger.error("Failed to delete level: %s", e)
+            raise HTTPException(status_code=500, detail=str(e))
+    return {"status": "ok", "level": req.name, "mode": "stub"}
 
 
 # ════════════════════════════════════════════════════════════════
@@ -94,12 +114,25 @@ class AssetImportRequest(BaseModel):
 async def import_asset(req: AssetImportRequest):
     """Import an asset (.fbx, .gltf, .glb) into UE5."""
     logger.info("Importing asset: %s -> %s", req.source, req.destination)
-    # import unreal
-    # task = unreal.AssetImportTask()
-    # task.set_editor_property('filename', req.source)
-    # task.set_editor_property('destination_path', req.destination)
-    # unreal.AssetToolsHelpers.get_asset_tools().import_asset_tasks([task])
-    return {"status": "ok", "source": req.source, "destination": req.destination}
+    if UNREAL_AVAILABLE:
+        try:
+            task = unreal.AssetImportTask()
+            task.set_editor_property('filename', req.source)
+            task.set_editor_property('destination_path', req.destination)
+            task.set_editor_property('automated', True)
+            task.set_editor_property('replace_existing', True)
+            unreal.AssetToolsHelpers.get_asset_tools().import_asset_tasks([task])
+            if task.get_editor_property('result'):
+                return {"status": "ok", "source": req.source, "destination": req.destination}
+            else:
+                error_messages = task.get_editor_property('error_messages')
+                raise HTTPException(status_code=500, detail=f"Import failed: {error_messages}")
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.error("Failed to import asset: %s", e)
+            raise HTTPException(status_code=500, detail=str(e))
+    return {"status": "ok", "source": req.source, "destination": req.destination, "mode": "stub"}
 
 
 class ActorCreateRequest(BaseModel):
@@ -112,12 +145,31 @@ class ActorCreateRequest(BaseModel):
 async def create_actor(req: ActorCreateRequest):
     """Create an actor in the current level."""
     logger.info("Creating actor: %s (type=%s)", req.name, req.type)
-    # import unreal
-    # actor = unreal.EditorLevelLibrary.spawn_actor_from_class(
-    #     unreal.StaticMeshActor, unreal.Vector(0, 0, 0)
-    # )
-    # actor.set_actor_label(req.name)
-    return {"status": "ok", "actor": req.name, "type": req.type}
+    if UNREAL_AVAILABLE:
+        try:
+            actor_class = unreal.StaticMeshActor
+            location = unreal.Vector(0, 0, 0)
+            rotation = unreal.Rotator(0, 0, 0)
+
+            if req.transform:
+                loc = req.transform.get("location", [0, 0, 0])
+                rot = req.transform.get("rotation", [0, 0, 0])
+                location = unreal.Vector(loc[0], loc[1], loc[2])
+                rotation = unreal.Rotator(rot[0], rot[1], rot[2])
+
+            actor = unreal.EditorLevelLibrary.spawn_actor_from_class(actor_class, location, rotation)
+            actor.set_actor_label(req.name)
+
+            if req.asset:
+                static_mesh = unreal.EditorAssetLibrary.load_asset(req.asset)
+                if static_mesh and hasattr(actor, 'static_mesh_component'):
+                    actor.static_mesh_component.set_static_mesh(static_mesh)
+
+            return {"status": "ok", "actor": req.name, "type": req.type}
+        except Exception as e:
+            logger.error("Failed to create actor: %s", e)
+            raise HTTPException(status_code=500, detail=str(e))
+    return {"status": "ok", "actor": req.name, "type": req.type, "mode": "stub"}
 
 
 # ════════════════════════════════════════════════════════════════
@@ -137,11 +189,25 @@ class MaterialCreateRequest(BaseModel):
 async def create_material(req: MaterialCreateRequest):
     """Create a PBR Lumen material in UE5."""
     logger.info("Creating material: %s", req.name)
-    # import unreal
-    # mat_tools = unreal.AssetToolsHelpers.get_asset_tools()
-    # mat = mat_tools.create_asset(req.name, '/Game/Materials', unreal.Material, None)
-    # mat.set_editor_property('base_color', req.base_color)
-    return {"status": "ok", "material": req.name}
+    if UNREAL_AVAILABLE:
+        try:
+            mat_tools = unreal.AssetToolsHelpers.get_asset_tools()
+            mat = mat_tools.create_asset(req.name, '/Game/Materials', unreal.Material, None)
+
+            mat.set_editor_property('base_color', unreal.LinearColor(req.base_color[0], req.base_color[1], req.base_color[2], 1.0))
+            mat.set_editor_property('metallic', req.metallic)
+            mat.set_editor_property('roughness', req.roughness)
+
+            if req.emission_color:
+                mat.set_editor_property('emissive_color', unreal.LinearColor(req.emission_color[0], req.emission_color[1], req.emission_color[2], 1.0))
+                mat.set_editor_property('emissive_brightness', req.emission_intensity)
+
+            unreal.EditorAssetLibrary.save_asset(f"/Game/Materials/{req.name}")
+            return {"status": "ok", "material": req.name}
+        except Exception as e:
+            logger.error("Failed to create material: %s", e)
+            raise HTTPException(status_code=500, detail=str(e))
+    return {"status": "ok", "material": req.name, "mode": "stub"}
 
 
 class MaterialApplyRequest(BaseModel):
@@ -152,7 +218,34 @@ class MaterialApplyRequest(BaseModel):
 async def apply_material(req: MaterialApplyRequest):
     """Apply a material to an actor."""
     logger.info("Applying material %s to actor %s", req.material, req.actor)
-    return {"status": "ok", "actor": req.actor, "material": req.material}
+    if UNREAL_AVAILABLE:
+        try:
+            actors = unreal.EditorLevelLibrary.get_all_level_actors()
+            target_actor = None
+            for actor in actors:
+                if actor.get_actor_label() == req.actor:
+                    target_actor = actor
+                    break
+
+            if not target_actor:
+                raise HTTPException(status_code=404, detail=f"Actor '{req.actor}' not found")
+
+            mat = unreal.EditorAssetLibrary.load_asset(f"/Game/Materials/{req.material}")
+            if not mat:
+                raise HTTPException(status_code=404, detail=f"Material '{req.material}' not found")
+
+            components = unreal.EditorUtilityLibrary.get_components_from_selected_actors([target_actor])
+            for comp in components:
+                if hasattr(comp, 'set_material'):
+                    comp.set_material(0, mat)
+
+            return {"status": "ok", "actor": req.actor, "material": req.material}
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.error("Failed to apply material: %s", e)
+            raise HTTPException(status_code=500, detail=str(e))
+    return {"status": "ok", "actor": req.actor, "material": req.material, "mode": "stub"}
 
 
 # ════════════════════════════════════════════════════════════════
@@ -169,11 +262,45 @@ class LightingSetupRequest(BaseModel):
 async def setup_lighting(req: LightingSetupRequest):
     """Configure Lumen lighting."""
     logger.info("Setting up lighting: %d lights, lumen=%s", len(req.lights), req.use_lumen)
-    # import unreal
-    # if req.use_lumen:
-    #     # Enable Lumen GI
-    #     unreal.ConsoleVariableLibrary.set_cvar("r.DynamicGlobalIllumination.Method", "1")
-    return {"status": "ok", "lights": len(req.lights), "lumen": req.use_lumen}
+    if UNREAL_AVAILABLE:
+        try:
+            if req.use_lumen:
+                unreal.ConsoleVariableLibrary.set_cvar("r.DynamicGlobalIllumination.Method", "1")
+                unreal.ConsoleVariableLibrary.set_cvar("r.Lumen.TraceMeshSDFs", "1")
+            else:
+                unreal.ConsoleVariableLibrary.set_cvar("r.DynamicGlobalIllumination.Method", "0")
+
+            for light_data in req.lights:
+                light_type = light_data.get("type", "PointLight")
+                name = light_data.get("name", "Light")
+                intensity = light_data.get("intensity", 10.0)
+                location = light_data.get("location", [0, 0, 300])
+                color = light_data.get("color", [1.0, 1.0, 1.0])
+                rotation = light_data.get("rotation", [0, 0, 0])
+
+                if light_type == "DirectionalLight":
+                    actor_class = unreal.DirectionalLight
+                elif light_type == "SpotLight":
+                    actor_class = unreal.SpotLight
+                else:
+                    actor_class = unreal.PointLight
+
+                loc = unreal.Vector(location[0], location[1], location[2])
+                rot = unreal.Rotator(rotation[0], rotation[1], rotation[2])
+
+                light_actor = unreal.EditorLevelLibrary.spawn_actor_from_class(actor_class, loc, rot)
+                light_actor.set_actor_label(name)
+
+                light_component = light_actor.get_component_by_class(unreal.LightComponent)
+                if light_component:
+                    light_component.set_intensity(intensity)
+                    light_component.set_light_color(unreal.LinearColor(color[0], color[1], color[2], 1.0))
+
+            return {"status": "ok", "lights": len(req.lights), "lumen": req.use_lumen}
+        except Exception as e:
+            logger.error("Failed to setup lighting: %s", e)
+            raise HTTPException(status_code=500, detail=str(e))
+    return {"status": "ok", "lights": len(req.lights), "lumen": req.use_lumen, "mode": "stub"}
 
 
 class LightCreateRequest(BaseModel):
@@ -188,7 +315,31 @@ class LightCreateRequest(BaseModel):
 async def create_light(req: LightCreateRequest):
     """Create a light."""
     logger.info("Creating light: %s (type=%s)", req.name, req.type)
-    return {"status": "ok", "light": req.name, "type": req.type}
+    if UNREAL_AVAILABLE:
+        try:
+            light_classes = {
+                "DirectionalLight": unreal.DirectionalLight,
+                "PointLight": unreal.PointLight,
+                "SpotLight": unreal.SpotLight,
+                "RectLight": unreal.RectLight,
+            }
+            actor_class = light_classes.get(req.type, unreal.PointLight)
+            loc = unreal.Vector(req.location[0], req.location[1], req.location[2])
+
+            light_actor = unreal.EditorLevelLibrary.spawn_actor_from_class(actor_class, loc)
+            light_actor.set_actor_label(req.name)
+
+            light_component = light_actor.get_component_by_class(unreal.LightComponent)
+            if light_component:
+                light_component.set_intensity(req.intensity)
+                light_component.set_light_color(unreal.LinearColor(req.color[0], req.color[1], req.color[2], 1.0))
+                light_component.set_attenuation_radius(req.attenuation_radius)
+
+            return {"status": "ok", "light": req.name, "type": req.type}
+        except Exception as e:
+            logger.error("Failed to create light: %s", e)
+            raise HTTPException(status_code=500, detail=str(e))
+    return {"status": "ok", "light": req.name, "type": req.type, "mode": "stub"}
 
 
 # ════════════════════════════════════════════════════════════════
@@ -205,11 +356,28 @@ class SequencerSetupRequest(BaseModel):
 async def setup_sequencer(req: SequencerSetupRequest):
     """Configure the Sequencer for animation."""
     logger.info("Setting up sequencer: %s (%d frames @ %d fps)", req.name, req.duration_frames, req.fps)
-    # import unreal
-    # level_sequence = unreal.AssetToolsHelpers.get_asset_tools().create_asset(
-    #     req.name, '/Game/Sequences', unreal.LevelSequence, None
-    # )
-    return {"status": "ok", "sequence": req.name, "frames": req.duration_frames}
+    if UNREAL_AVAILABLE:
+        try:
+            asset_tools = unreal.AssetToolsHelpers.get_asset_tools()
+            level_sequence = asset_tools.create_asset(
+                req.name, '/Game/Sequences', unreal.LevelSequence, None
+            )
+            if level_sequence:
+                movie_scene = level_sequence.get_movie_scene()
+                movie_scene.set_display_rate(req.fps)
+                frame_rate = unreal.FrameRate(req.fps, 1)
+                frame_range = unreal.FrameRange(0, req.duration_frames)
+                movie_scene.set_display_rate(req.fps)
+                unreal.EditorAssetLibrary.save_asset(f"/Game/Sequences/{req.name}")
+                return {"status": "ok", "sequence": req.name, "frames": req.duration_frames}
+            else:
+                raise HTTPException(status_code=500, detail="Failed to create level sequence")
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.error("Failed to setup sequencer: %s", e)
+            raise HTTPException(status_code=500, detail=str(e))
+    return {"status": "ok", "sequence": req.name, "frames": req.duration_frames, "mode": "stub"}
 
 
 class CameraTrackRequest(BaseModel):
@@ -221,7 +389,47 @@ class CameraTrackRequest(BaseModel):
 async def add_camera_track(req: CameraTrackRequest):
     """Add a camera track to the Sequencer."""
     logger.info("Adding camera track: %s to %s", req.camera, req.sequence)
-    return {"status": "ok", "camera": req.camera, "keyframes": len(req.keyframes)}
+    if UNREAL_AVAILABLE:
+        try:
+            sequence_asset = unreal.EditorAssetLibrary.load_asset(f"/Game/Sequences/{req.sequence}")
+            if not sequence_asset:
+                raise HTTPException(status_code=404, detail=f"Sequence '{req.sequence}' not found")
+
+            camera_actor = None
+            actors = unreal.EditorLevelLibrary.get_all_level_actors()
+            for actor in actors:
+                if actor.get_actor_label() == req.camera:
+                    camera_actor = actor
+                    break
+
+            if not camera_actor:
+                raise HTTPException(status_code=404, detail=f"Camera '{req.camera}' not found")
+
+            binding = sequence_asset.add_possessable(camera_actor)
+            camera_component = camera_actor.get_component_by_class(unreal.CameraComponent)
+            if camera_component:
+                transform_track = binding.add_track(unreal.MovieScenePropertyTrack)
+                transform_track.set_property_name_and_path("Transform", "Transform")
+                for kf in req.keyframes:
+                    frame = kf.get("frame", 0)
+                    loc = kf.get("location", [0, 0, 0])
+                    rot = kf.get("rotation", [0, 0, 0])
+                    transform = unreal.Transform(
+                        unreal.Rotator(rot[0], rot[1], rot[2]),
+                        unreal.Vector(loc[0], loc[1], loc[2]),
+                        unreal.Vector(1, 1, 1)
+                    )
+                    section = transform_track.get_sections()[0]
+                    section.add_key(unreal.FrameNumber(frame), transform)
+
+            unreal.EditorAssetLibrary.save_asset(f"/Game/Sequences/{req.sequence}")
+            return {"status": "ok", "camera": req.camera, "keyframes": len(req.keyframes)}
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.error("Failed to add camera track: %s", e)
+            raise HTTPException(status_code=500, detail=str(e))
+    return {"status": "ok", "camera": req.camera, "keyframes": len(req.keyframes), "mode": "stub"}
 
 
 class ActorTrackRequest(BaseModel):
@@ -234,7 +442,46 @@ class ActorTrackRequest(BaseModel):
 async def add_actor_track(req: ActorTrackRequest):
     """Add an actor animation track to the Sequencer."""
     logger.info("Adding actor track: %s.%s to %s", req.actor, req.property, req.sequence)
-    return {"status": "ok", "actor": req.actor, "keyframes": len(req.keyframes)}
+    if UNREAL_AVAILABLE:
+        try:
+            sequence_asset = unreal.EditorAssetLibrary.load_asset(f"/Game/Sequences/{req.sequence}")
+            if not sequence_asset:
+                raise HTTPException(status_code=404, detail=f"Sequence '{req.sequence}' not found")
+
+            target_actor = None
+            actors = unreal.EditorLevelLibrary.get_all_level_actors()
+            for actor in actors:
+                if actor.get_actor_label() == req.actor:
+                    target_actor = actor
+                    break
+
+            if not target_actor:
+                raise HTTPException(status_code=404, detail=f"Actor '{req.actor}' not found")
+
+            binding = sequence_asset.add_possessable(target_actor)
+            transform_track = binding.add_track(unreal.MovieScenePropertyTrack)
+            transform_track.set_property_name_and_path(req.property, req.property)
+
+            for kf in req.keyframes:
+                frame = kf.get("frame", 0)
+                value = kf.get("value", [0, 0, 0])
+                section = transform_track.get_sections()[0]
+                if isinstance(value, list) and len(value) == 3:
+                    transform = unreal.Transform(
+                        unreal.Rotator(0, 0, 0),
+                        unreal.Vector(value[0], value[1], value[2]),
+                        unreal.Vector(1, 1, 1)
+                    )
+                    section.add_key(unreal.FrameNumber(frame), transform)
+
+            unreal.EditorAssetLibrary.save_asset(f"/Game/Sequences/{req.sequence}")
+            return {"status": "ok", "actor": req.actor, "keyframes": len(req.keyframes)}
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.error("Failed to add actor track: %s", e)
+            raise HTTPException(status_code=500, detail=str(e))
+    return {"status": "ok", "actor": req.actor, "keyframes": len(req.keyframes), "mode": "stub"}
 
 
 # ════════════════════════════════════════════════════════════════
@@ -256,17 +503,45 @@ async def start_render(req: RenderStartRequest):
     global _render_status
     logger.info("Starting render: %s (%dx%d, %s)", req.output, req.resolution[0], req.resolution[1], req.quality)
     _render_status = {"status": "rendering", "progress": 0.0, "output": req.output}
-    # import unreal
-    # mrq = unreal.MoviePipelineQueueSubsystem()
-    # job = mrq.get_queue().allocate_new_job()
-    # job.set_editor_property('map', req.sequence)
-    # mrq.render_job(job)
-    return {"status": "started", "output": req.output}
+    if UNREAL_AVAILABLE:
+        try:
+            mrq = unreal.MoviePipelineQueueSubsystem()
+            job = mrq.get_queue().allocate_new_job()
+
+            if req.sequence:
+                sequence_asset = unreal.EditorAssetLibrary.load_asset(f"/Game/Sequences/{req.sequence}")
+                if sequence_asset:
+                    job.set_editor_property('sequence', sequence_asset)
+
+            renderer = job.get_configuration().find_setting_by_class(unreal.MoviePipelineRenderPassSetting)
+            if renderer:
+                renderer.output_resolution = unreal.IntPoint(req.resolution[0], req.resolution[1])
+
+            mrq.render_job(job)
+            _render_status["status"] = "started"
+            return {"status": "started", "output": req.output}
+        except Exception as e:
+            logger.error("Failed to start render: %s", e)
+            _render_status["status"] = "error"
+            raise HTTPException(status_code=500, detail=str(e))
+    return {"status": "started", "output": req.output, "mode": "stub"}
 
 
 @app.get("/render/status")
 async def get_render_status():
     """Get the current render status."""
+    if UNREAL_AVAILABLE:
+        try:
+            mrq = unreal.MoviePipelineQueueSubsystem()
+            if mrq.is_rendering():
+                _render_status["status"] = "rendering"
+                _render_status["progress"] = mrq.get_render_percentage_complete()
+            else:
+                if _render_status["status"] == "rendering":
+                    _render_status["status"] = "completed"
+                    _render_status["progress"] = 100.0
+        except Exception:
+            pass
     return _render_status
 
 
@@ -275,6 +550,12 @@ async def cancel_render():
     """Cancel the current render."""
     global _render_status
     logger.info("Cancelling render")
+    if UNREAL_AVAILABLE:
+        try:
+            mrq = unreal.MoviePipelineQueueSubsystem()
+            mrq.cancel_rendering()
+        except Exception as e:
+            logger.error("Failed to cancel render: %s", e)
     _render_status = {"status": "cancelled", "progress": 0.0}
     return {"status": "cancelled"}
 
@@ -291,9 +572,14 @@ class CVarSetRequest(BaseModel):
 async def set_cvar(req: CVarSetRequest):
     """Set a UE5 console variable."""
     logger.info("Setting CVar: %s = %s", req.name, req.value)
-    # import unreal
-    # unreal.ConsoleVariableLibrary.set_cvar(req.name, str(req.value))
-    return {"status": "ok", "name": req.name, "value": req.value}
+    if UNREAL_AVAILABLE:
+        try:
+            unreal.ConsoleVariableLibrary.set_cvar(req.name, str(req.value))
+            return {"status": "ok", "name": req.name, "value": req.value}
+        except Exception as e:
+            logger.error("Failed to set CVar: %s", e)
+            raise HTTPException(status_code=500, detail=str(e))
+    return {"status": "ok", "name": req.name, "value": req.value, "mode": "stub"}
 
 
 class QualityPresetRequest(BaseModel):
@@ -311,9 +597,15 @@ async def set_quality_preset(req: QualityPresetRequest):
         "cinematic": {"r.DynamicGlobalIllumination.Method": "1", "r.Nanite": "1", "r.ScreenPercentage": "150", "r.Shadow.Quality": "5", "r.MotionBlurQuality": "4"},
     }
     cvars = presets.get(req.preset, presets["high"])
-    # for name, value in cvars.items():
-    #     unreal.ConsoleVariableLibrary.set_cvar(name, value)
-    return {"status": "ok", "preset": req.preset, "cvars": cvars}
+    if UNREAL_AVAILABLE:
+        try:
+            for name, value in cvars.items():
+                unreal.ConsoleVariableLibrary.set_cvar(name, value)
+            return {"status": "ok", "preset": req.preset, "cvars": cvars}
+        except Exception as e:
+            logger.error("Failed to set quality preset: %s", e)
+            raise HTTPException(status_code=500, detail=str(e))
+    return {"status": "ok", "preset": req.preset, "cvars": cvars, "mode": "stub"}
 
 
 # ════════════════════════════════════════════════════════════════

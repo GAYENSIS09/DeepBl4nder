@@ -35,6 +35,9 @@ const EVENT_META: Record<string, { label: string; tone: 'green' | 'amber' | 'red
 const STEP_ICONS: Record<string, string> = {
   director: '🎬',
   blender: '🧊',
+  ue5: '🎮',
+  godot: '🤖',
+  'ai-video': '✨',
   qa: '🔍',
   audio: '🎵',
   compositing: '🎨',

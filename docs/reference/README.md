@@ -99,6 +99,11 @@ DeepBl4nder repose sur [NVIDIA NeMo Labs OO-Agents (NOOA)](https://github.com/NV
 │  │  Docker + GPU    │   │  REST API :8080       │   │  Next.js       │  │
 │  │  Blender 4.1     │   │  Unreal Engine 5      │   │  SSE Events    │  │
 │  └─────────────────┘   └──────────────────────┘   └────────────────┘  │
+│  ┌─────────────────┐   ┌──────────────────────┐                       │
+│  │  Godot Server   │   │  AI Video Server     │                       │
+│  │  REST API :8081 │   │  REST API :8082      │                       │
+│  │  Godot 4 (opt.) │   │  CogVideoX/SVD (opt.)│                       │
+│  └─────────────────┘   └──────────────────────┘                       │
 │                                                                        │
 │  ┌────────────────────────────────────────────────────────────────────┐ │
 │  │                     Infrastructure                                 │ │
@@ -120,6 +125,8 @@ DeepBl4nder repose sur [NVIDIA NeMo Labs OO-Agents (NOOA)](https://github.com/NV
 | **Rendu 3D** | Blender 4.1 (headless) | Scènes, animation, rendu |
 | **Rendu vidéo** | FFmpeg | Post-traitement vidéo |
 | **Moteur temps réel** | Unreal Engine 5 (optionnel) | Rendu Lumen/Nanite |
+| **Moteur open source** | Godot 4 (optionnel) | Rendu GDScript/WebGL |
+| **Génération vidéo IA** | CogVideoX / SVD / AnimateDiff (optionnel) | T2V, I2V, cache GPU |
 | **Frontend** | Next.js | Interface utilisateur |
 | **Observabilité LLM** | Langfuse | Traçage des appels LLM |
 | **Validation de code** | AST + politique | Sécurité du code généré |
@@ -210,6 +217,8 @@ docker compose up -d
 | MinIO API | 9000 | Object Storage API |
 | Langfuse | 3002 | Observabilité LLM |
 | UE5 Server | 8080 | Unreal Engine 5 (optionnel) |
+| Godot Server | 8081 | Godot 4 (optionnel) |
+| AI Video Server | 8082 | Génération vidéo IA (optionnel) |
 
 ### Installation locale (développement)
 

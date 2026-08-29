@@ -11,6 +11,8 @@
 #   DeepBl4nder-worker              — Blender + FFmpeg (GPU)
 #   DeepBl4nder-scheduler           — Celery workers
 #   ue5-server                      — Unreal Engine 5 REST API (optionnel, profile "ue5")
+#   godot-server                    — Godot 4 REST API (optionnel, profile "godot")
+#   ai-video-server                 — AI Video Generation REST API (optionnel, profile "ai-video")
 #   frontend                        — Next.js UI
 
 x-DeepBl4nder-env: &DeepBl4nder-env
@@ -220,6 +222,53 @@ services:
     restart: unless-stopped
 
   # ══════════════════════════════════════════════════════════
+  #  Godot Server (optionnel, profile "godot")
+  # ══════════════════════════════════════════════════════════
+
+  godot-server:
+    image: deepbl4nder-godot-server
+    build:
+      context: ./godot-server
+      dockerfile: Dockerfile
+    ports:
+      - "8081:8081"
+    environment:
+      GODOT_EXE: /usr/local/bin/godot
+      GODOT_PROJECT: /godot-projects/DeepBl4nder
+    volumes:
+      - ./work:/work
+    profiles: ["godot"]
+    restart: unless-stopped
+
+  # ══════════════════════════════════════════════════════════
+  #  AI Video Server (optionnel, profile "ai-video")
+  # ══════════════════════════════════════════════════════════
+
+  ai-video-server:
+    image: deepbl4nder-ai-video-server
+    build:
+      context: ./ai-video-server
+      dockerfile: Dockerfile
+    ports:
+      - "8082:8082"
+    environment:
+      GPU_ID: "0"
+      CACHE_DIR: /cache/ai-video
+      OUTPUT_DIR: /output/ai-video
+    volumes:
+      - ai-video-cache:/cache/ai-video
+      - ./work:/work
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    profiles: ["ai-video"]
+    restart: unless-stopped
+
+  # ══════════════════════════════════════════════════════════
   #  Frontend (Next.js)
   # ══════════════════════════════════════════════════════════
 
@@ -242,3 +291,4 @@ volumes:
   pgdata:
   redis_data:
   minio_data:
+  ai-video-cache:

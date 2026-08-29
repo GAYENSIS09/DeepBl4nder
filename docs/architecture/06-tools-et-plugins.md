@@ -24,23 +24,37 @@ deuxième runtime agentique.
 Agent → Tool / Python → Plugin → Système externe
 ```
 
-Plugins prévus : `blender`, `render-farm`, `ffmpeg`, `audio`, `tts`, `storage`,
+Plugins prévus : `blender`, `ue5`, `godot`, `ai-video`, `render-farm`, `ffmpeg`, `audio`, `tts`, `storage`,
 `asset-library`, `subtitle`, `git`, `knowledge-graph`.
 
 Exemple — `BlenderPlugin` : `inspect_scene()`, `execute_python()`, `render()`,
 `save_scene()`, `load_asset()`.
 
+Exemple — `UE5Plugin` : `create_level()`, `import_asset()`, `create_material()`,
+`setup_lighting()`, `start_render()`.
+
+Exemple — `GodotPlugin` : `create_scene()`, `create_mesh()`, `create_material()`,
+`setup_lighting()`, `export_webgl()`.
+
+Exemple — `AIVideoPlugin` : `generate_t2v()`, `generate_i2v()`, `get_cache_stats()`.
+
 ## Statut d'implémentation
 
-- `DeepBl4nder/plugins/` : `Plugin` (ABC), `PluginRegistry` (10 plugins : blender,
-  render-farm, ffmpeg, audio, tts, storage, asset-library, subtitle, git,
+- `DeepBl4nder/plugins/` : `Plugin` (ABC), `PluginRegistry` (13 plugins : blender,
+  ue5, godot, ai-video, render-farm, ffmpeg, audio, tts, storage, asset-library, subtitle, git,
   knowledge-graph), `BlenderPlugin` (inspect / execute / render / save / load,
   fail-closed via le validateur AST) ;
+- `DeepBl4nder/bridges/` : `BlenderBridge`, `UE5Bridge`, `GodotBridge`, `AIVideoBridge`
+  — clients REST pour les moteurs externes ;
+- `DeepBl4nder/agents/` : `BlenderAgent`, `UE5Agent`, `GodotAgent`, `AIVideoAgent`
+  — agents NOOA pour chaque moteur ;
 - `DeepBl4nder/plugins/tools.py` : `Tool` + `ToolRegistry`, liste canonique des
   8 tools importants, tous fonctionnels (branchés sur Blender, audio, ffmpeg) ;
 - exposés par la gateway (`/plugins`, `/tools`, `/skills`, `/workers`, `/status`)
   et le CLI `inspect`.
-- Les frontières dépendant d'un binaire externe (ffmpeg, git, TTS, Blender)
+- Les frontières dépendant d'un binaire externe (ffmpeg, git, TTS, Blender, UE5, Godot)
   sont prêtes : `available()` reflète la présence du binaire et les opérations
   échouent explicitement (`PluginError`) s'il manque à l'exécution.
+- Les serveurs REST (UE5, Godot, AI Video) sont optionnels et configurable via
+  des profils Docker (`profiles: ["ue5"]`, `profiles: ["godot"]`, `profiles: ["ai-video"]`).
 

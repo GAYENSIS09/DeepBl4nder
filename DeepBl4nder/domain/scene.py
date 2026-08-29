@@ -52,6 +52,81 @@ class UE5RenderSpec:
 
 
 @dataclass
+class GodotRenderSpec:
+    """Paramètres spécifiques à Godot 4.
+
+    Utilisé par GodotAgent pour configurer le rendu PBR/WebGL.
+    """
+
+    use_glow: bool = True  # Effet bloom/glow
+    ambient_light_energy: float = 0.3  # Intensité de la lumière ambiante
+    export_webgl: bool = False  # Exporter en WebGL pour le web
+    msaa: int = 2  # Anti-aliasing (0, 2, 4, 8)
+    fov: float = 75.0  # Champ de vision de la caméra
+
+    def to_mapping(self) -> dict[str, Any]:
+        return {
+            "use_glow": self.use_glow,
+            "ambient_light_energy": self.ambient_light_energy,
+            "export_webgl": self.export_webgl,
+            "msaa": self.msaa,
+            "fov": self.fov,
+        }
+
+    @classmethod
+    def from_mapping(cls, data: dict[str, Any]) -> "GodotRenderSpec":
+        return cls(
+            use_glow=data.get("use_glow", True),
+            ambient_light_energy=data.get("ambient_light_energy", 0.3),
+            export_webgl=data.get("export_webgl", False),
+            msaa=data.get("msaa", 2),
+            fov=data.get("fov", 75.0),
+        )
+
+
+@dataclass
+class AIVideoRenderSpec:
+    """Paramètres spécifiques à la génération vidéo par IA.
+
+    Utilisé par AIVideoAgent pour configurer les modèles de diffusion.
+    """
+
+    model: str = "cogvideox"  # cogvideox, wan2.1, animatediff, svd
+    mode: str = "t2v"  # t2v (text-to-video), i2v (image-to-video)
+    seed: int = 42  # Seed pour la reproductibilité
+    num_frames: int = 49  # Nombre de frames (4-8 secondes)
+    guidance_scale: float = 6.0  # Force du prompt
+    num_inference_steps: int = 50  # Étapes d'inférence
+    motion_bucket_id: int = 127  # Intensité du mouvement (SVD)
+    use_cache: bool = True  # Activer le cache des générations
+
+    def to_mapping(self) -> dict[str, Any]:
+        return {
+            "model": self.model,
+            "mode": self.mode,
+            "seed": self.seed,
+            "num_frames": self.num_frames,
+            "guidance_scale": self.guidance_scale,
+            "num_inference_steps": self.num_inference_steps,
+            "motion_bucket_id": self.motion_bucket_id,
+            "use_cache": self.use_cache,
+        }
+
+    @classmethod
+    def from_mapping(cls, data: dict[str, Any]) -> "AIVideoRenderSpec":
+        return cls(
+            model=data.get("model", "cogvideox"),
+            mode=data.get("mode", "t2v"),
+            seed=data.get("seed", 42),
+            num_frames=data.get("num_frames", 49),
+            guidance_scale=data.get("guidance_scale", 6.0),
+            num_inference_steps=data.get("num_inference_steps", 50),
+            motion_bucket_id=data.get("motion_bucket_id", 127),
+            use_cache=data.get("use_cache", True),
+        )
+
+
+@dataclass
 class RenderSpec:
     """Paramètres de rendu : résolution, fps, format, moteur.
 
@@ -71,6 +146,8 @@ class RenderSpec:
     use_gpu: bool = True  # utilise le GPU CUDA/OptiX si disponible
     output_format: str = "OPEN_EXR_MULTILAYER"  # format de sortie Blender (exr, png, mp4)
     ue5: UE5RenderSpec | None = None  # settings spécifiques UE5 (si engine=UE5)
+    godot: GodotRenderSpec | None = None  # settings spécifiques Godot (si engine=GODOT)
+    ai_video: AIVideoRenderSpec | None = None  # settings spécifiques AI Video (si engine=AI_VIDEO)
 
     def __post_init__(self):
         # Ensure resolution is a fixed-length tuple of 2 ints
@@ -85,6 +162,14 @@ class RenderSpec:
         """True si le moteur est Unreal Engine 5."""
         return self.engine.upper() == "UE5"
 
+    def is_godot_engine(self) -> bool:
+        """True si le moteur est Godot 4."""
+        return self.engine.upper() == "GODOT"
+
+    def is_ai_video_engine(self) -> bool:
+        """True si le moteur est un moteur AI Video."""
+        return self.engine.upper() == "AI_VIDEO"
+
     def to_mapping(self) -> dict[str, Any]:
         result = {
             "resolution": list(self.resolution),
@@ -98,6 +183,10 @@ class RenderSpec:
         }
         if self.ue5 is not None:
             result["ue5"] = self.ue5.to_mapping()
+        if self.godot is not None:
+            result["godot"] = self.godot.to_mapping()
+        if self.ai_video is not None:
+            result["ai_video"] = self.ai_video.to_mapping()
         return result
 
     @classmethod
@@ -105,6 +194,10 @@ class RenderSpec:
         raw_resolution = data.get("resolution", (1920, 1080))
         ue5_data = data.get("ue5")
         ue5 = UE5RenderSpec.from_mapping(ue5_data) if ue5_data else None
+        godot_data = data.get("godot")
+        godot = GodotRenderSpec.from_mapping(godot_data) if godot_data else None
+        ai_video_data = data.get("ai_video")
+        ai_video = AIVideoRenderSpec.from_mapping(ai_video_data) if ai_video_data else None
         return cls(
             resolution=(int(raw_resolution[0]), int(raw_resolution[1])),
             fps=data.get("fps", 24),
@@ -115,6 +208,8 @@ class RenderSpec:
             use_gpu=data.get("use_gpu", True),
             output_format=data.get("output_format", "OPEN_EXR_MULTILAYER"),
             ue5=ue5,
+            godot=godot,
+            ai_video=ai_video,
         )
 
 
