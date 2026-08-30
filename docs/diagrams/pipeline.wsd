@@ -1,0 +1,124 @@
+@startuml
+!define RECTANGLE class
+
+skinparam backgroundColor #0A0A0A
+skinparam componentStyle rectangle
+skinparam rectangle {
+    BackgroundColor #121212
+    BorderColor #AAFF00
+    ArrowColor #AAFF00
+    FontColor #F2F2F2
+    FontSize 12
+}
+skinparam arrow {
+    Color #AAFF00
+    FontColor #F2F2F2
+}
+skinparam legend {
+    BackgroundColor #171717
+    BorderColor #262626
+    FontColor #A0A098
+}
+
+title DeepBl4nder — Pipeline de Production (14 Agents)
+
+package "USER" {
+    [TUI Terminal] as TUI
+}
+
+package "14 Agents NOOA (In-Process)" {
+    package "Pipeline Principal" {
+        [StoryAgent] as Story
+        [StoryboardAgent] as Storyboard
+        [DirectorAgent] as Director
+        [BlenderAgent] as Blender
+        [QAAgent] as QA
+    }
+    
+    package "Post-Production" {
+        [CharacterDesignerAgent] as Char
+        [EnvironmentArtistAgent] as Env
+        [AnimatorAgent] as Anim
+        [AudioAgent] as Audio
+        [MusicComposerAgent] as Music
+        [SoundDesignerAgent] as SFX
+        [CompositingAgent] as Comp
+        [LocalizationAgent] as Loc
+        [ReviewAgent] as Review
+    }
+    
+    package "Moteurs Externes (Optionnel)" {
+        [UE5Agent] as UE5
+        [GodotAgent] as Godot
+        [AIVideoAgent] as AIVid
+    }
+}
+
+package "Local LLM Server" {
+    [llama.cpp Server] as LLM
+    [Qwen3-1.5B] as M1
+    [Qwen3-4B] as M2
+    [Qwen3-8B] as M3
+}
+
+package "Workers Docker" {
+    [Blender Worker] as BW
+    [UE5 Server] as US
+    [Godot Server] as GS
+    [AI Video Server] as AVS
+}
+
+' Connexions
+TUI --> Story : Brief
+Story --> Storyboard : StorySpec
+Storyboard --> Director : StoryboardSpec
+Director --> Char : SceneSpec
+Director --> Env : SceneSpec
+Director --> Blender : SceneSpec + ShotSpecs
+
+Blender --> QA : RenderResult
+QA --> Review : QAReport (PASS)
+
+' QA FAIL -> Revision
+QA -.-> Director : RevisionSpec (FAIL)
+
+' LLM
+Story --> LLM
+Storyboard --> LLM
+Director --> LLM
+Blender --> LLM
+QA --> LLM
+Char --> LLM
+Env --> LLM
+Anim --> LLM
+Audio --> LLM
+Music --> LLM
+SFX --> LLM
+Comp --> LLM
+Loc --> LLM
+Review --> LLM
+
+' LLM Models (Cascade)
+LLM --> M1 : FAST (1.5B)
+LLM --> M2 : GENERAL (4B)
+LLM --> M3 : CODING/REASONING (8B)
+
+' Workers
+Blender --> BW : bpy script
+BW --> Blender : RenderResult
+
+UE5 --> US : REST
+Godot --> GS : REST
+AIVid --> AVS : REST
+
+legend right
+    | Couleur | Signification |
+    | <back:#AAFF00><color:#0A0A0A> ■ </color></back> | Pipeline principal (séquentiel) |
+    | <back:#88CC00><color:#0A0A0A> ■ </color></back> | Post-production (parallèle) |
+    | <back:#E6C229><color:#0A0A0A> ■ </color></back> | Moteurs externes (optionnel) |
+    | <back:#61AFEF><color:#0A0A0A> ■ </color></back> | LLM Local (Cascade) |
+    | <back:#FF5C57><color:#0A0A0A> ■ </color></back> | QA / Revision |
+    | <back:#56B6C2><color:#0A0A0A> ■ </color></back> | Workers Docker |
+endlegend
+
+@enduml

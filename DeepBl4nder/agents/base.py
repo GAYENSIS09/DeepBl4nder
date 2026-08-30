@@ -201,11 +201,15 @@ class BaseAgent(Agent):
     - _load_core_skills() : injecte les résumés (niveau 1)
     - _load_skill(name) : charge le skill complet (niveau 2+)
     - Stratégie CodeActStrategy par défaut
+    - ContextPruner : nettoyage et budget tokens
+    - PromptCacheManager : optimisation KV cache
     """
 
     _skill_registry: SkillRegistry
     _core_skills_loaded: bool = False
     _skill_sink: Callable[[list[str]], None] | None = None
+    _context_pruner: Any = None  # ContextPruner
+    _prompt_cache: Any = None   # PromptCacheManager
 
     def __init__(
         self,
@@ -217,6 +221,7 @@ class BaseAgent(Agent):
         **kwargs: Any,
     ) -> None:
         self._skill_registry = skill_registry or get_default_registry()
+        self._init_context_management()
         _enable_tracing_if_configured()
         if truncation is None:
             truncation = _default_truncation()
@@ -235,6 +240,18 @@ class BaseAgent(Agent):
         self._enable_memory(memory)
         self._enable_history_summarizer()
         self._install_guardrails()
+
+    @hidden
+    def _init_context_management(self) -> None:
+        """Initialise le ContextPruner et le PromptCacheManager."""
+        try:
+            from DeepBl4nder.context_pruner import ContextPruner
+            from DeepBl4nder.prompt_cache import PromptCacheManager
+            self._context_pruner = ContextPruner()
+            self._prompt_cache = PromptCacheManager()
+        except Exception:  # noqa: BLE001
+            self._context_pruner = None
+            self._prompt_cache = None
 
     @hidden
     def _enable_memory(self, memory: Any = _SENTINEL) -> bool:
@@ -280,6 +297,18 @@ class BaseAgent(Agent):
         """
         self.context[key] = Context(value=value, prefix=prefix)
 
+        # Cache: enregistrer les contextes statiques importants
+        if self._prompt_cache is not None and prefix:
+            self._prompt_cache.register_block(key, value, prefix=True)
+
+    @hidden
+    def _get_cache_metrics(self) -> dict[str, Any]:
+        """Retourne les métriques de cache et de pruning."""
+        metrics: dict[str, Any] = {}
+        if self._prompt_cache is not None:
+            metrics["cache"] = self._prompt_cache.get_cache_efficiency()
+        return metrics
+
     def memory_skill(self) -> Any:
         """Skill memoire attache (nooa-memory) ou None."""
         return self._memory_skill
@@ -315,24 +344,49 @@ class BaseAgent(Agent):
         """Injecte les resumes de tous les skills dans le contexte (niveau 1).
 
         Idempotent : ne recharge pas si deja fait.
+        Utilise le ContextPruner pour respecter le budget tokens.
         Les skill summaries sont places dans le prefix stable pour maximiser
-        le cache KV cote provider (contenu qui ne change pas entre les appels).
+        le cache KV cote provider.
         """
         if self._core_skills_loaded:
             return
         summaries = self._skill_registry.summaries()
-        self.context["available_skills"] = Context(
-            value="\n".join(summaries), prefix=True,
-        )
+
+        # Pruning: optimiser les résumés selon le budget
+        if self._context_pruner is not None:
+            pruned = self._context_pruner.prune_skills(summaries, budget=800)
+        else:
+            pruned = "\n".join(summaries)
+
+        self.context["available_skills"] = Context(value=pruned, prefix=True)
+
+        # Cache: enregistrer dans le prompt cache
+        if self._prompt_cache is not None:
+            self._prompt_cache.register_block("available_skills", pruned, prefix=True)
+
         self._core_skills_loaded = True
         if self._skill_sink is not None:
             self._skill_sink([f"<{len(summaries)} core summaries>"])
 
     @hidden
     def _load_skill(self, name: str) -> TextSkill:
-        """Charge un skill complet dans le contexte (niveau 2+)."""
+        """Charge un skill complet dans le contexte (niveau 2+).
+
+        Utilise le ContextPruner pour tronquer les skills trop longs.
+        """
         skill = self._skill_registry.resolve(name)
-        self.context[f"skill_{name}"] = Context(value=skill.__doc__ or "")
+        content = skill.__doc__ or ""
+
+        # Pruning: tronquer si trop long (max 1200 tokens ≈ 4800 chars)
+        if self._context_pruner is not None and len(content) > 4800:
+            content, _ = self._context_pruner._truncate_to_budget(content, 1200)
+
+        self.context[f"skill_{name}"] = Context(value=content)
+
+        # Cache: enregistrer dans le prompt cache
+        if self._prompt_cache is not None:
+            self._prompt_cache.register_block(f"skill_{name}", content, prefix=False)
+
         if self._skill_sink is not None:
             self._skill_sink([name])
         return skill
@@ -341,6 +395,66 @@ class BaseAgent(Agent):
     def _load_skills(self, *names: str) -> list[TextSkill]:
         """Charge plusieurs skills d'un coup."""
         return [self._load_skill(name) for name in names]
+
+    @hidden
+    def _load_schema_context(self, *modules: str, context: str | None = None) -> None:
+        """Charge les schémas de domaine via recherche sémantique et les injecte dans le contexte.
+
+        Utilise TF-IDF + cosine similarity pour trouver les classes pertinentes,
+        puis le SchemaCompiler pour un format compact.
+
+        Args:
+            *modules: Noms des modules à chercher (ex: "narrative", "scene").
+                      Si vide, cherche dans tous les modules.
+            context: Texte contextuel additionnel pour la recherche sémantique.
+                     Si None, utilise les skills chargés automatiquement.
+        """
+        if not modules and context is None:
+            return
+        try:
+            from DeepBl4nder.domain.schema_vector import SchemaVectorStore
+            from DeepBl4nder.domain.schema_compiler import get_compiled_schema
+            from DeepBl4nder.plugins.knowledge.knowledge_graph import KnowledgeGraphPlugin
+
+            # Construire le contexte de recherche
+            search_context = context or self._build_search_context()
+
+            kg = KnowledgeGraphPlugin()
+
+            # Recherche vectorielle
+            store = SchemaVectorStore(kg)
+            store.build()
+            module_list = list(modules) if modules else None
+            if module_list:
+                results = store.search_by_modules(search_context, module_list, top_k=6)
+            else:
+                results = store.search(search_context, top_k=6)
+
+            if results:
+                # Compilation: format compact au lieu du format long
+                classes_data = [r.get("data", {}) for r in results]
+                schema_text = get_compiled_schema(classes_data, format="compact")
+            else:
+                schema_text = ""
+
+            if schema_text:
+                self.context["domain_schema"] = Context(value=schema_text, prefix=True)
+
+                # Cache: enregistrer dans le prompt cache
+                if self._prompt_cache is not None:
+                    self._prompt_cache.register_block("domain_schema", schema_text, prefix=True)
+        except Exception:  # noqa: BLE001 - KG indisponible ne doit jamais bloquer
+            pass
+
+    @hidden
+    def _build_search_context(self) -> str:
+        """Construit le contexte de recherche à partir des skills chargés."""
+        parts = []
+        # Ajouter les skills chargés dans le contexte
+        for key, value in self.context.items():
+            if key.startswith("skill_") and hasattr(value, "value"):
+                parts.append(value.value[:500])  # Limiter la taille
+        return " ".join(parts)
 
     @strategy(CodeActStrategy())
     @hidden

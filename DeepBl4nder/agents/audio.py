@@ -71,5 +71,6 @@ class AudioAgent(BaseAgent, DefaultsMixin):
         """
         self._load_core_skills()
         self._load_skills("sound-design", "music", "voice")
+        self._load_schema_context("scene", "media")
 
         ...

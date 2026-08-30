@@ -1,0 +1,98 @@
+@startuml
+!define RECTANGLE class
+
+skinparam backgroundColor #0A0A0A
+skinparam componentStyle rectangle
+skinparam rectangle {
+    BackgroundColor #121212
+    BorderColor #AAFF00
+    ArrowColor #AAFF00
+    FontColor #F2F2F2
+    FontSize 12
+}
+skinparam arrow {
+    Color #AAFF00
+    FontColor #F2F2F2
+}
+
+title DeepBl4nder — TUI Architecture (Textual)
+
+package "DeepBl4nderTUI (Textual App)" {
+    [App\nTheme: deepbl4nder\nCSS: app.tcss] as App
+}
+
+package "Screens" {
+    [ConsoleScreen\nTaskBar + AgentStream + SidePanel + StatusBar] as Console
+    [LibraryScreen\nProductions + Artifacts + Preview] as Library
+    [SettingsModal\nConfig: data_dir, budget, blender_path] as Settings
+    [EventDetailOverlay\nFull event content] as EventDetail
+}
+
+package "Widgets" {
+    [TaskBar\nBrief input + Engine picker + Run/Cancel] as TaskBar
+    [AgentStream\nRichLog live events (color-coded)] as AgentStream
+    [SidePanel\nBudget, Step, LLM Model, Provider] as SidePanel
+    [StatusBar\nRun status + Cost + Budget + Model] as StatusBar
+}
+
+package "Event System" {
+    [EventBroker\nPub/Sub, Ring Buffer (1000), Filter by production] as Broker
+    [EventBridge\nNOOA events → StreamEvent] as Bridge
+}
+
+package "Embedded API" {
+    [EmbeddedAPI\nIn-process pipeline runner] as Embedded
+    [PipelineRunner\nNOOA agents execution] as Runner
+    [RunTracker\nEvents → JSONL, Budget, Cost] as Tracker
+}
+
+package "Agents & LLM" {
+    [14 Agents NOOA] as Agents
+    [LLMClient\nllama.cpp HTTP] as LLM
+}
+
+' Connections
+App --> Console
+App --> Library
+App --> Settings
+App --> EventDetail
+
+Console --> TaskBar
+Console --> AgentStream
+Console --> SidePanel
+Console --> StatusBar
+
+TaskBar --> Embedded : Run/Cancel
+Settings --> App : Config changes
+
+Bridge --> Broker : NOOA events → StreamEvent
+Broker --> AgentStream : Live stream
+Broker --> SidePanel : Budget, Step, Model
+Broker --> StatusBar : Status, Cost, Model
+
+Embedded --> Runner : PipelineRunner.run(brief)
+Embedded --> Agents : build_agents()
+Agents --> LLM : acall(messages)
+LLM --> LLM : llama.cpp:8080
+
+Runner --> Tracker : Events, Budget, Cost
+Tracker --> Broker : Publish events
+Tracker --> File : events.jsonl (NDJSON)
+
+' Keyboard
+App ..> App : Ctrl+Q (quit)
+App ..> Console : Ctrl+B (library)
+App ..> Settings : Ctrl+O (settings)
+App ..> EventDetail : F1 (help)
+
+legend right
+    | Composant | Description |
+    | ConsoleScreen | Écran principal avec flux live |
+    | LibraryScreen | Navigateur productions/artefacts |
+    | AgentStream | Flux événements colorés (style opencode) |
+    | EventBridge | Normalise événements NOOA |
+    | EmbeddedAPI | Pipeline in-process (sans HTTP) |
+    | RunTracker | Coût, budget, journal événements |
+endlegend
+
+@enduml

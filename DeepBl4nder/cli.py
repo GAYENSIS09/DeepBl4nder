@@ -25,19 +25,9 @@ def build_parser() -> argparse.ArgumentParser:
     validate = sub.add_parser("validate", help="Valide statiquement un script Blender généré.")
     validate.add_argument("script", type=Path, help="Chemin du script .py à valider.")
 
-    serve = sub.add_parser("serve", help="Lance la gateway HTTP.")
-    serve.add_argument("--host", default="0.0.0.0")
-    serve.add_argument("--port", type=int, default=8000)
+    sub.add_parser("tui", help="Lance l'interface terminal (Textual TUI).")
 
-    seed = sub.add_parser("seed", help="Crée le compte admin de dev (SaaS).")
-    seed.add_argument("--db", default=None, help="Base SQLAlchemy (URL ou fichier SQLite).")
-    seed.add_argument("--email", default=None)
-    seed.add_argument("--password", default=None)
-    seed.add_argument("--org", default=None)
-    seed.add_argument("--project", default=None)
-
-    tui = sub.add_parser("tui", help="Lance l'interface terminal (Textual TUI).")
-    tui.add_argument("--api-url", default=None, help="URL de l'API DeepBl4nder (défaut: http://localhost:8000)")
+    sub.add_parser("download", help="Télécharge les modèles GGUF pour le LLM local.")
 
     return parser
 
@@ -80,43 +70,29 @@ def _cmd_validate(script: Path) -> int:
     return 1
 
 
+def _cmd_download() -> int:
+    from DeepBl4nder.llm.download import main as download_main
+    return download_main()
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     if args.command == "inspect":
         return _cmd_inspect()
     if args.command == "validate":
         return _cmd_validate(args.script)
-    if args.command == "serve":
-        import uvicorn
-
-        from DeepBl4nder.api.app import create_app
-
-        app = create_app()
-        uvicorn.run(app, host=args.host, port=args.port)
-        return 0
-    if args.command == "seed":
-        from DeepBl4nder.api.seed import main as seed_main
-
-        seed_args: list[str] = []
-        for option, value in (("--db", args.db), ("--email", args.email), ("--password", args.password),
-                              ("--org", args.org), ("--project", args.project)):
-            if value is not None:
-                seed_args.extend([option, value])
-        return seed_main(seed_args)
     if args.command == "tui":
-        return _cmd_tui(args.api_url)
+        return _cmd_tui()
+    if args.command == "download":
+        return _cmd_download()
     return 2
 
 
-def _cmd_tui(api_url: str | None) -> int:
+def _cmd_tui() -> int:
     """Lance l'interface terminal (Textual TUI)."""
-    if api_url:
-        import os
-        os.environ["DeepBl4nder_API_URL"] = api_url
-    
     try:
         from DeepBl4nder.tui.app import DeepBl4nderTUI
-        _tui_preflight_providers()
+        _tui_preflight()
         app = DeepBl4nderTUI()
         app.run()
         return 0
@@ -129,26 +105,26 @@ def _cmd_tui(api_url: str | None) -> int:
         return 1
 
 
-def _tui_preflight_providers() -> None:
-    """Avertit si aucune clé LLM n'est détectée (sans bloquer l'ouverture)."""
+def _tui_preflight() -> None:
+    """Vérifie les prérequis avant de lancer le TUI."""
     import os
+    from pathlib import Path
 
-    key_envs = (
-        "GEMINI_API_KEY", "GROQ_API_KEY", "NVIDIA_API_KEY",
-        "OPENROUTER_API_KEY", "CLOUDFLARE_API_KEY",
-    )
-    configured = [name for name in key_envs if os.environ.get(name)]
-    if configured:
-        return
-    print(
-        "AVERTISSEMENT : aucune clé LLM détectée - le pipeline ne pourra pas tourner.",
-        file=sys.stderr,
-    )
-    print(
-        "  Définissez au moins une clé dans .env (GEMINI_API_KEY, GROQ_API_KEY, "
-        "NVIDIA_API_KEY, OPENROUTER_API_KEY, CLOUDFLARE_API_KEY).",
-        file=sys.stderr,
-    )
+    # Vérifier que les modèles GGUF existent
+    from DeepBl4nder.llm.model_registry import MODELS
+    models_dir = Path(os.getenv("DeepBl4nder_MODELS_DIR", "models"))
+    missing = [m for m in MODELS.values() if not (models_dir / m.gguf_filename).exists()]
+    if missing:
+        print(
+            "AVERTISSEMENT : modèles GGUF manquants.",
+            file=sys.stderr,
+        )
+        for m in missing:
+            print(f"  - {m.id} ({m.gguf_filename})", file=sys.stderr)
+        print(
+            "\nTéléchargez-les avec : python -m DeepBl4nder.llm.download",
+            file=sys.stderr,
+        )
 
 
 if __name__ == "__main__":

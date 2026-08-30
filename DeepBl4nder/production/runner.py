@@ -361,64 +361,12 @@ class PipelineRunner(PluginShortcuts):
             self._llm_cache.pop(k, None)
 
     def _load_pending_patches(self) -> list[Patch]:
-        """Charge les patches non appliqués depuis la base de données."""
-        if not self.session_factory or not self.production_id:
-            return []
-        session = self.session_factory()
-        try:
-            from DeepBl4nder.api.models import Patch as PatchModel
-            from sqlalchemy import select
-            patches = session.scalars(
-                select(PatchModel).where(
-                    PatchModel.production_id == self.production_id,
-                    PatchModel.applied == False,  # noqa: E712
-                ).order_by(PatchModel.created_at)
-            ).all()
-            result: list[Patch] = []
-            for p in patches:
-                try:
-                    old_val = json.loads(p.old_value) if p.old_value else None
-                except json.JSONDecodeError:
-                    old_val = p.old_value
-                try:
-                    new_val = json.loads(p.new_value)
-                except json.JSONDecodeError:
-                    new_val = p.new_value
-                result.append(Patch(
-                    target=p.target,
-                    old_value=old_val,
-                    new_value=new_val,
-                    rationale=p.rationale,
-                    author=p.author_id,
-                    applied=p.applied,
-                    applied_at=p.applied_at.isoformat() if p.applied_at else None,
-                ))
-            return result
-        finally:
-            session.close()
+        """Charge les patches non appliqués (désactivé — pas de base de données)."""
+        return []
 
     def _mark_patches_applied(self, patch_targets: list[str]) -> None:
-        """Marque les patches comme appliqués en base."""
-        if not self.session_factory or not self.production_id:
-            return
-        session = self.session_factory()
-        try:
-            from DeepBl4nder.api.models import Patch as PatchModel
-            from sqlalchemy import select
-            from datetime import datetime, timezone
-            patches = session.scalars(
-                select(PatchModel).where(
-                    PatchModel.production_id == self.production_id,
-                    PatchModel.target.in_(patch_targets),
-                    PatchModel.applied == False,  # noqa: E712
-                )
-            ).all()
-            for p in patches:
-                p.applied = True
-                p.applied_at = datetime.now(timezone.utc)
-            session.commit()
-        finally:
-            session.close()
+        """Marque les patches comme appliqués (désactivé — pas de base de données)."""
+        pass
 
     async def _cached_agent_call(
         self,
@@ -465,37 +413,13 @@ class PipelineRunner(PluginShortcuts):
         
         # Try to load from database timeline
         if self.session_factory and self.production_id:
-            session = self.session_factory()
-            try:
-                from DeepBl4nder.api.models import Scene as SceneModel
-                from sqlalchemy import select
-                scenes = session.scalars(
-                    select(SceneModel).where(
-                        SceneModel.organization_id == self._get_org_id()
-                    ).order_by(SceneModel.updated_at.desc())
-                ).all()
-                for scene_model in scenes:
-                    try:
-                        data = json.loads(scene_model.scene_spec_json)
-                        if "schema_version" in data:
-                            return SceneSpec.from_full_dict(data)
-                    except Exception:
-                        continue
-            finally:
-                session.close()
+            # Désactivé — pas de base de données
+            pass
         return None
 
     def _get_org_id(self) -> str | None:
-        """Récupère l'org_id depuis la production."""
-        if not self.session_factory or not self.production_id:
-            return None
-        session = self.session_factory()
-        try:
-            from DeepBl4nder.api.models import Production
-            prod = session.get(Production, self.production_id)
-            return prod.organization_id if prod else None
-        finally:
-            session.close()
+        """Récupère l'org_id depuis la production (désactivé — pas de base)."""
+        return None
 
     async def run(self, brief: Brief) -> RunOutcome:
         """Exécute le pipeline complet et renvoie l'état final."""

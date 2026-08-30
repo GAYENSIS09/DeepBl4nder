@@ -49,6 +49,7 @@ class StoryboardAgent(BaseAgent, DefaultsMixin):
         """Generate a complete StoryboardSpec from a StorySpec."""
         self._load_core_skills()
         self._load_skills("cinematography", "storyboard", "composition")
+        self._load_schema_context("narrative")
         
         self._set_context("story", str(story.to_mapping()))
         ...
@@ -62,6 +63,7 @@ class StoryboardAgent(BaseAgent, DefaultsMixin):
         """Revise a StoryboardSpec based on QA feedback."""
         self._load_core_skills()
         self._load_skills("cinematography", "storyboard")
+        self._load_schema_context("narrative")
         self.context["revision_feedback"] = revision_feedback
         self._set_context("current_storyboard", str(storyboard.to_mapping()))
         ...

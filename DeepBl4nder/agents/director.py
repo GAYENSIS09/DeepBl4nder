@@ -78,6 +78,7 @@ class DirectorAgent(BaseAgent, DefaultsMixin):
 
         # Load skills relevant to this brief
         self._load_skills("storyboard", "cinematography", "lighting")
+        self._load_schema_context("narrative", "scene")
 
         # Make story and storyboard available in context
         if story_spec:

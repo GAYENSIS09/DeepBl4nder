@@ -1,176 +1,224 @@
-# Guide de démarrage et d'arrêt (DeepBl4nder SaaS)
+# Guide de démarrage — DeepBl4nder Local-First
 
-L'application SaaS comporte **deux processus** à lancer :
+DeepBl4nder s'exécute **entièrement en local** sur votre machine. Pas d'API keys, pas de cloud, pas de base de données externe.
 
-| Processus | Technologie | Port par défaut | Rôle |
-|---|---|---|---|
-| **API** | FastAPI + uvicorn | `8000` | Auth, RBAC, orgs/workspaces/projets/productions, runs pipeline, SSE, révisions, artefacts, worker, usage |
-| **Frontend** | Next.js 14 | `3000` | Interface web (dashboard, pipeline, temps réel, coûts) |
+## Prérequis
 
-Le frontend appelle l'API en absolu (`NEXT_PUBLIC_API_URL`), le backend autorise
-le CORS depuis `http://localhost:3000`.
-
----
-
-## 1. Prérequis
-
-- **Python 3.12+** avec le paquet installé : `pip install -e .`
-- **Node.js 18+** avec les dépendances du frontend :
-  ```bash
-  cd frontend
-  npm install
-  ```
-- (optionnel, pour des runs réels) des clés LLM dans `.env` : voir
-  [`.env.example`](../.env.example). Sans clé, le pipeline échoue au step
-  `director` — c'est le comportement attendu en local.
+| Composant | Version | Notes |
+|-----------|---------|-------|
+| Python | 3.12+ | |
+| GPU NVIDIA | 8 GB VRAM minimum | Requis pour le LLM local |
+| Docker | 24+ | Avec NVIDIA Container Toolkit |
+| Blender | 4.1+ | Optionnel (pour runs locaux) |
 
 ---
 
-## 2. Démarrer l'API
+## Installation
 
-Depuis la racine du projet :
+### Option A : Via Docker (Recommandé)
 
 ```bash
-python -m DeepBl4nder.api.app --host 127.0.0.1 --port 8000
+git clone https://github.com/GAYENSIS09/DeepBl4nder.git
+cd DeepBl4nder
+
+# Télécharger les modèles Qwen3 GGUF
+python -m DeepBl4nder.llm.download --all
+
+# Lancer LLM + Blender worker
+docker compose up -d
 ```
 
-Options :
-
-| Option | Valeur par défaut | Description |
-|---|---|---|
-| `--host` | `0.0.0.0` (env `DEEPBENDER_HOST`) | Adresse d'écoute |
-| `--port` | `8000` (env `DEEPBENDER_PORT`) | Port d'écoute |
-| `--db` | `DeepBl4nder.db` (env `DeepBl4nder_DB`) | Base SQLAlchemy : **chemin de fichier** (`DeepBl4nder.db`) ou **URL** (`sqlite:///DeepBl4nder.db`, `postgresql://…`) |
-
-Variables d'environnement utiles (à définir dans `.env` ou le shell) :
-
-| Variable | Rôle |
-|---|---|
-| `DeepBl4nder_DB` | Base de données (équivalent de `--db`) |
-| `DeepBl4nder_DATA_DIR` | Dossier des workdirs de runs (défaut `data`) |
-| `DeepBl4nder_SECRET_KEY` | Clé de signature des jetons — **définissez-la** : sinon clé aléatoire à chaque boot et les sessions expirent au redémarrage |
-| `DeepBl4nder_BUDGET` | Budget max par production (USD, défaut `1.0`) |
-| `DeepBl4nder_QUOTA_PRODUCTIONS` | Quota de productions (laissé vide = illimité) |
-| `DeepBl4nder_QUOTA_COST` | Quota de coût cumulé en USD (laissé vide = illimité) |
-| `DeepBl4nder_CORS_ORIGINS` | Origines CORS séparées par des virgules (défaut `http://localhost:3000`) |
-
-### LLM multi-fournisseurs (robuste au rate limiting)
-
-Par défaut, le routeur utilise **tous** les fournisseurs dont la clé dédiée est
-définie dans `.env` (`GEMINI_API_KEY`, `GROQ_API_KEY`, `NVIDIA_API_KEY`,
-`OPENROUTER_API_KEY`, `CLOUDFLARE_API_KEY`). Les appels sont répartis en
-`adaptive` (pondérés par la santé de chaque fournisseur) ou `random` et basculent
-automatiquement vers un autre fournisseur en cas
-d'erreur (429 / quota / panne), avec mise en cooldown du fournisseur fautif.
-
-| Variable | Défaut | Rôle |
-|---|---|---|
-| `LLM_PROVIDERS` | *(tous les fournisseurs avec clé)* | Pool **strict** et ordonné : `gemini,groq,nvidia` |
-| `LLM_PROVIDER` | `gemini` | Fournisseur préféré, mis en tête du pool |
-| `LLM_ROTATION` | `adaptive` | `adaptive` (pondéré par la santé historique) \| `random` (tirage uniforme) |
-| `LLM_COOLDOWN_SECONDS` | `30` | Cooldown de base après échec (×5 rate limit, ×10 erreurs auth/modèle) |
-| `LLM_MODEL` / `<FOURNISSEUR>_MODEL` | *(défaut du fournisseur)* | Modèle actif par fournisseur |
-
-La santé du routeur est visible sur le tableau de bord (carte « Worker intégré »
-→ « Fournisseurs LLM ») et via `GET /api/worker` (champs `rotation` et `routing`).
-
-Exemple avec base et données dédiées :
+### Option B : Développement local (sans Docker)
 
 ```bash
-$env:DeepBl4nder_DB="sqlite:///C:/data/DeepBl4nder.db"
-$env:DeepBl4nder_DATA_DIR="C:/data/runs"
-$env:DeepBl4nder_SECRET_KEY="une-cle-longue-et-secrete-32-octets-min"
-python -m DeepBl4nder.api.app --host 127.0.0.1 --port 8000
+git clone https://github.com/GAYENSIS09/DeepBl4nder.git
+cd DeepBl4nder
+
+# Installer avec TUI
+pip install -e ".[tui]"
+
+# Télécharger modèles
+python -m DeepBl4nder.llm.download --all
+
+# Lancer TUI (démarre le serveur LLM en interne)
+DeepBl4nder tui
 ```
 
-**Vérifier que l'API tourne :**
-
-- Documentation interactive : <http://localhost:8000/docs>
-- La route `GET /api/me` répond `401 Unauthorized` (normal sans jeton) :
-  ```powershell
-  Invoke-WebRequest -Uri http://localhost:8000/api/me | Out-Null   # erreur 401 attendue
-  ```
-
 ---
 
-## 3. Arrêter l'API
+## Modèles LLM Locaux
 
-- **Dans le terminal qui l'a lancée** : `Ctrl+C`.
-- **Sinon** (processus lancé en arrière-plan), libérer le port 8000 :
-  ```powershell
-  Get-NetTCPConnection -LocalPort 8000 -State Listen | ForEach-Object {
-    Stop-Process -Id $_.OwningProcess -Force
-  }
-  ```
+DeepBl4nder utilise **Qwen3** via `llama-cpp-python` (GGUF Q4_K_M) :
 
----
+| Modèle | VRAM | Rôle |
+|--------|------|------|
+| Qwen3-1.5B | ~1.5 GB | Routing, classification, validation |
+| Qwen3-4B | ~3 GB | Chat général, résumé, traduction |
+| Qwen3-8B | ~5.5 GB | Génération de code, raisonnement complexe |
 
-## 4. Démarrer le frontend
-
-Depuis `frontend/` :
+**Routage en cascade** : le système essaie d'abord le plus petit modèle capable, puis escalade si nécessaire.
 
 ```bash
-npm run dev        # développement (rechargement à chaud) — http://localhost:3000
+# Télécharger tous les modèles
+python -m DeepBl4nder.llm.download --all
+
+# Lister disponibles
+python -m DeepBl4nder.llm.download --list
+
+# Télécharger un modèle spécifique
+python -m DeepBl4nder.llm.download --model qwen3-8b
 ```
 
-En production (après un build) :
+Les modèles sont stockés dans `./models/` (gitignored).
+
+---
+
+## Docker Compose
 
 ```bash
-npm run build
-npm start
+# Core : LLM server + Blender worker
+docker compose up -d
+
+# Profils optionnels
+docker compose --profile ue5 up -d       # Unreal Engine 5
+docker compose --profile godot up -d     # Godot 4
+docker compose --profile ai-video up -d  # AI Video
 ```
 
-Connexion à l'API : par défaut `http://localhost:8000`. Pour pointer ailleurs :
+### Services
 
-```powershell
-$env:NEXT_PUBLIC_API_URL="http://localhost:8000"
-npm run dev
+| Service | Port | Description |
+|---------|------|-------------|
+| `llm-server` | 8080 | llama.cpp avec Qwen3 (GPU) |
+| `blender-worker` | — | Blender 4.1 headless + FFmpeg |
+| `ue5-server` | 8081 | Unreal Engine 5 (profile `ue5`) |
+| `godot-server` | 8082 | Godot 4 (profile `godot`) |
+| `ai-video-server` | 8083 | AI Video (profile `ai-video`) |
+
+### GPU
+
+Nécessite **NVIDIA Container Toolkit** :
+
+```bash
+# Vérifier accès GPU
+docker run --rm --gpus all nvidia/cuda:12.4.1-base-ubuntu22.04 nvidia-smi
 ```
-
-**Vérifier :** ouvrir <http://localhost:3000> → redirigé vers `/login` ; s'enregistrer puis créer une production.
 
 ---
 
-## 5. Arrêter le frontend
+## Lancer le TUI
 
-- **Dans le terminal qui l'a lancée** : `Ctrl+C`.
-- **Sinon**, libérer le port 3000 :
-  ```powershell
-  Get-NetTCPConnection -LocalPort 3000 -State Listen | ForEach-Object {
-    Stop-Process -Id $_.OwningProcess -Force
-  }
-  ```
+```bash
+# Si Docker tourne (connecte au serveur LLM sur port 8080)
+DeepBl4nder tui
 
----
-
-## 6. Dépannage
-
-| Symptôme | Cause / solution |
-|---|---|
-| `npm run build` échoue avec `EBUSY` / `EINVAL` sur `.next` | Le dossier `.next` a été pollué (OneDrive). Purger puis relancer : `Remove-Item .next -Recurse -Force` dans `frontend/` |
-| L'API répond « impossible de joindre le serveur » dans l'UI | L'API n'est pas lancée, ou `NEXT_PUBLIC_API_URL` pointe ailleurs que le port réel |
-| `Could not parse SQLAlchemy URL` | (normalement corrigé) `--db` accepte désormais un simple chemin de fichier ; en cas de doute utiliser `sqlite:///…` |
-| Connexion impossible après redémarrage de l'API | `DeepBl4nder_SECRET_KEY` non définie → clé aléatoire à chaque boot. La définir pour garder les sessions |
-| Un run échoue immédiatement au step `director` | Aucune clé LLM configurée dans `.env` — comportement attendu hors production |
-| Le run échoue avec `model … is no longer available` (LiteLLM) | Le modèle a été retiré chez le fournisseur. Définir un modèle actuel : `GEMINI_LLM_MODEL=gemini/gemini-3.6-flash`, ou utiliser plusieurs fournisseurs dans `.env` (le routeur bascule automatiquement). Relancer l'API |
-| Le run échoue avec `Model has been deprecated: …` (ex. Cloudflare `@cf/meta/llama-3.1-8b-instruct`) | Le modèle a été déprécié par le fournisseur. Mettre à jour `<FOURNISSEUR>_MODEL` dans `.env` vers un modèle du catalogue actuel (ex. `CLOUDFLARE_MODEL=cloudflare/@cf/google/gemma-4-26b-a4b-it`), puis relancer l'API |
-| La preview affiche « Aucun rendu disponible » | Sans Blender + clés LLM, aucun frame n'est rendu — l'endpoint `GET /api/productions/{id}/preview` renvoie 404 tant qu'il n'y a pas d'image/vidéo |
-
----
-
-## 7. Commandes rapides (PowerShell)
-
-```powershell
-# API (dev)
-python -m DeepBl4nder.api.app --host 127.0.0.1 --port 8000
-
-# Frontend (dev)
-Set-Location frontend; npm run dev; Set-Location ..
-
-# Vérification API
-Invoke-WebRequest -Uri http://localhost:8000/docs
-
-# Arrêt API + frontend
-Get-NetTCPConnection -LocalPort 8000,3000 -State Listen | ForEach-Object { Stop-Process -Id $_.OwningProcess -Force }
+# Sans Docker (démarre le serveur LLM en interne)
+DeepBl4nder tui
 ```
 
+### Interface TUI
+
+L'interface terminal inclut :
+
+- **Console** : Brief input, engine picker, run/cancel
+- **Agent Stream** : Flux live des raisonnements agents (style opencode)
+- **Side Panel** : Budget, step courant, modèle LLM actif
+- **Library** : Productions et artefacts avec preview
+- **Settings** : Config pipeline, budget, chemins
+
+### Raccourcis TUI
+
+| Touche | Action |
+|--------|--------|
+| `Ctrl+Q` | Quitter |
+| `Ctrl+B` | Ouvrir Library |
+| `Ctrl+O` | Settings |
+| `F1` | Aide |
+
+---
+
+## Pipeline de Production
+
+```
+Brief → Story → Storyboard → Director → Character/Environment → Blender → QA → Render
+```
+
+### Étapes
+
+| Étape | Agent | Description |
+|-------|-------|-------------|
+| 1 | **Story** | Structure narrative, actes, beats, dialogues |
+| 2 | **Storyboard** | Plan visuel, caméras, composition |
+| 3 | **Director** | Décisions finales, coordination |
+| 4 | **Character/Env** | Design personnages, environnements |
+| 5 | **Blender** | Génération script bpy, exécution |
+| 6 | **QA** | Validation qualité, score, issues |
+| 7 | **Render** | Rendu final (Cycles/EEVEE) |
+| 8 | **Post-prod** | Audio, compositing, review, localisation |
+
+### Boucle de révision
+
+Si QA échoue → feedback → révision automatique → re-QA (max 3 itérations par défaut).
+
+---
+
+## Commandes CLI
+
+```bash
+# Inspecter l'environnement
+DeepBl4nder inspect
+
+# Valider un script Blender
+DeepBl4nder validate script.py
+
+# Télécharger modèles
+DeepBl4nder download --all
+
+# Lancer TUI
+DeepBl4nder tui
+```
+
+---
+
+## Structure des Données
+
+Les productions sont stockées localement dans `data/runs/{production_id}/` :
+
+```
+data/runs/{id}/
+├── events.jsonl      # Journal d'événements (NDJSON)
+├── brief.json        # Brief original
+├── artifacts/        # Artefacts générés
+└── qa_report.json    # Rapport QA final
+```
+
+---
+
+## Dépannage
+
+| Problème | Solution |
+|----------|----------|
+| `docker compose up` échoue GPU | Installer NVIDIA Container Toolkit |
+| Modèles non trouvés | `python -m DeepBl4nder.llm.download --all` |
+| TUI ne se connecte pas au LLM | Vérifier `docker compose ps` et port 8080 |
+| Blender non trouvé | Définir `BLENDER_EXE` ou installer Blender 4.1+ |
+| VRAM insuffisante | Utiliser modèle plus petit (1.5B) |
+
+---
+
+## Variables d'Environnement
+
+```bash
+# Modèles
+DeepBl4nder_MODELS_DIR=./models
+
+# LLM
+DeepBl4nder_LLM_HOST=127.0.0.1
+DeepBl4nder_LLM_PORT=8080
+
+# Blender
+BLENDER_EXE=/usr/local/bin/blender
+
+# Budget
+DeepBl4nder_BUDGET=1.0
+```

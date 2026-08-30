@@ -32,6 +32,8 @@ frontend/.next/
 frontend/out/
 frontend/build/
 frontend/dist/
+docs-site/.next/
+docs-site/out/
 *.tsbuildinfo
 
 # Secrets / environnement local
@@ -49,3 +51,6 @@ artifacts/
 
 # État NOOA / mémoire locale
 .nooa/
+
+# Modèles LLM locaux (trop lourds pour Git)
+models/*.gguf

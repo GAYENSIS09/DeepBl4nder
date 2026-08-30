@@ -1,91 +1,152 @@
-# DeepBl4nder — Architecture (source de vérité)
+# DeepBl4nder — Architecture (Source de vérité)
 
-> **Statut :** consolidation active.
-> Les trois feuilles de route préliminaires (`docs/roadmaps/DeepBl4nder_Architecture_NOOA_A/B/C.md`)
-> sont **archivées** et ne doivent plus évoluer. Ce dossier est la source de vérité unique,
-> alignée sur les capacités **réellement disponibles** de NOOA 0.0.8 (voir `00-nooa.md`).
+> **Statut :** Architecture Local-First consolidée (août 2026)
+> L'ancienne architecture SaaS (FastAPI, PostgreSQL, Redis, MinIO, Langfuse, API cloud) a été **supprimée**.
+> Ce dossier est la source de vérité unique pour l'architecture **Local-First** actuelle.
 
 ## Ce que DeepBl4nder est
 
-DeepBl4nder est une plateforme de **production audiovisuelle assistée par agents IA**,
-construite **au-dessus de NOOA** (NVIDIA NeMo Labs OO-Agents, arXiv:2607.20709).
+DeepBl4nder est une plateforme de **production audiovisuelle locale** assistée par agents IA, construite **au-dessus de NOOA 0.0.8**.
 
 ```
-                USER
-                  │
-                  ▼
-         DeepBl4nder (domaine de production + Blender/UE5/Godot/AI Video + artifacts + QA)
-                  │
-                  ▼
-      NOOA (runtime agentique : objet = agent, contexte, événements,
-            mémoire, stratégies, code-as-action, tracing, skills, MCP)
-                  │
-   ┌──────────────┼──────────────┐
-   ▼              ▼              ▼
-Blender       Audio/FFmpeg    Assets/Storage
-   │              │              │
-   ├──────────────┼──────────────┤
-   ▼              ▼              ▼
-UE5 Server   Godot Server   AI Video Server
-(Lumen/Nanite) (GDScript/WebGL) (CogVideoX/SVD)
+┌─────────────────────────────────────────────────────────────────────┐
+│                        USER (TUI Terminal)                          │
+└─────────────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────────────┐
+│                    14 AGENTS NOOA (In-Process)                      │
+│  Story │ Storyboard │ Director │ Character │ Environment          │
+│  Blender │ QA │ Audio │ Compositing │ Localization │ Review       │
+│  Animator │ Music │ Sound Design │ UE5 │ Godot │ AI Video         │
+└─────────────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────────────┐
+│              LOCAL LLM SERVER (llama.cpp / Qwen3)                   │
+│  ┌─────────────────────────────────────────────────────────────┐   │
+│  │  Cascade Routing:  Qwen3-1.5B → Qwen3-4B → Qwen3-8B         │   │
+│  │  FAST (1.5B) → GENERAL (4B) → CODING/REASONING (8B)         │   │
+│  └─────────────────────────────────────────────────────────────┘   │
+└─────────────────────────────────────────────────────────────────────┘
+                              │
+              ┌───────────────┼───────────────┐
+              ▼               ▼               ▼
+        ┌──────────┐   ┌──────────┐   ┌──────────┐
+        │ Blender  │   │ UE5      │   │ Godot    │
+        │ Worker   │   │ Server   │   │ Server   │
+        │ (Docker) │   │ (Docker) │   │ (Docker) │
+        └──────────┘   └──────────┘   └──────────┘
 ```
 
-**La règle d'or** : DeepBl4nder n'est *pas* « un framework d'agents qui utilise NOOA » ;
-c'est une *plateforme de production audiovisuelle dont le runtime agentique est NOOA*.
-Toute capacité déjà fournie par NOOA est utilisée, jamais réimplémentée.
+**Règle d'or** : DeepBl4nder est une **plateforme de production audiovisuelle locale** dont le runtime agentique est NOOA. Toute capacité fournie par NOOA est utilisée, jamais réimplémentée. **Aucun composant cloud** (API, DB, cache, auth) n'existe plus.
 
-## Décision de consolidation (ADR-001)
+## Décisions Architecturales (ADR)
 
-| Sujet | Choix retenu | Source dominante |
-|---|---|---|
-| Responsabilités NOOA / DeepBl4nder | Matrice de responsabilité (§ `02-principes.md`) | Roadmap A §4, C §4-5 |
-| Distinction Agent Run / Production Run | Corrélés mais séparés (§ `04-agents.md`) | Roadmap C §6-7 |
-| Lifecycles & transitions | Lifecycles Agent / Production + 32 transitions | Roadmap C §25-34 |
-| Identité de corrélation | `project_id` … `worker_id`, coûts, timestamps | Roadmap C §7 |
-| Objets métier | Objets Python vivants typés (pas de DTO figés) | Roadmap A §5-6 |
-| Code généré | Pipeline AST → policy → worker (jamais `exec` direct) | Roadmap B §10, C §14 |
-| QA | Technique / visuel / continuité / sémantique + boucle révision ciblée | Roadmap B §15-16 |
-| Budgets & observabilité | Budget par ProductionRun, alertes < 30 s | Roadmap C §19 |
-| Architecture dossiers | Layout finalisé (§ `11-roadmap.md`) | Roadmap C §39 |
-| Skills | Paquets de connaissance `SKILL.md` + progressive disclosure | Roadmap B §6, C §9 |
-| Roadmap d'implémentation | Phases 0→7, verticale Blender d'abord | Roadmap C §44 |
+| ADR | Sujet | Choix | Raison |
+|-----|-------|-------|--------|
+| ADR-001 | Architecture | Local-First, in-process TUI | Simplicité, confidentialité, pas de dépendances cloud |
+| ADR-002 | LLM | llama.cpp + Qwen3 GGUF | Modèles locaux, GPU, pas d'API keys |
+| ADR-003 | Routage LLM | Cascade 1.5B → 4B → 8B | Optimisation VRAM/latence |
+| ADR-004 | Interface | TUI (Textual) | Développeur-first, live stream, pas de navigateur |
+| ADR-005 | Déploiement | Docker Compose simple | `docker compose up -d` — LLM + Blender |
+| ADR-006 | Agents | Factory centralisée | `agents.factory.build_agents()` source unique |
+| ADR-007 | Contexte | KG sémantique + Vector Store | RAG pour injection schéma domain |
+
+## Architecture des Dossiers
+
+```
+DeepBl4nder/
+├── agents/               # 14 agents NOOA + factory
+│   ├── base.py           # BaseAgent (context mgmt, skills, cache)
+│   ├── factory.py        # build_agents() — SEULE source de vérité
+│   ├── story.py          # StoryAgent
+│   ├── storyboard.py     # StoryboardAgent
+│   ├── director.py       # DirectorAgent
+│   ├── blender.py        # BlenderAgent
+│   ├── qa.py             # QAAgent
+│   ├── audio.py          # AudioAgent
+│   ├── animator.py       # AnimatorAgent
+│   ├── char.py           # CharacterDesignerAgent
+│   ├── comp.py           # CompositingAgent
+│   ├── env.py            # EnvironmentArtistAgent
+│   ├── loc.py            # LocalizationAgent
+│   ├── music.py          # MusicComposerAgent
+│   ├── review.py         # ReviewAgent
+│   ├── sfx.py            # SoundDesignerAgent
+│   ├── ue5.py            # UE5Agent
+│   ├── godot.py          # GodotAgent
+│   └── ai_video.py       # AIVideoAgent
+├── production/           # PipelineRunner, BudgetTracker, EventLog
+├── llm/                  # Système LLM local
+│   ├── model_registry.py    # Spécs Qwen3 (1.5B/4B/8B GGUF)
+│   ├── classifier.py        # Classification tâches (heuristique)
+│   ├── cascade.py           # Router cascade 1.5B→4B→8B
+│   ├── server.py            # Serveur llama-cpp-python
+│   ├── client.py            # Client HTTP (OpenAI-compatible)
+│   ├── interface.py         # LLMClient / build_llm() unifié
+│   └── download.py          # Téléchargeur GGUF (HuggingFace)
+├── domain/               # Modèles métier typés (dataclasses)
+│   ├── narrative.py      # StorySpec, Act, StoryBeat, DialogueLine, Storyboard*
+│   ├── scene.py          # SceneSpec, ShotSpec, CharacterSpec, CameraSpec...
+│   ├── media.py          # AudioPlan, CompositeSpec, AnimationResult...
+│   ├── qa.py             # QAReport, QAIssue
+│   ├── project.py        # Brief, Project, Production
+│   └── schema_*.py       # Bootstrap KG + Vector Store
+├── bridges/              # Ponts vers moteurs externes
+│   ├── blender/          # BlenderBridge (bpy headless)
+│   ├── ue5/              # UE5Bridge (REST)
+│   ├── godot/            # GodotBridge (REST)
+│   └── ai_video/         # AIVideoBridge (REST)
+├── artifacts/            # ArtifactRegistry + ProvenanceGraph
+├── plugins/              # KnowledgeGraph, RenderFarm
+├── codegen/              # ASTValidator (sécurité scripts Blender)
+├── skills/               # 26 skills embarqués (SKILL.md)
+├── tui/                  # Interface Terminal (Textual)
+│   ├── app.py            # App principale
+│   ├── embedded_api.py   # Pipeline in-process
+│   ├── event_bridge.py   # Flux live événements agents
+│   ├── widgets/          # AgentStream, StatusBar, TaskBar
+│   └── screens/          # Console, Library, Settings
+├── cli.py                # CLI entry point
+└── tests/                # Tests (decoupling, etc.)
+```
+
+## Supprimé (Ancienne architecture SaaS)
+
+| Composant | Remplacé par |
+|-----------|--------------|
+| `DeepBl4nder/api/` (FastAPI, JWT, RBAC) | ❌ Supprimé — TUI in-process |
+| PostgreSQL | ❌ Supprimé — Fichiers locaux (`data/runs/`) |
+| Redis | ❌ Supprimé — Pas de cache/queue distribué |
+| MinIO | ❌ Supprimé — Stockage local |
+| Langfuse | ❌ Supprimé — Observabilité locale (logs) |
+| LLM Cloud (Gemini, Groq, NVIDIA, OpenRouter, Cloudflare) | ❌ Supprimé — llama.cpp local |
+| Frontend Next.js | ❌ Supprimé — TUI Textual |
+| Auth/JWT | ❌ Supprimé — Pas d'auth multi-tenant |
 
 ## Documents
 
 | Document | Contenu |
-|---|---|
-| [`00-nooa.md`](00-nooa.md) | **Matrice de capacités NOOA 0.0.8 réelle** (signatures, fichiers, limites) |
-| [`01-contexte-et-objectifs.md`](01-contexte-et-objectifs.md) | Vision, objectifs, métriques, cas d'usage, portée initiale |
-| [`02-principes.md`](02-principes.md) | Principes fondamentaux, règle NOOA-first, matrice de responsabilité, ce qu'il ne faut PAS créer |
-| [`03-domaine-production.md`](03-domaine-production.md) | Objets métier, specs structurées, pipeline audiovisuel en 18 étapes |
-| [`04-agents.md`](04-agents.md) | Agents, Agent Run vs Production Run, transitions, collaboration, human-in-the-loop |
-| [`05-skills.md`](05-skills.md) | Skills : catalogue, structure, progressive disclosure |
-| [`06-tools-et-plugins.md`](06-tools-et-plugins.md) | Tools (actions) et plugins (frontières externes) |
-| [`07-workers-blender.md`](07-workers-blender.md) | Workers Blender, bridge, scheduler, génération de code et sécurité |
-| [`08-artifacts-provenance.md`](08-artifacts-provenance.md) | Artifacts, versioning, provenance, graphes |
-| [`09-qa-et-revision.md`](09-qa-et-revision.md) | QA multi-niveaux et boucle de révision ciblée |
-| [`10-observabilite-et-couts.md`](10-observabilite-et-couts.md) | Observabilité, budgets, reprise après crash |
-| [`11-roadmap.md`](11-roadmap.md) | Roadmap d'implémentation et architecture des dossiers |
-
-## État d'avancement
-
-| Élément | Statut |
-|---|---|
-| Consolidation théorique | Fait (ce dossier) |
-| Paquet Python `DeepBl4nder/` | Fait (domain, agents NOOA, 26 skills, bridges, codegen, plugins+tools, production, api, cli) |
-| Tests (`tests/`, dont `test_decoupling.py`) | Fait (95 tests verts) |
-| CI (ruff, mypy, pytest) | Fait — lint, typecheck et tests passent localement |
-| Docker / docker-compose | Configurés (Dockerfile corrigé : install avec NOOA) ; image non construite |
-| Verticale Blender (render réel) | Code fait ; render à valider dans l'image Docker (Blender absent de l'hôte) |
-| Verticale UE5 (Lumen/Nanite/MRQ) | Bridge + Agent + Server implémentés ; serveur REST avec vrais appels Unreal Python API |
-| Verticale Godot (GDScript/WebGL) | Bridge + Agent + Server implémentés ; serveur REST avec exécution GDScript headless |
-| Verticale AI Video (CogVideoX/SVD) | Bridge + Agent + Server implémentés ; serveur REST avec pipelines de diffusion GPU |
+|----------|---------|
+| [`00-nooa.md`](00-nooa.md) | Capacités NOOA 0.0.8 réelles |
+| [`01-contexte-et-objectifs.md`](01-contexte-et-objectifs.md) | Vision, objectifs, métriques |
+| [`02-principes.md`](02-principes.md) | Principes, règle NOOA-first, matrice responsabilité |
+| [`03-domaine-production.md`](03-domaine-production.md) | Objets métier, specs, pipeline 18 étapes |
+| [`04-agents.md`](04-agents.md) | 14 agents, Agent Run vs Production Run |
+| [`05-skills.md`](05-skills.md) | Skills, progressive disclosure |
+| [`06-tools-et-plugins.md`](06-tools-et-plugins.md) | Tools, plugins, ponts externes |
+| [`07-workers-blender.md`](07-workers-blender.md) | Workers Blender, bridge, codegen, sécurité |
+| [`08-artifacts-provenance.md`](08-artifacts-provenance.md) | Artifacts, versioning, provenance |
+| [`09-qa-et-revision.md`](09-qa-et-revision.md) | QA multi-niveaux, boucle révision |
+| [`10-observabilite-et-couts.md`](10-observabilite-et-couts.md) | Budgets, observabilité, crash recovery |
+| [`11-roadmap.md`](11-roadmap.md) | Roadmap et architecture dossiers |
 
 ## Lecture conseillée
 
-1. `01-contexte-et-objectifs.md` — pourquoi
-2. `02-principes.md` — comment penser l'architecture
-3. `00-nooa.md` — sur quoi on s'appuie
-4. `04-agents.md`, `07-workers-blender.md`, `09-qa-et-revision.md` — le cœur du système
-5. `11-roadmap.md` — par quoi commencer
-
+1. `00-nooa.md` — Capacités NOOA 0.0.8
+2. `02-principes.md` — Comment penser l'architecture
+3. `04-agents.md` — 14 agents, collaboration
+4. `07-workers-blender.md` — Workers, codegen, sécurité
+5. `09-qa-et-revision.md` — QA + boucle révision
+6. Module `DeepBl4nder/llm/` — Système LLM local complet

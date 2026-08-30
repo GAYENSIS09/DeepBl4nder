@@ -85,6 +85,7 @@ class LocalizationAgent(BaseAgent, DefaultsMixin):
         """
         self._load_core_skills()
         self._load_skills("translation", "subtitles", "voice")
+        self._load_schema_context("scene", "media")
 
         if languages is None:
             languages = self.default_languages()

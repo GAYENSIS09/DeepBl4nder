@@ -1,166 +1,60 @@
-# DeepBl4nder — Docker Compose Production
+# DeepBl4nder — Docker Compose
+#
+# Architecture locale : LLM + Blender + TUI
 #
 # Usage:
-#   cp .env.production .env
-#   docker compose up -d
+#   docker compose up -d                    # Core: LLM + Blender worker
+#   docker compose --profile tui up -d      # Avec TUI
+#   docker compose --profile ue5 up -d      # Avec UE5
+#   docker compose --profile godot up -d    # Avec Godot
+#   docker compose --profile ai-video up -d # Avec AI Video
 #
 # Services:
-#   postgres, redis, minio          — infrastructure
-#   langfuse                        — observabilité LLM
-#   DeepBl4nder-api                 — FastAPI gateway
-#   DeepBl4nder-worker              — Blender + FFmpeg (GPU)
-#   DeepBl4nder-scheduler           — Celery workers
-#   ue5-server                      — Unreal Engine 5 REST API (optionnel, profile "ue5")
-#   godot-server                    — Godot 4 REST API (optionnel, profile "godot")
-#   ai-video-server                 — AI Video Generation REST API (optionnel, profile "ai-video")
-#   (Frontend remplacé par TUI terminal: `DeepBl4nder tui`)
+#   llm-server      — llama-cpp-python avec Qwen3 (GPU)
+#   blender-worker  — Blender + FFmpeg headless (GPU)
+#   tui             — Interface terminal Textual (optionnel)
 
-x-DeepBl4nder-env: &DeepBl4nder-env
-  # Database
-  DeepBl4nder_DB: postgresql://DeepBl4nder:${POSTGRES_PASSWORD}@postgres:5432/DeepBl4nder
-  # Cache
-  REDIS_URL: redis://redis:6379/0
-  # Object Storage
-  MINIO_ENDPOINT: minio:9000
-  MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY:-DeepBl4nder}
-  MINIO_SECRET_KEY: ${MINIO_SECRET_KEY:-minioadmin}
-  MINIO_BUCKET: ${MINIO_BUCKET:-DeepBl4nder}
-  # Auth
-  DeepBl4nder_SECRET_KEY: ${DeepBl4nder_SECRET_KEY}
-  JWT_SECRET: ${JWT_SECRET:-${DeepBl4nder_SECRET_KEY}}
-  # CORS (pour TUI et outils externes)
-  DeepBl4nder_CORS_ORIGINS: http://localhost:8000
-  # LLM Providers
-  GROQ_API_KEY: ${GROQ_API_KEY:-}
-  GEMINI_API_KEY: ${GEMINI_API_KEY:-}
-  OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
-  NVIDIA_API_KEY: ${NVIDIA_API_KEY:-}
-  CLOUDFLARE_API_KEY: ${CLOUDFLARE_API_KEY:-}
-  CLOUDFLARE_ACCOUNT_ID: ${CLOUDFLARE_ACCOUNT_ID:-}
-  # Observability
-  LANGFUSE_SECRET_KEY: ${LANGFUSE_SECRET_KEY:-}
-  LANGFUSE_PUBLIC_KEY: ${LANGFUSE_PUBLIC_KEY:-}
-  LANGFUSE_HOST: http://langfuse:3000
-  DeepBl4nder_TRACING: "1"
-  # Binaries
+x-common-env: &common-env
+  PYTHONUNBUFFERED: "1"
   BLENDER_EXE: /usr/local/bin/blender
   FFMPEG_EXE: /usr/local/bin/ffmpeg
-  # Workers
-  DeepBl4nder_WORKER_TIMEOUT: "600"
-  # Budget
-  DeepBl4nder_BUDGET: ${DeepBl4nder_BUDGET:-1.0}
 
 services:
   # ══════════════════════════════════════════════════════════
-  #  Infrastructure
+  #  LLM Server (llama-cpp-python + Qwen3)
   # ══════════════════════════════════════════════════════════
 
-  postgres:
-    image: postgres:16-alpine
-    volumes:
-      - pgdata:/var/lib/postgresql/data
-    environment:
-      POSTGRES_DB: DeepBl4nder
-      POSTGRES_USER: DeepBl4nder
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-    ports:
-      - "5432:5432"
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U DeepBl4nder -d DeepBl4nder"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-    restart: unless-stopped
-
-  redis:
-    image: redis:7-alpine
-    volumes:
-      - redis_data:/data
-    ports:
-      - "6379:6379"
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-    restart: unless-stopped
-
-  minio:
-    image: minio/minio:latest
-    command: server /data --console-address ":9001"
-    volumes:
-      - minio_data:/data
-    ports:
-      - "9000:9000"
-      - "9001:9001"
-    environment:
-      MINIO_ROOT_USER: ${MINIO_ACCESS_KEY:-DeepBl4nder}
-      MINIO_ROOT_PASSWORD: ${MINIO_SECRET_KEY:-minioadmin}
-    healthcheck:
-      test: ["CMD", "mc", "ready", "local"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-    restart: unless-stopped
-
-  # ══════════════════════════════════════════════════════════
-  #  Observability
-  # ══════════════════════════════════════════════════════════
-
-  langfuse:
-    image: langfuse/langfuse:latest
-    ports:
-      - "3002:3000"
-    depends_on:
-      postgres:
-        condition: service_healthy
-    environment:
-      DATABASE_URL: postgresql://DeepBl4nder:${POSTGRES_PASSWORD}@postgres:5432/DeepBl4nder
-      NEXTAUTH_URL: http://localhost:3002
-      NEXTAUTH_SECRET: ${LANGFUSE_SECRET:-changeme}
-      SALT: ${LANGFUSE_SALT:-changeme}
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:3000/api/public/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-    restart: unless-stopped
-
-  # ══════════════════════════════════════════════════════════
-  #  DeepBl4nder API
-  # ══════════════════════════════════════════════════════════
-
-  DeepBl4nder-api:
-    image: deepbl4nder-api
+  llm-server:
+    image: deepbl4nder-llm
     build:
       context: .
-      dockerfile: Dockerfile.api
+      dockerfile: Dockerfile.llm
     ports:
-      - "8000:8000"
-    depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-      minio:
-        condition: service_started
+      - "8080:8080"
+    volumes:
+      - ./models:/models
     environment:
-      <<: *DeepBl4nder-env
-      DeepBl4nder_API: "1"
-      DeepBl4nder_LLM_MODE: fallback
+      NVIDIA_VISIBLE_DEVICES: all
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/api/health"]
+      test: ["CMD", "curl", "-f", "http://localhost:8080/v1/models"]
       interval: 30s
       timeout: 10s
+      start_period: 60s
       retries: 3
-      start_period: 30s
     restart: unless-stopped
 
   # ══════════════════════════════════════════════════════════
-  #  DeepBl4nder Worker (Blender + FFmpeg)
+  #  Blender Worker (headless)
   # ══════════════════════════════════════════════════════════
 
-  DeepBl4nder-worker:
+  blender-worker:
     image: deepbl4nder-worker
     build:
       context: .
@@ -168,8 +62,9 @@ services:
     volumes:
       - ./work:/work
       - ./projects:/projects
+      - ./output:/output
     environment:
-      <<: *DeepBl4nder-env
+      <<: *common-env
       DeepBl4nder_WORKER: "1"
     deploy:
       resources:
@@ -179,22 +74,34 @@ services:
               count: 1
               capabilities: [gpu]
     restart: unless-stopped
+    depends_on:
+      llm-server:
+        condition: service_healthy
 
   # ══════════════════════════════════════════════════════════
-  #  Celery Scheduler (optional, for async task queue)
+  #  TUI (Textual Terminal UI) — Profile "tui"
   # ══════════════════════════════════════════════════════════
 
-  DeepBl4nder-scheduler:
-    image: deepbl4nder-scheduler
+  tui:
+    image: deepbl4nder-tui
     build:
       context: .
-      dockerfile: Dockerfile.worker
-    command: python -m DeepBl4nder.tasks.celery_config
-    depends_on:
-      redis:
-        condition: service_healthy
+      dockerfile: Dockerfile.tui
+    volumes:
+      - ./work:/work
+      - ./projects:/projects
+      - ./output:/output
+      - ./data:/app/data
     environment:
-      <<: *DeepBl4nder-env
+      <<: *common-env
+      DeepBl4nder_API_URL: http://llm-server:8080
+      DeepBl4nder_MODELS_DIR: /models
+    depends_on:
+      llm-server:
+        condition: service_healthy
+    profiles: ["tui"]
+    stdin_open: true
+    tty: true
     restart: unless-stopped
 
   # ══════════════════════════════════════════════════════════
@@ -207,10 +114,11 @@ services:
       context: ./ue5-server
       dockerfile: Dockerfile
     ports:
-      - "8080:8080"
+      - "8081:8080"
     environment:
       UE5_EXE: /opt/UnrealEngine/Engine/Binaries/Linux/UnrealEditor-Cmd
       UE5_PROJECT: /ue5-projects/DeepBl4nder
+      DeepBl4nder_API_URL: http://llm-server:8080
     deploy:
       resources:
         reservations:
@@ -220,6 +128,9 @@ services:
               capabilities: [gpu]
     profiles: ["ue5"]
     restart: unless-stopped
+    depends_on:
+      llm-server:
+        condition: service_healthy
 
   # ══════════════════════════════════════════════════════════
   #  Godot Server (optionnel, profile "godot")
@@ -231,14 +142,18 @@ services:
       context: ./godot-server
       dockerfile: Dockerfile
     ports:
-      - "8081:8081"
+      - "8082:8081"
     environment:
       GODOT_EXE: /usr/local/bin/godot
       GODOT_PROJECT: /godot-projects/DeepBl4nder
+      DeepBl4nder_API_URL: http://llm-server:8080
     volumes:
       - ./work:/work
     profiles: ["godot"]
     restart: unless-stopped
+    depends_on:
+      llm-server:
+        condition: service_healthy
 
   # ══════════════════════════════════════════════════════════
   #  AI Video Server (optionnel, profile "ai-video")
@@ -250,11 +165,12 @@ services:
       context: ./ai-video-server
       dockerfile: Dockerfile
     ports:
-      - "8082:8082"
+      - "8083:8082"
     environment:
       GPU_ID: "0"
       CACHE_DIR: /cache/ai-video
       OUTPUT_DIR: /output/ai-video
+      DeepBl4nder_API_URL: http://llm-server:8080
     volumes:
       - ai-video-cache:/cache/ai-video
       - ./work:/work
@@ -267,9 +183,9 @@ services:
               capabilities: [gpu]
     profiles: ["ai-video"]
     restart: unless-stopped
+    depends_on:
+      llm-server:
+        condition: service_healthy
 
 volumes:
-  pgdata:
-  redis_data:
-  minio_data:
   ai-video-cache:

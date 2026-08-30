@@ -1,0 +1,77 @@
+# DeepBl4nder TUI — Textual Terminal UI
+#
+# Usage:
+#   docker build -t deepbl4nder-tui:latest -f Dockerfile.tui .
+#   docker run -it --rm -v $(pwd)/work:/work -v $(pwd)/projects:/projects \
+#     -v $(pwd)/data:/app/data deepbl4nder-tui:latest
+
+FROM python:3.12-slim
+
+# System dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    curl \
+    ca-certificates \
+    libgl1 \
+    libglu1-mesa \
+    libxrender1 \
+    libxext6 \
+    libxi6 \
+    libxfixes3 \
+    libxcb1 \
+    libx11-6 \
+    libsm6 \
+    libice6 \
+    libxxf86vm1 \
+    libfontconfig1 \
+    libfreetype6 \
+    libxrandr2 \
+    libxcursor1 \
+    libxinerama1 \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Blender 4.1 (for local script validation if needed)
+ARG BLENDER_VERSION=4.1.1
+ARG BLENDER_URL=https://download.blender.org/release/Blender4.1/blender-${BLENDER_VERSION}-linux-x64.tar.xz
+
+RUN curl -fsSL --retry 3 --retry-delay 5 --connect-timeout 30 "$BLENDER_URL" -o /tmp/blender.tar.xz \
+    && tar -xf /tmp/blender.tar.xz -C /opt \
+    && ln -s /opt/blender-${BLENDER_VERSION}-linux-x64 /opt/blender \
+    && ln -s /opt/blender/blender /usr/local/bin/blender \
+    && rm /tmp/blender.tar.xz
+
+# Verify Blender
+RUN blender --version
+
+# Python dependencies
+WORKDIR /app
+COPY pyproject.toml README.md ./
+COPY DeepBl4nder/ DeepBl4nder/
+RUN pip install --no-cache-dir ".[tui]"
+
+# Create directories
+RUN mkdir -p /work /projects /output /data /models
+
+# Non-root user
+RUN groupadd -r deepbl4nder && useradd -r -g deepbl4nder -d /app -s /sbin/nologin deepbl4nder \
+    && chown -R deepbl4nder:deepbl4nder /app \
+    && chown -R deepbl4nder:deepbl4nder /work \
+    && chown -R deepbl4nder:deepbl4nder /projects \
+    && chown -R deepbl4nder:deepbl4nder /output \
+    && chown -R deepbl4nder:deepbl4nder /data \
+    && chown -R deepbl4nder:deepbl4nder /models
+USER deepbl4nder
+
+WORKDIR /app
+
+ENV BLENDER_EXE=/usr/local/bin/blender \
+    FFMPEG_EXE=/usr/local/bin/ffmpeg \
+    PYTHONPATH=/app:/work \
+    PYTHONUNBUFFERED=1 \
+    DeepBl4nder_API_URL=http://llm-server:8080
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=10s --retries=3 \
+    CMD curl -f http://llm-server:8080/v1/models || exit 1
+
+# Run TUI
+CMD ["DeepBl4nder", "tui"]

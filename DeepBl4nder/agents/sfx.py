@@ -83,6 +83,7 @@ class SoundDesignerAgent(BaseAgent, DefaultsMixin):
         """
         self._load_core_skills()
         self._load_skills("sound-design", "cinematography")
+        self._load_schema_context("scene", "media")
         self._set_dynamic("scene_summary", "self._scene_summary()")
         self._scene_data = scene
         ...

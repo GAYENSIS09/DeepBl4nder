@@ -91,6 +91,7 @@ class ReviewAgent(BaseAgent, DefaultsMixin):
         """
         self._load_core_skills()
         self._load_skills("qa", "continuity", "cinematography", "sound-design")
+        self._load_schema_context("scene", "media")
         self._set_dynamic("scene_summary", "self._scene_summary()")
         self._set_dynamic("render_summary", "self._render_summary()")
         self._scene_data = scene

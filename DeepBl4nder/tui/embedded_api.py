@@ -1,6 +1,6 @@
 """Embedded TUI API - direct access to production internals without HTTP.
 
-Builds the real NOOA agents (`DeepBl4nder.api.pipeline.build_agents`), wires
+Builds the real NOOA agents (`DeepBl4nder.agents.factory.build_agents`), wires
 them into the `EventBroker` live stream and runs `PipelineRunner` in-process.
 No fake/mock mode: a missing LLM provider surfaces as a clean error the
 console shows instead of a silent broken run.
@@ -226,7 +226,7 @@ class EmbeddedAPI:
         if self._building_exception:
             raise self._building_exception
 
-        from DeepBl4nder.api.pipeline import build_agents
+        from DeepBl4nder.agents.factory import build_agents
 
         try:
             built = build_agents()

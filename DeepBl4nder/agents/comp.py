@@ -68,5 +68,6 @@ class CompositingAgent(BaseAgent, DefaultsMixin):
         """
         self._load_core_skills()
         self._load_skill("compositing")
+        self._load_schema_context("scene", "media")
 
         ...

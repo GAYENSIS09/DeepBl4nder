@@ -113,6 +113,7 @@ class QAAgent(BaseAgent, DefaultsMixin):
         """
         self._load_core_skills()
         self._load_skills("qa", "continuity", "feasibility")
+        self._load_schema_context("scene", "qa")
 
         # CodeActStrategy generates assessment code, output validated as QAReport
         ...

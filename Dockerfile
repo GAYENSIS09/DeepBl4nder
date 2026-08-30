@@ -1,17 +1,35 @@
-# DeepBl4nder : image runtime (Spec §5).
+# DeepBl4nder — Image de base
 #
-# La topologie §5 prévoit des services internes (planner, workflow engine,
-# scheduler, harness) et des workers typés par domaine. Cette image de base
-# contient le paquet Python + Blender (worker) et expose la commande `DeepBl4nder`.
-#
-# Pour utiliser un Blender plus récent, surcharger BLENDER_EXE (ADR-009):
-#   docker build --build-arg BLENDER_EXE=/opt/blender/blender .
-FROM python:3.12-slim
+# Contient Python + Blender headless pour le rendu.
+# Utilisez Dockerfile.worker pour l'exécution Blender.
+# Utilisez Dockerfile.llm pour le serveur LLM local.
+
+FROM python:3.12-slim AS base
 
 ARG BLENDER_EXE=blender
 
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends blender ffmpeg \
+    && apt-get install -y --no-install-recommends \
+       ffmpeg \
+       libgl1 \
+       libglu1-mesa \
+       libxrender1 \
+       libxext6 \
+       libxi6 \
+       libxfixes3 \
+       libxcb1 \
+       libx11-6 \
+       libsm6 \
+       libice6 \
+       libxxf86vm1 \
+       libfontconfig1 \
+       libfreetype6 \
+       libxrandr2 \
+       libxcursor1 \
+       libxinerama1 \
+       git \
+       curl \
+       ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app

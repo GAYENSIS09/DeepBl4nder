@@ -1,0 +1,78 @@
+@startuml
+!define RECTANGLE class
+
+skinparam backgroundColor #0A0A0A
+skinparam componentStyle rectangle
+skinparam rectangle {
+    BackgroundColor #121212
+    BorderColor #AAFF00
+    ArrowColor #AAFF00
+    FontColor #F2F2F2
+    FontSize 12
+}
+skinparam arrow {
+    Color #AAFF00
+    FontColor #F2F2F2
+}
+
+title DeepBl4nder — Docker Compose Architecture
+
+node "Host Machine" {
+    package "docker compose up -d" {
+        [docker-compose.yml] as Compose
+    }
+}
+
+package "Core Services (Always)" {
+    [llm-server:8080\nllama.cpp + Qwen3-8B\nGPU: NVIDIA] as LLM
+    [blender-worker\nBlender 4.1 + FFmpeg\nGPU: NVIDIA] as Blender
+}
+
+package "Optional Profiles" {
+    [ue5-server:8081\nUnreal Engine 5\nLumen + Nanite + MRQ] as UE5
+    [godot-server:8082\nGodot 4\nGDScript + WebGL] as Godot
+    [ai-video-server:8083\nCogVideoX / SVD\nGPU] as AIVid
+}
+
+package "Host Volumes" {
+    [./models → /models\nQwen3 GGUF] as VolModels
+    [./work → /work\nScripts Blender] as VolWork
+    [./projects → /projects\nProjets] as VolProjects
+    [./output → /output\nRendus finaux] as VolOutput
+    [ai-video-cache\nCache AI Video] as VolCache
+}
+
+' Connections
+Compose --> LLM
+Compose --> Blender
+Compose -.-> UE5 : --profile ue5
+Compose -.-> Godot : --profile godot
+Compose -.-> AIVid : --profile ai-video
+
+LLM --> VolModels : Read GGUF
+Blender --> VolWork : Scripts
+Blender --> VolProjects : Assets
+Blender --> VolOutput : Renders
+AIVid --> VolCache : Cache
+
+' Network
+LLM ..> Blender : HTTP :8080 (llm-server)
+UE5 ..> LLM : HTTP :8080
+Godot ..> LLM : HTTP :8080
+AIVid ..> LLM : HTTP :8080
+
+' TUI
+[DeepBl4nder TUI\n(Localhost)] as TUI
+TUI --> LLM : HTTP localhost:8080
+
+legend right
+    | Service | Port | GPU | Profile |
+    | llm-server | 8080 | Oui | Core |
+    | blender-worker | — | Oui | Core |
+    | ue5-server | 8081 | Oui | ue5 |
+    | godot-server | 8082 | Oui | godot |
+    | ai-video-server | 8083 | Oui | ai-video |
+    | TUI | Local | Non | — |
+endlegend
+
+@enduml

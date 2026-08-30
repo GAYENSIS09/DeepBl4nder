@@ -1,0 +1,95 @@
+@startuml
+!define RECTANGLE class
+
+skinparam backgroundColor #0A0A0A
+skinparam componentStyle rectangle
+skinparam rectangle {
+    BackgroundColor #121212
+    BorderColor #AAFF00
+    ArrowColor #AAFF00
+    FontColor #F2F2F2
+    FontSize 12
+}
+skinparam arrow {
+    Color #AAFF00
+    FontColor #F2F2F2
+}
+
+title DeepBl4nder — Context Management (RAG + Cache)
+
+package "Agent (BaseAgent)" {
+    [BaseAgent] as Agent
+    [_load_schema_context(modules)] as LoadSchema
+    [_init_context_management()] as InitCtx
+    [_load_core_skills()] as LoadSkills
+    [_get_cache_metrics()] as Metrics
+}
+
+package "Knowledge Graph" {
+    [KG Plugin\n(production/kg.json)] as KG
+    [Classes, Fields, Relations] as KGData
+}
+
+package "Schema Vector Store" {
+    [TF-IDF + Cosine Similarity] as VectorStore
+    [Schema Classes Embeddings] as Embeddings
+    [query_semantic_schema(query, modules)] as QueryVec
+}
+
+package "Schema Compiler" {
+    [Compact / Readable / Minimal] as Compiler
+    [Type Shortcuts] as Shortcuts
+    [Content-based Cache] as SchemaCache
+}
+
+package "Context Pruner" {
+    [Deduplication by Hash] as Dedup
+    [Token Budgets per Block] as Budgets
+    [Intelligent Truncation] as Truncate
+}
+
+package "Prompt Cache Manager" {
+    [KV Cache Tracking] as KVCache
+    [Prefix Stability Detection] as Prefix
+    [Block-level Hash Invalidation] as HashInv
+    [Efficiency Metrics] as PromptMetrics
+}
+
+' Flow
+Agent --> LoadSchema : _load_schema_context("narrative", "scene")
+LoadSchema --> KG : Read KG nodes/edges
+LoadSchema --> QueryVec : Semantic search
+QueryVec --> Embeddings : TF-IDF cosine similarity
+Embeddings --> KGData : Filter by modules
+KGData --> Compiler : Relevant classes
+Compiler --> SchemaCache : Check cache
+SchemaCache --> Compiler : Hit/Miss
+Compiler --> LoadSchema : Compact schema
+
+Agent --> InitCtx
+InitCtx --> Dedup : Deduplicate events
+InitCtx --> Budgets : Apply token budgets
+InitCtx --> Truncate : Truncate if needed
+
+Agent --> LoadSkills
+LoadSkills --> Dedup : Skill content
+LoadSkills --> Truncate : Long skills
+
+Agent --> Metrics
+Metrics --> KVCache : Cache hits/misses
+Metrics --> Prefix : Stability score
+Metrics --> HashInv : Invalidation rate
+
+' KG Data
+KG --> KGData : Classes (39), Fields, Relations
+
+legend right
+    | Composant | Rôle |
+    | Knowledge Graph | Source de vérité (classes, champs, relations) |
+    | Vector Store | Recherche sémantique (TF-IDF + Cosine) |
+    | Schema Compiler | Format compact/readable/minimal + cache |
+    | Context Pruner | Déduplication, budgets tokens, troncature |
+    | Prompt Cache | KV tracking, prefix stability, hash invalidation |
+endlegend
+
+@enduml

@@ -5,8 +5,8 @@
 </p>
 
 <p align="center">
-  <strong>AI-Powered Multi-Engine Film Production Pipeline</strong><br/>
-  Transform text prompts into 3D scenes, animations, and videos.
+  <strong>AI-Powered Local-First 3D Production Pipeline</strong><br/>
+  Transform text prompts into 3D scenes, animations, and videos — entirely on your machine.
 </p>
 
 <p align="center">
@@ -17,13 +17,14 @@
   <img src="https://img.shields.io/badge/Godot-4-green?logo=godotengine" alt="Godot 4">
   <img src="https://img.shields.io/badge/AI%20Video-CogVideoX%2FSVD-purple" alt="AI Video">
   <img src="https://img.shields.io/badge/NOOA-0.0.8-red" alt="NOOA">
+  <img src="https://img.shields.io/badge/LLM-llama.cpp%2FQwen3-green" alt="Local LLM">
 </p>
 
 ---
 
 ## What is DeepBl4nder?
 
-DeepBl4nder is a **multi-agent production system** that orchestrates AI agents to create 3D content across multiple engines. Describe what you want in natural language, and a team of specialized agents will:
+DeepBl4nder is a **local-first multi-agent production system** that runs entirely on your machine. Describe what you want in natural language, and a team of 14 specialized AI agents will:
 
 1. **Plan** the story and storyboard
 2. **Design** characters and environments  
@@ -32,184 +33,274 @@ DeepBl4nder is a **multi-agent production system** that orchestrates AI agents t
 5. **QA** and iterate until quality is achieved
 
 ```
-"You are a hacker who discovers memories were sold" → [Agents] → 3D Scene + Animation
+"You are a hacker who discovers memories were sold" → [14 Agents] → 3D Scene + Animation
 ```
+
+**No API keys required. No cloud dependencies. Your data never leaves your machine.**
+
+---
 
 ## Architecture
 
 ```
-                          USER
-                            │
-                            ▼
-                   DeepBl4nder (Domain)
-                            │
-                            ▼
-               NOOA Agent Runtime
-                            │
-         ┌──────────────────┼──────────────────┐
-         ▼                  ▼                  ▼
-   Blender Agent      UE5 Agent         Godot Agent      AI Video Agent
-         │                  │                  │                  │
-         ▼                  ▼                  ▼                  ▼
-   Blender Bridge     UE5 Bridge        Godot Bridge      AI Video Bridge
-         │                  │                  │                  │
-         ▼                  ▼                  ▼                  ▼
-   Blender Worker     UE5 Server        Godot Server      AI Video Server
-   (Headless)         (Lumen/Nanite)    (GDScript/WebGL)  (CogVideoX/SVD)
+┌─────────────────────────────────────────────────────────────────────┐
+│                        USER (TUI)                                   │
+│                    ┌────────────────────┐                          │
+│                    │ 14 NOOA Agents    │                          │
+│                    │ Story, Storyboard,│                          │
+│                    │ Director, Blender,│                          │
+│                    │ QA, Audio, etc.   │                          │
+│                    └────────┬──────────┘                          │
+└─────────────────────────────┼─────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────────────┐
+│                    LOCAL LLM SERVER (llama.cpp)                     │
+│                    ┌──────────────────────────┐                    │
+│                    │  Cascade Routing:        │                    │
+│                    │  Qwen3-1.5B (fast)       │                    │
+│                    │  → Qwen3-4B (general)    │                    │
+│                    │  → Qwen3-8B (coding)     │                    │
+│                    └──────────────────────────┘                    │
+└─────────────────────────────────────────────────────────────────────┘
+                              │
+              ┌───────────────┼───────────────┐
+              ▼               ▼               ▼
+        ┌──────────┐   ┌──────────┐   ┌──────────┐
+        │ Blender  │   │ UE5      │   │ Godot    │
+        │ Worker   │   │ Server   │   │ Server   │
+        │ (Docker) │   │ (Docker) │   │ (Docker) │
+        └──────────┘   └──────────┘   └──────────┘
 ```
+
+---
 
 ## Key Features
 
 | Feature | Description |
 |---------|-------------|
-| **Multi-Engine** | Blender, Unreal Engine 5, Godot 4, AI Video (CogVideoX, SVD, AnimateDiff) |
-| **Multi-Agent** | Director, Story, Character, Environment, Blender, QA, Audio, Compositing, Localization agents |
-| **26 Skills** | Cinematography, lighting, rigging, animation, sound design, and more |
-| **Real-time Monitoring** | Live SSE streaming of pipeline progress, costs, and approvals |
-| **Human-in-the-Loop** | Approve, reject, or request revisions at any stage |
-| **Budget Control** | Per-production cost tracking with alerts |
-| **Crash Recovery** | Automatic resume from last checkpoint via event journal |
+| **Local-First** | Runs entirely on your machine — no API keys, no cloud |
+| **14 Specialized Agents** | Story, Storyboard, Director, Blender, QA, Audio, Compositing, Localization, Review + more |
+| **Local LLM (Qwen3)** | Cascade routing: 1.5B → 4B → 8B models via llama.cpp |
+| **Multi-Engine** | Blender 4.1 (primary), Unreal Engine 5, Godot 4, AI Video |
+| **TUI Interface** | Terminal UI with live agent stream, artifact browser |
+| **Docker Simple** | `docker compose up -d` — LLM + Blender worker |
+| **Budget Control** | Per-production cost tracking |
+| **Crash Recovery** | Automatic resume via event journal |
 
-## Supported Engines
-
-| Engine | Status | Capabilities |
-|--------|--------|-------------|
-| **Blender** | Production Ready | Full bpy scripting, Cycles/EEVEE render, headless execution |
-| **Unreal Engine 5** | Implemented | Lumen GI, Nanite, MRQ rendering, Sequencer control |
-| **Godot 4** | Implemented | GDScript execution, WebGL export, headless mode |
-| **AI Video** | Implemented | Text-to-Video (CogVideoX), Image-to-Video (SVD), AnimateDiff |
+---
 
 ## Quick Start
 
-### Docker (Recommended)
+### Prerequisites
+
+- Python 3.12+
+- NVIDIA GPU with 8GB+ VRAM (for local LLM)
+- Docker + NVIDIA Container Toolkit
+- Blender 4.1+ (optional, for local runs)
+
+### 1. Clone and Install
 
 ```bash
 git clone https://github.com/GAYENSIS09/DeepBl4nder.git
 cd DeepBl4nder
+pip install -e ".[tui]"
+```
 
-# Configure your LLM API key
-cp .env.example .env
-# Edit .env and set at least one: GROQ_API_KEY, GEMINI_API_KEY, NVIDIA_API_KEY
+### 2. Download Local Models
 
-# Start everything
+```bash
+# Download Qwen3 models (1.5B, 4B, 8B GGUF)
+python -m DeepBl4nder.llm.download --all
+```
+
+### 3. Launch with Docker (Recommended)
+
+```bash
+# Start LLM server + Blender worker
 docker compose up -d
 ```
 
-**Default credentials:** `admin@DeepBl4nder.local` / `changeme`
+This starts:
+- **llm-server** (port 8080) — llama.cpp with Qwen3-8B
+- **blender-worker** — Blender 4.1 headless + FFmpeg
 
-### Services
-
-| Service | Port | Description |
-|---------|------|-------------|
-| Frontend | [3000](http://localhost:3000) | Next.js web interface |
-| API | [8000](http://localhost:8000) | FastAPI REST + SSE streaming |
-| API Docs | [8000/docs](http://localhost:8000/docs) | Swagger UI |
-| PostgreSQL | 5432 | Database |
-| Redis | 6379 | Cache / Queue |
-| MinIO | 9000/9001 | Object storage |
-| Langfuse | 3001 | LLM observability |
-
-**Optional engines** (Docker profiles):
-- `ue5-server` (port 8080) — Unreal Engine 5 REST API
-- `godot-server` (port 8081) — Godot 4 REST API  
-- `ai-video-server` (port 8082) — AI Video generation REST API
-
-### Verify
+### 4. Run the TUI
 
 ```bash
-curl http://localhost:8000/health
-docker compose ps
+DeepBl4nder tui
 ```
 
-## Local Development
+The TUI connects to the local LLM server and lets you run productions interactively.
+
+---
+
+## Local Development (No Docker)
 
 ```bash
-# Setup
-python -m venv .venv
-source .venv/bin/activate  # Linux/Mac
-# .venv\Scripts\activate  # Windows
+# Install with dev dependencies
+pip install -e ".[tui,dev]"
 
-pip install -e ".[dev]"
+# Download models
+python -m DeepBl4nder.llm.download --all
 
-# Configure
-cp .env.example .env
-# Edit .env with your API keys
-
-# Run
-alembic upgrade head
-python -m uvicorn DeepBl4nder.api.app:app --reload
-
-# Test
-pytest
+# Run TUI directly (starts LLM server internally)
+DeepBl4nder tui
 ```
 
-## CLI
+---
 
-```bash
-DeepBl4nder --version
-DeepBl4nder inspect scene.json
-DeepBl4nder validate scene.json
-DeepBl4nder seed
-```
-
-## Production Pipeline
+## Pipeline Flow
 
 ```
 Brief → Story → Storyboard → Director → Character/Environment → Blender → QA → Render
-                                                                    │
-                                                              ┌─────┘
-                                                              ▼
-                                                         Revision Loop
+                                                                     │
+                                                               ┌─────┘
+                                                               ▼
+                                                          Revision Loop
 ```
 
 Each step is handled by a specialized NOOA agent with its own skills, strategies, and validation. The system automatically retries with feedback when QA fails.
+
+---
+
+## Engines Supported
+
+| Engine | Status | Capabilities |
+|--------|--------|-------------|
+| **Blender** | Production Ready | Full bpy scripting, Cycles/EEVEE, headless Docker worker |
+| **Unreal Engine 5** | Implemented | Lumen GI, Nanite, MRQ rendering, Sequencer (optional profile) |
+| **Godot 4** | Implemented | GDScript execution, WebGL export, headless (optional profile) |
+| **AI Video** | Implemented | Text-to-Video (CogVideoX), Image-to-Video (SVD) (optional profile) |
+
+---
 
 ## Project Structure
 
 ```
 DeepBl4nder/
-├── agents/          # NOOA agents (director, blender, ue5, godot, ai_video, qa, ...)
-├── domain/          # Typed domain models (SceneSpec, QAReport, ...)
-├── skills/          # 26 skill definitions (cinematography, lighting, ...)
-├── bridges/         # REST clients for external engines
-├── plugins/         # 13 plugins (blender, ue5, godot, ai-video, ffmpeg, ...)
-├── codegen/         # AST validation & code generation
-├── artifacts/       # Versioning & provenance
-├── production/      # Pipeline runner, budget, recovery
-├── api/             # FastAPI gateway + SSE
-├── frontend/        # Next.js 14 web interface
-└── tests/           # 253 tests
+├── agents/           # 14 NOOA agents + factory
+│   ├── base.py       # BaseAgent with context management
+│   ├── factory.py    # build_agents() - single source of truth
+│   ├── story.py      # StoryAgent
+│   ├── storyboard.py # StoryboardAgent
+│   ├── director.py   # DirectorAgent
+│   ├── blender.py    # BlenderAgent
+│   ├── qa.py         # QAAgent
+│   └── ...           # Audio, Compositing, Localization, Review...
+├── production/       # PipelineRunner, BudgetTracker, EventLog
+├── llm/              # Local LLM system
+│   ├── model_registry.py    # Qwen3 model specs
+│   ├── classifier.py        # Task classification
+│   ├── cascade.py           # Cascade router (1.5B→4B→8B)
+│   ├── server.py            # llama-cpp-python server
+│   ├── client.py            # HTTP client
+│   ├── interface.py         # Unified LLMClient for agents
+│   └── download.py          # GGUF model downloader
+├── domain/           # Typed domain models (Brief, SceneSpec, etc.)
+├── bridges/          # Engine bridges (blender, ue5, godot, ai_video)
+├── artifacts/        # ArtifactRegistry, ProvenanceGraph
+├── plugins/          # KnowledgeGraph, RenderFarm, etc.
+├── codegen/          # AST validator for Blender scripts
+├── skills/           # 26 embedded skills
+├── tui/              # Textual Terminal UI
+│   ├── app.py        # Main TUI app
+│   ├── embedded_api.py # In-process pipeline runner
+│   ├── event_bridge.py  # Live agent event stream
+│   ├── widgets/      # AgentStream, StatusBar, TaskBar
+│   └── screens/      # Console, Library, Settings
+├── cli.py            # CLI entry point
+└── tests/            # Test suite
 ```
+
+---
 
 ## Tech Stack
 
 | Layer | Technology |
 |-------|-----------|
 | Agent Runtime | NOOA 0.0.8 |
-| API | FastAPI + Uvicorn |
-| Database | PostgreSQL 16 / SQLite (dev) |
-| Cache | Redis 7 |
-| Storage | MinIO |
-| Frontend | Next.js 14, React 18, TypeScript, Tailwind CSS |
+| Local LLM | llama.cpp + Qwen3 (GGUF) |
 | 3D Engine | Blender 4.1 (headless) |
 | Real-time Engine | Unreal Engine 5 (optional) |
 | Open Source Engine | Godot 4 (optional) |
-| AI Video | CogVideoX / SVD / AnimateDiff (optional) |
+| AI Video | CogVideoX / SVD (optional) |
 | Video Post | FFmpeg |
-| LLM Providers | Gemini, Groq, NVIDIA, OpenRouter, Cloudflare |
-| Observability | Langfuse |
+| TUI | Textual (Python) |
 | Validation | AST + CodePolicy |
-| CI/CD | GitHub Actions, Ruff, Mypy, Pytest |
+| Lint/Type | Ruff, Mypy |
+| CI/CD | GitHub Actions |
 
-## Quality Metrics
+---
 
-| Metric | Target |
-|--------|--------|
-| Brief → First Render | < 5 min (demo), < 10 min (10s sequence) |
-| Cost per Demo Scene | < $1.00 (LLM + render) |
-| First-pass QA Rate | >= 60% at maturity |
-| Parallel Workers | 3 per machine |
-| Crash Recovery | Automatic via event replay |
+## Configuration
+
+Environment variables (`.env` or shell):
+
+```bash
+# LLM
+DeepBl4nder_MODELS_DIR=./models        # Where GGUF models are stored
+DeepBl4nder_LLM_HOST=127.0.0.1         # LLM server host
+DeepBl4nder_LLM_PORT=8080              # LLM server port
+
+# Blender
+BLENDER_EXE=/usr/local/bin/blender     # Blender binary path
+
+# Budget
+DeepBl4nder_BUDGET=1.0                 # Max USD per production
+
+# TUI
+DeepBl4nder_API_URL=http://localhost:8080  # For TUI to connect to LLM
+```
+
+---
+
+## Docker Services
+
+```bash
+# Core (required)
+docker compose up -d
+
+# With UE5
+docker compose --profile ue5 up -d
+
+# With Godot
+docker compose --profile godot up -d
+
+# With AI Video
+docker compose --profile ai-video up -d
+```
+
+| Service | Port | Description |
+|---------|------|-------------|
+| llm-server | 8080 | llama.cpp with Qwen3 models |
+| blender-worker | — | Blender headless + FFmpeg |
+| ue5-server | 8081 | Unreal Engine 5 (profile) |
+| godot-server | 8082 | Godot 4 (profile) |
+| ai-video-server | 8083 | AI Video generation (profile) |
+
+---
+
+## Commands
+
+```bash
+# Inspect environment
+DeepBl4nder inspect
+
+# Validate Blender script
+DeepBl4nder validate script.py
+
+# Download models
+DeepBl4nder download --all
+
+# Run TUI
+DeepBl4nder tui
+
+# Run tests
+pytest
+```
+
+---
 
 ## Contributing
 

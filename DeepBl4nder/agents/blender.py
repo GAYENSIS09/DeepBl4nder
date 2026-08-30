@@ -206,6 +206,7 @@ class BlenderAgent(BaseAgent, DefaultsMixin):
         )
         if any(s.animation.description for s in spec.shots):
             self._load_skill("animation")
+        self._load_schema_context("scene")
 
         # Download and inject assets
         self._download_assets(spec)
@@ -266,6 +267,7 @@ class BlenderAgent(BaseAgent, DefaultsMixin):
             "modeling", "shading", "lighting", "camera", "rendering",
             "compositing",
         )
+        self._load_schema_context("scene")
         self.context["revision_feedback"] = revision_feedback
         self.context["script_version"] = str(version)
         ...

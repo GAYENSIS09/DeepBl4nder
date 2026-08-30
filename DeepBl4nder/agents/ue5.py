@@ -111,6 +111,7 @@ class UE5Agent(BaseAgent, DefaultsMixin):
         """
         self._load_core_skills()
         self._load_skill("unreal-engine")
+        self._load_schema_context("scene", "ue5")
 
         self._set_dynamic("scene_summary", "self._current_scene_summary(self._last_spec)")
         self._last_spec = spec

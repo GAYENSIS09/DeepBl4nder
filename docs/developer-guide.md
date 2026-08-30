@@ -1,35 +1,58 @@
-# Guide du développeur
+# Guide du développeur — DeepBl4nder
 
-Ce guide décrit comment contribuer au paquet `DeepBl4nder`. L'architecture est
-détaillée dans [`docs/architecture/`](architecture/README.md).
+Ce guide décrit comment contribuer au paquet `DeepBl4nder`. L'architecture est détaillée dans [`docs/architecture/`](architecture/README.md).
 
 ## Structure du paquet
 
 ```text
 DeepBl4nder/
-├── agents/          # Sous-classes de nooa.Agent (director, blender, ue5, godot, ai_video, qa)
-├── domain/          # Objets métier typés (Project, SceneSpec, UE5Commands, GodotCommands, …)
-├── skills/          # Mécanique de skills (registry) + SKILL.md embarqués
-├── bridges/         # Clients REST pour moteurs externes (blender, ue5, godot, ai_video)
-├── blender/         # Bridge, worker et scheduler Blender
-├── codegen/         # Génération/validation AST et politique de code
-├── artifacts/       # Registry, versioning et provenance
-├── production/      # ProductionRun, budget
-├── bridge/          # Frontière de processus isolée (workers)
-├── api/             # Gateway HTTP minimale (stdlib)
-└── cli.py           # Point d'entrée `DeepBl4nder`
+├── agents/           # 14 agents NOOA + factory
+│   ├── base.py       # BaseAgent avec context management
+│   ├── factory.py    # build_agents() - source unique
+│   ├── story.py      # StoryAgent
+│   ├── storyboard.py # StoryboardAgent
+│   ├── director.py   # DirectorAgent
+│   ├── blender.py    # BlenderAgent
+│   ├── qa.py         # QAAgent
+│   ├── audio.py      # AudioAgent
+│   ├── animator.py   # AnimatorAgent
+│   ├── char.py       # CharacterDesignerAgent
+│   ├── comp.py       # CompositingAgent
+│   ├── env.py        # EnvironmentArtistAgent
+│   ├── loc.py        # LocalizationAgent
+│   ├── music.py      # MusicComposerAgent
+│   ├── review.py     # ReviewAgent
+│   ├── sfx.py        # SoundDesignerAgent
+│   ├── ue5.py        # UE5Agent
+│   ├── godot.py      # GodotAgent
+│   └── ai_video.py   # AIVideoAgent
+├── production/       # PipelineRunner, BudgetTracker, EventLog
+├── llm/              # Système LLM local
+│   ├── model_registry.py    # Spécs modèles Qwen3
+│   ├── classifier.py        # Classification tâches
+│   ├── cascade.py           # Router cascade (1.5B→4B→8B)
+│   ├── server.py            # Serveur llama-cpp-python
+│   ├── client.py            # Client HTTP
+│   ├── interface.py         # LLMClient unifié
+│   └── download.py          # Téléchargeur GGUF
+├── domain/           # Modèles métier typés (Brief, SceneSpec, etc.)
+├── bridges/          # Ponts moteurs (blender, ue5, godot, ai_video)
+├── artifacts/        # ArtifactRegistry, ProvenanceGraph
+├── plugins/          # KnowledgeGraph, RenderFarm
+├── codegen/          # Validateur AST scripts Blender
+├── skills/           # 26 skills embarqués
+├── tui/              # Interface terminal Textual
+├── cli.py            # Point d'entrée CLI
+└── tests/            # Suite de tests
 ```
 
 ## Règle de séparation NOOA ↔ domaine
 
-- **Les agents** héritent de `nooa.Agent` : méthodes `async def ...` = capacités
-  agentiques, corps Python normal = logique déterministe (P1-P3).
-- **Le domaine, le codegen, les artifacts, la production, le bridge et l'API
-  n'importent JAMAIS `nooa`** : testé par `tests/test_decoupling.py`.
-  NOOA n'est encapsulé que derrière les agents et le mécanisme de skills.
+- **Les agents** héritent de `nooa.Agent` : méthodes `async def ...` = capacités agentiques, corps Python normal = logique déterministe.
+- **Le domaine, codegen, artifacts, production, bridges, LLM, TUI n'importent JAMAIS `nooa`** : testé par `tests/test_decoupling.py`.
+- NOOA n'est encapsulé que derrière les agents et le mécanisme de skills.
 
-> Si un besoin ressemble à `GenericAgentRuntime`, `GenericEventBus`, etc. :
-> c'est que NOOA sait déjà le faire — utiliser NOOA (voir `02-principes.md`).
+> Si un besoin ressemble à `GenericAgentRuntime`, `GenericEventBus`, etc. : c'est que NOOA sait déjà le faire — utiliser NOOA (voir `architecture/02-principes.md`).
 
 ## Ajouter un agent
 
@@ -47,96 +70,156 @@ DeepBl4nder/
            """Description de l'action."""
            ...
    ```
+
 2. Exporter dans `DeepBl4nder/agents/__init__.py`.
-3. Ajouter un test dans `tests/test_decoupling.py` (sous-classe de `nooa.Agent`,
-   méthode agentique en coroutine, corps déterministes purs).
-4. L'instanciation en test nécessite un LLM : `FakeLLMClient()` de NOOA.
+
+3. Ajouter dans `DeepBl4nder/agents/factory.py` :
+   ```python
+   from DeepBl4nder.agents.mon_agent import MonAgent
+
+   def build_agents() -> tuple[...]:
+       ...
+       return (
+           ...,
+           MonAgent(llm=llm),
+       )
+   ```
+
+4. Ajouter un test dans `tests/test_decoupling.py` (sous-classe de `nooa.Agent`, méthode agentique en coroutine, corps déterministes purs).
+
+5. L'instanciation en test nécessite un LLM : `FakeLLMClient()` de NOOA.
+
+## Factory d'agents centralisée
+
+`agents.factory.build_agents()` est la **seule source de vérité** pour créer la crew. Elle est utilisée par :
+- Le TUI (`tui/embedded_api.py`)
+- Les tests
+- Tout consommateur externe
+
+```python
+from DeepBl4nder.agents.factory import build_agents
+
+story, storyboard, director, blender, qa, ... = build_agents()
+```
 
 ## Ajouter un skill
 
-1. Créer `DeepBl4nder/skills/<nom>/SKILL.md` avec frontmatter
-   `name:` / `description:` puis les règles. `SkillRegistry` le découvre
-   automatiquement ; `TextSkill` (NOOA) gère le chargement.
-2. La description est injectée à bas coût (progressive disclosure) ;
-   le contenu complet n'est chargé qu'à la résolution.
+1. Créer `DeepBl4nder/skills/<nom>/SKILL.md` avec frontmatter `name:` / `description:` puis les règles. `SkillRegistry` le découvre automatiquement ; `TextSkill` (NOOA) gère le chargement.
+2. La description est injectée à bas coût (progressive disclosure) ; le contenu complet n'est chargé qu'à la résolution.
 
 ## Ajouter un objet métier
 
-Créer un dataclass typé dans `DeepBl4nder/domain/`, l'exporter dans
-`__init__.py`, et l'utiliser comme type de retour d'une capacité agentique
-(contrat de sortie).
+Créer un dataclass typé dans `DeepBl4nder/domain/`, l'exporter dans `__init__.py`, et l'utiliser comme type de retour d'une capacité agentique (contrat de sortie).
 
-## Exécuter un script Blender (frontière isolée)
+## Système LLM Local
+
+Le module `DeepBl4nder.llm` fournit un système complet :
+
+| Module | Rôle |
+|--------|------|
+| `model_registry.py` | Registre modèles Qwen3 (1.5B, 4B, 8B GGUF) |
+| `classifier.py` | Classification heuristique tâches (mots-clés) |
+| `cascade.py` | Router cascade : 1.5B → 4B → 8B |
+| `server.py` | Serveur llama-cpp-python (GPU) |
+| `client.py` | Client HTTP compatible OpenAI |
+| `interface.py` | `LLMClient` / `build_llm()` pour agents |
+| `download.py` | Téléchargeur GGUF depuis HuggingFace |
+
+### Routage en cascade
 
 ```python
-from DeepBl4nder.blender.bridge import BlenderBridge
+from DeepBl4nder.llm import build_llm
+
+client = build_llm()
+result = await client.acall(messages=[...])  # Auto-select + escalade
+```
+
+Le routeur :
+1. Classifie la tâche (CODING, REASONING, GENERAL, FAST)
+2. Sélectionne le modèle le plus léger capable
+3. En cas d'échec/qualité insuffisante → escalade au modèle suivant
+
+### Télécharger les modèles
+
+```bash
+python -m DeepBl4nder.llm.download --all
+```
+
+## Exécuter un script Blender
+
+```python
+from DeepBl4nder.bridges.blender.bridge import BlenderBridge
 from DeepBl4nder.domain.scene import BlenderScript
 
-bridge = BlenderBridge()                     # binaire via BLENDER_EXE
+bridge = BlenderBridge()                     # Binaire via BLENDER_EXE
 result = bridge.run_script(script, workdir)  # blender -b -P <script>
 ```
 
-Le script doit d'abord passer `ASTValidator` (imports autorisés, pas de
-`exec`/`eval`/`subprocess`/`os.system`, pas d'accès réseau).
+Le script doit d'abord passer `ASTValidator` (imports autorisés, pas de `exec`/`eval`/`subprocess`/`os.system`, pas d'accès réseau).
 
-## Comptes, rôles et seed de développement
+## BaseAgent — Context Management
 
-Il n'existe **aucun compte pré-créé** : la base (`DeepBl4nder.db` par défaut)
-est créée vide au premier démarrage. Chaque inscription (`/api/auth/register`
-ou l'écran d'inscription) crée un utilisateur **`owner`** d'une nouvelle
-organisation avec un workspace `Default`.
+Tous les agents héritent de `BaseAgent` qui fournit :
 
-### Modèle de rôles (RBAC par organisation)
+- `_load_schema_context(modules)` — Injection schéma KG sémantique
+- `_init_context_management()` — Pruner + Cache
+- `_load_core_skills()` — Skills avec troncature
+- `_get_cache_metrics()` — Métriques cache
 
-| Rôle | Lecture | Écriture | Gestion (membres, suppression projet) |
-|---|---|---|---|
-| `owner` | ✅ | ✅ | ✅ |
-| `admin` | ✅ | ✅ | ✅ |
-| `editor` | ✅ | ✅ | ❌ |
-| `viewer` | ✅ | ❌ | ❌ |
-
-L'`owner` attribue un rôle à un membre via `POST /api/organizations/{id}/members`
-(`role` : `owner`/`admin`/`editor`/`viewer`). Il n'y a pas de « super-admin »
-global.
-
-### Seed de développement (compte admin)
-
-Pour disposer d'un compte `admin` + org/projet de démo prêt à l'emploi,
-idempotent (ne crée que ce qui manque) :
-
-```bash
-python -m DeepBl4nder.api.seed --email admin@DeepBl4nder.local --password admin-dev-123
+```python
+class MonAgent(BaseAgent):
+    async def plan(self, brief: Brief) -> Plan:
+        await self._load_schema_context("narrative", "scene")
+        # Le contexte est injecté automatiquement
+        ...
 ```
 
-Ou via la CLI globale :
+## Tests
 
 ```bash
-DeepBl4nder seed --email admin@DeepBl4nder.local --password admin-dev-123
+# Lint + Type check
+ruff check DeepBl4nder tests
+mypy DeepBl4nder tests
+
+# Tests
+pytest
+pytest tests/test_decoupling.py -q  # Découplage NOOA ↔ domaine
 ```
 
-Options : `--db` (URL ou fichier SQLite), `--email`, `--password`, `--org`
-(défaut `DeepBl4nder Dev`), `--project` (défaut `Démo`). Elles se passent
-aussi par l'environnement (`DeepBl4nder_SEED_EMAIL`, `DeepBl4nder_SEED_PASSWORD`,
-`DeepBl4nder_SEED_ORG`, `DeepBl4nder_SEED_PROJECT`).
+## Architecture sans API
 
-> **Sécurité** : aucun mot de passe n'est en dur dans le code ni ce guide.
-> Sans `--password`/`DeepBl4nder_SEED_PASSWORD`, un mot de passe aléatoire est
-> généré et affiché une seule fois en sortie. Le mot de passe doit faire au
-> moins 8 caractères.
+L'ancien module `DeepBl4nder/api/` (FastAPI, JWT, RBAC, PostgreSQL, Redis, MinIO, Langfuse) a été **supprimé**. L'architecture est maintenant :
+
+- **TUI** : Lance le pipeline in-process via `tui/embedded_api.py`
+- **LLM** : Serveur local `llama.cpp` sur port 8080
+- **Docker** : `docker compose up -d` → LLM + Blender worker
+
+Plus de serveur HTTP, plus de base de données, plus d'authentification.
+
+## Déploiement Docker
+
+```bash
+# Core
+docker compose up -d
+
+# Profils optionnels
+docker compose --profile ue5 up -d
+docker compose --profile godot up -d
+docker compose --profile ai-video up -d
+```
 
 ## Vérifications
 
 ```bash
-python -m ruff check DeepBl4nder tests
-python -m mypy DeepBl4nder tests
-python -m pytest -q
-python -m pytest tests/test_decoupling.py -q   # découplage NOOA ↔ legacy
+ruff check DeepBl4nder tests
+mypy DeepBl4nder tests
+pytest
+pytest tests/test_decoupling.py -q
 ```
 
-## Déploiement
+## Contribution
 
-`Dockerfile` : python 3.12-slim + Blender + ffmpeg + `pip install .` (avec NOOA).
-`docker-compose.yml` : gateway HTTP + worker jetable + ollama (LLM local via
-`LLM_BASE_URL` / `LLM_API_KEY`) + serveurs optionnels UE5/Godot/AI Video
-(profils `ue5`, `godot`, `ai-video`).
-
+1. Fork & branch
+2. Code + tests
+3. `ruff check --fix && mypy && pytest`
+4. PR avec description claire

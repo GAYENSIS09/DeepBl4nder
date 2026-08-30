@@ -1,0 +1,75 @@
+@startuml
+!define RECTANGLE class
+
+skinparam backgroundColor #0A0A0A
+skinparam componentStyle rectangle
+skinparam rectangle {
+    BackgroundColor #121212
+    BorderColor #AAFF00
+    ArrowColor #AAFF00
+    FontColor #F2F2F2
+    FontSize 12
+}
+skinparam arrow {
+    Color #AAFF00
+    FontColor #F2F2F2
+}
+
+title DeepBl4nder — LLM Cascade Routing (Qwen3)
+
+package "Agent" {
+    [Agent Request] as Request
+}
+
+package "TaskClassifier" {
+    [Classifier\n(Heuristic keywords)] as Classifier
+}
+
+package "CascadeRouter" {
+    [Router\nCategory → Model] as Router
+}
+
+package "Local LLM Server (llama.cpp)" {
+    [Model Selector] as Selector
+    [Qwen3-1.5B\n(1.5 GB VRAM)] as M1
+    [Qwen3-4B\n(3 GB VRAM)] as M2
+    [Qwen3-8B\n(5.5 GB VRAM)] as M3
+}
+
+package "Response Quality Check" {
+    [Quality Check\n(JSON valid, tool calls, content)] as Quality
+}
+
+' Flow
+Request --> Classifier : Task text + messages
+Classifier --> Router : ModelCategory
+
+Router --> Selector : ModelCategory
+
+' Category → Model mapping
+Selector --> M1 : FAST / GENERAL\n(1.5B → 4B)
+Selector --> M2 : GENERAL / CODING\n(4B → 8B)
+Selector --> M3 : CODING / REASONING\n(8B first)
+
+M1 --> Quality : Response
+Quality --> Router : FAIL / Low quality
+Router --> Selector : Escalate
+Selector --> M2 : Retry with 4B
+M2 --> Quality : Response
+Quality --> Router : FAIL
+Router --> Selector : Escalate
+Selector --> M3 : Retry with 8B
+M3 --> Quality : Response
+Quality --> Request : SUCCESS
+
+' Return
+Quality --> Request : Final Response
+
+legend right
+    | Couleur | Modèle |
+    | <back:#AAFF00><color:#0A0A0A> ■ </color></back> | Qwen3-1.5B (FAST) — 1.5 GB |
+    | <back:#88CC00><color:#0A0A0A> ■ </color></back> | Qwen3-4B (GENERAL) — 3 GB |
+    | <back:#E6C229><color:#0A0A0A> ■ </color></back> | Qwen3-8B (CODING/REASONING) — 5.5 GB |
+endlegend
+
+@enduml
