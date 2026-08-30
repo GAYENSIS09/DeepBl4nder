@@ -1,19 +1,34 @@
 'use client'
 
 import Link from 'next/link'
-import { Search, Menu, X, Github, BookOpen, Terminal, Cpu, Box as BoxIcon, Settings } from 'lucide-react'
+import { 
+  Search, 
+  Menu, 
+  X, 
+  Github, 
+  BookOpen, 
+  Terminal, 
+  Cpu, 
+  Box as BoxIcon, 
+  Settings,
+  Container,
+  Brain,
+  Database,
+  PenTool,
+  Bot
+} from 'lucide-react'
 import { useState, useEffect } from 'react'
 import SearchModal from './SearchModal'
 
 const NAV = [
-  { href: '/docs/getting-started', label: 'Getting Started', icon: '📖', group: 'Core' },
-  { href: '/docs/architecture', label: 'Architecture', icon: '🏗️', group: 'Core' },
-  { href: '/docs/agents', label: 'Agents', icon: '🤖', group: 'Core' },
-  { href: '/docs/llm', label: 'LLM System', icon: '🧠', group: 'Core' },
-  { href: '/docs/docker', label: 'Docker', icon: '🐳', group: 'Core' },
-  { href: '/docs/development', label: 'Development', icon: '⚙️', group: 'Core' },
-  { href: '/docs/context', label: 'Context Management', icon: '📚', group: 'Advanced' },
-  { href: '/docs/diagrams', label: 'Diagrams', icon: '📊', group: 'Advanced' },
+  { href: '/docs/getting-started', label: 'Getting Started', icon: BookOpen, group: 'Core' },
+  { href: '/docs/architecture', label: 'Architecture', icon: Database, group: 'Core' },
+  { href: '/docs/agents', label: 'Agents', icon: Bot, group: 'Core' },
+  { href: '/docs/llm', label: 'LLM System', icon: Brain, group: 'Core' },
+  { href: '/docs/docker', label: 'Docker', icon: Container, group: 'Core' },
+  { href: '/docs/development', label: 'Development', icon: Settings, group: 'Core' },
+  { href: '/docs/context', label: 'Context Management', icon: Database, group: 'Advanced' },
+  { href: '/docs/diagrams', label: 'Diagrams', icon: PenTool, group: 'Advanced' },
 ]
 
 export default function Sidebar({ current }: { current?: string }) {
@@ -101,7 +116,7 @@ export default function Sidebar({ current }: { current?: string }) {
           <p className="text-[10px] uppercase tracking-widest text-db-dim font-semibold mb-3 px-3">
             Core Documentation
           </p>
-          {NAV.filter(n => n.group === 'Core').map(({ href, label, icon }) => {
+          {NAV.filter(n => n.group === 'Core').map(({ href, label, icon: Icon }) => {
             const active = current === href.split('/').pop()
             return (
               <Link
@@ -113,7 +128,7 @@ export default function Sidebar({ current }: { current?: string }) {
                     : 'text-db-muted hover:text-db-text hover:bg-db-surface/50'
                 }`}
               >
-                <span className="text-lg">{icon}</span>
+                <Icon className={`w-5 h-5 ${active ? 'text-db-accent' : 'text-db-dim'}`} />
                 {label}
               </Link>
             )
@@ -124,7 +139,7 @@ export default function Sidebar({ current }: { current?: string }) {
           <p className="text-[10px] uppercase tracking-widest text-db-dim font-semibold mb-3 px-3">
             Advanced
           </p>
-          {NAV.filter(n => n.group === 'Advanced').map(({ href, label, icon }) => {
+          {NAV.filter(n => n.group === 'Advanced').map(({ href, label, icon: Icon }) => {
             const active = current === href.split('/').pop()
             return (
               <Link
@@ -136,7 +151,7 @@ export default function Sidebar({ current }: { current?: string }) {
                     : 'text-db-muted hover:text-db-text hover:bg-db-surface/50'
                 }`}
               >
-                <span className="text-lg">{icon}</span>
+                <Icon className={`w-5 h-5 ${active ? 'text-db-accent' : 'text-db-dim'}`} />
                 {label}
               </Link>
             )
