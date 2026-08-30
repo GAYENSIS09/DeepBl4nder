@@ -20,7 +20,7 @@ COPY pyproject.toml README.md ./
 COPY alembic/ alembic/
 COPY alembic.ini ./
 COPY DeepBl4nder/ DeepBl4nder/
-RUN pip install --no-cache-dir ".[worker]"
+RUN pip install --no-cache-dir ".[worker,tui]"
 
 # Non-root user
 RUN groupadd -r DeepBl4nder && useradd -r -g DeepBl4nder -d /app -s /sbin/nologin DeepBl4nder \

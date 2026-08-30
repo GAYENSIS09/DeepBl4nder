@@ -1,7 +1,0 @@
-node_modules
-.next
-.git
-*.log
-*.tsbuildinfo
-coverage
-.vercel

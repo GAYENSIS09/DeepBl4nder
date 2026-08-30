@@ -3,8 +3,19 @@
 from __future__ import annotations
 
 import sys
+import warnings
 
 from dotenv import find_dotenv, load_dotenv
+
+# Les stratégies NOOA « expérimentales » utilisées par les agents (Reflexion,
+# CodeActLite, ...) émettent un FutureWarning bruyant au chargement des modules
+# (décorateurs `@strategy(...)` au niveau classe). On les filtre dès le premier
+# import du paquet pour garder le terminal de l'application propre.
+warnings.filterwarnings(
+    "ignore",
+    message=r".*experimental and not actively maintained.*",
+    category=FutureWarning,
+)
 
 load_dotenv(find_dotenv())
 

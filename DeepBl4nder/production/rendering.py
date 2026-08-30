@@ -119,6 +119,7 @@ class RenderManager(PluginShortcuts):
                 if self.blender_plugin and self.blender_plugin.available():
                     try:
                         blend_path = workdir / f"{script.scene_name}.blend"
+                        self.plugins.record("blender", "save_scene")
                         self.blender_plugin.save_scene(script.scene_name, blend_path)
                     except Exception:
                         pass
@@ -164,6 +165,7 @@ class RenderManager(PluginShortcuts):
                 # Storage : stocker le rendu
                 if self.storage_plugin and self.storage_plugin.available():
                     try:
+                        self.plugins.record("storage", "store")
                         self.storage_plugin.store(video_path, f"renders/{script.scene_name}/v{script.version}.{format_ext}")
                     except Exception:
                         pass
@@ -171,6 +173,7 @@ class RenderManager(PluginShortcuts):
                 # Knowledge Graph : tracker le rendu
                 if self.knowledge_graph_plugin and self.knowledge_graph_plugin.available():
                     try:
+                        self.plugins.record("knowledge-graph", "add_node")
                         self.knowledge_graph_plugin.add_node(
                             f"render_{artifact.id}",
                             "Render",
@@ -364,6 +367,7 @@ class RenderManager(PluginShortcuts):
 
         output_path = workdir / f"{base_name}_merged.mp4"
         try:
+            self.plugins.record("ffmpeg", "run")
             self.ffmpeg_plugin._run(
                 "-y", "-f", "concat", "-safe", "0",
                 "-i", str(concat_file),

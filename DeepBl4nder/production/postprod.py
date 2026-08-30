@@ -94,11 +94,13 @@ class PostProductionRunner(PluginShortcuts):
 
         ambience_path = workdir / "ambience.wav"
         if self.audio_plugin is not None:
+            self.plugins.record("audio", "generate_ambience")
             self.audio_plugin.generate_ambience(
                 duration=sum(s.duration for s in scene.shots) or 30.0,
                 out_path=ambience_path,
             )
             music_path = workdir / "music.wav"
+            self.plugins.record("audio", "generate_tone")
             self.audio_plugin.generate_tone(frequency=220.0, duration=10.0, out_path=music_path)
         else:
             ambience_path.write_bytes(b"")
@@ -327,6 +329,7 @@ class PostProductionRunner(PluginShortcuts):
         cmd.append(str(output_path))
 
         try:
+            self.plugins.record("ffmpeg", "run")
             self.ffmpeg_plugin._run(*cmd)
 
             artifact = self.artifacts.register(
@@ -337,12 +340,14 @@ class PostProductionRunner(PluginShortcuts):
 
             if self.storage_plugin and self.storage_plugin.available():
                 try:
+                    self.plugins.record("storage", "store")
                     self.storage_plugin.store(output_path, f"final/{scene.environment.description[:30]}_v{render_output.version}.mp4")
                 except Exception:
                     pass
 
             if self.knowledge_graph_plugin and self.knowledge_graph_plugin.available():
                 try:
+                    self.plugins.record("knowledge-graph", "add_node")
                     self.knowledge_graph_plugin.add_node(
                         f"output_{artifact.id}",
                         "FinalOutput",
@@ -400,6 +405,7 @@ class PostProductionRunner(PluginShortcuts):
                             text=f"{character}: {text}" if character else text
                         ))
                 if subtitle_entries:
+                    self.plugins.record("subtitle", "generate")
                     self.subtitle_plugin.generate(subtitle_entries, Path(package.subtitles_path))
 
             if self.tts_plugin and package.voice_path and self.tts_plugin.available():
@@ -408,6 +414,7 @@ class PostProductionRunner(PluginShortcuts):
                     for d in package.dialogues
                 )
                 if full_text.strip():
+                    self.plugins.record("tts", "generate")
                     self.tts_plugin.generate(full_text, Path(package.voice_path), lang=lang)
 
             package_artifact = self.artifacts.register(

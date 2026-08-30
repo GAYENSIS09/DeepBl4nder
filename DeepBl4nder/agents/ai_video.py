@@ -16,7 +16,7 @@ from nooa.config.strategy_config import CodeActConfig
 from nooa.strategy_validation import InvariantError
 
 from DeepBl4nder.agents.base import BaseAgent, DefaultsMixin, codeact_with_sandbox
-from DeepBl4nder.domain.ai_video import AIVideoCommand, AIVideoCommands
+from DeepBl4nder.domain.ai_video import AIVideoCommands
 from DeepBl4nder.domain.scene import SceneSpec
 from DeepBl4nder.skills.registry import SkillRegistry
 

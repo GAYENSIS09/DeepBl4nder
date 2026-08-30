@@ -36,6 +36,9 @@ def build_parser() -> argparse.ArgumentParser:
     seed.add_argument("--org", default=None)
     seed.add_argument("--project", default=None)
 
+    tui = sub.add_parser("tui", help="Lance l'interface terminal (Textual TUI).")
+    tui.add_argument("--api-url", default=None, help="URL de l'API DeepBl4nder (défaut: http://localhost:8000)")
+
     return parser
 
 
@@ -100,7 +103,52 @@ def main(argv: Sequence[str] | None = None) -> int:
             if value is not None:
                 seed_args.extend([option, value])
         return seed_main(seed_args)
+    if args.command == "tui":
+        return _cmd_tui(args.api_url)
     return 2
+
+
+def _cmd_tui(api_url: str | None) -> int:
+    """Lance l'interface terminal (Textual TUI)."""
+    if api_url:
+        import os
+        os.environ["DeepBl4nder_API_URL"] = api_url
+    
+    try:
+        from DeepBl4nder.tui.app import DeepBl4nderTUI
+        _tui_preflight_providers()
+        app = DeepBl4nderTUI()
+        app.run()
+        return 0
+    except ImportError as e:
+        print("Erreur: Dépendances TUI manquantes. Installez avec: pip install 'DeepBl4nder[tui]'", file=sys.stderr)
+        print(f"Détail: {e}", file=sys.stderr)
+        return 1
+    except Exception as e:
+        print(f"Erreur lancement TUI: {e}", file=sys.stderr)
+        return 1
+
+
+def _tui_preflight_providers() -> None:
+    """Avertit si aucune clé LLM n'est détectée (sans bloquer l'ouverture)."""
+    import os
+
+    key_envs = (
+        "GEMINI_API_KEY", "GROQ_API_KEY", "NVIDIA_API_KEY",
+        "OPENROUTER_API_KEY", "CLOUDFLARE_API_KEY",
+    )
+    configured = [name for name in key_envs if os.environ.get(name)]
+    if configured:
+        return
+    print(
+        "AVERTISSEMENT : aucune clé LLM détectée - le pipeline ne pourra pas tourner.",
+        file=sys.stderr,
+    )
+    print(
+        "  Définissez au moins une clé dans .env (GEMINI_API_KEY, GROQ_API_KEY, "
+        "NVIDIA_API_KEY, OPENROUTER_API_KEY, CLOUDFLARE_API_KEY).",
+        file=sys.stderr,
+    )
 
 
 if __name__ == "__main__":

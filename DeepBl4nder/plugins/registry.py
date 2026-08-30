@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from typing import Callable
 
 from DeepBl4nder.plugins.base import Plugin
 from DeepBl4nder.plugins.knowledge.asset_library import AssetLibraryPlugin
@@ -35,6 +36,7 @@ class PluginRegistry:
     """Enregistre les plugins (frontières externes) et les expose."""
 
     plugins: dict[str, Plugin] = field(default_factory=dict)
+    on_plugin: Callable[[str, str], None] | None = field(default=None)
 
     def __post_init__(self) -> None:
         for name, plugin_cls in _BUILTINS.items():
@@ -42,6 +44,11 @@ class PluginRegistry:
                 self.plugins[name] = RenderFarmPlugin(plugins=self)
             else:
                 self.plugins[name] = plugin_cls()
+
+    def record(self, name: str, method: str) -> None:
+        """Signale un usage de plugin (observabilité, jamais bloquant)."""
+        if self.on_plugin is not None:
+            self.on_plugin(name, method)
 
     def register(self, plugin: Plugin) -> None:
         if not plugin.name:

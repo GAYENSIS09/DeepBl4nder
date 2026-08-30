@@ -41,6 +41,9 @@ class ToolRegistry:
         blender = cast(BlenderPlugin, self.plugins.get("blender"))
         audio = cast(AudioPlugin, self.plugins.get("audio"))
         ffmpeg = cast(FFmpegPlugin, self.plugins.get("ffmpeg"))
+        self.plugins.record("blender", "catalog")
+        self.plugins.record("audio", "catalog")
+        self.plugins.record("ffmpeg", "catalog")
         return [
             Tool("inspect_scene", "Inspecte les objets de la scène Blender.", blender.inspect_scene),
             Tool("load_asset", "Append un asset dans la scène Blender.", blender.load_asset),

@@ -30,6 +30,7 @@ from sqlalchemy.exc import IntegrityError
 from DeepBl4nder import __version__
 from DeepBl4nder.api.bus import AsyncEventBus
 from DeepBl4nder.api.db import Base, DbSession, create_engine_for, create_session_factory
+from DeepBl4nder.artifacts.registry import classify_artifact_type
 from DeepBl4nder.codegen.validator import ASTValidator, ValidationReport
 from DeepBl4nder.api.deps import (
     ROLE_MANAGE,
@@ -155,16 +156,11 @@ def _run_workdir(data_dir: str, production_id: str) -> Path:
 
 
 def _artifact_type(name: str) -> str:
-    if name.endswith(".py"):
-        return "blender_script"
-    if name.endswith(".json"):
+    fine = classify_artifact_type(name)
+    if fine in ("blender_script", "video", "image", "audio"):
+        return fine
+    if fine in ("scene_spec", "story", "storyboard", "shot_spec", "qa_report", "json"):
         return "spec"
-    if name.endswith((".mp4", ".mov", ".webm")):
-        return "video"
-    if name.endswith((".png", ".jpg", ".jpeg", ".exr", ".tiff")):
-        return "image"
-    if name.endswith((".wav", ".mp3", ".flac", ".ogg")):
-        return "audio"
     return "artifact"
 
 

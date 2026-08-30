@@ -118,6 +118,8 @@ class ProductionRun:
                 run.status = "completed"
             elif event.kind == "run_blocked":
                 run.status = "blocked"
+            elif event.kind == "run_failed":
+                run.status = "failed"
             elif event.kind in STEP_EVENTS:
                 name = event.payload.get("step", "")
                 if not name:
@@ -148,7 +150,7 @@ class ProductionRun:
             run.mark_step(name, status)
         if any(pending_approval.values()):
             run.status = "awaiting_approval"
-        elif run.status not in ("completed", "blocked"):
+        elif run.status not in ("completed", "blocked", "failed"):
             run.status = "running"
         return run
 

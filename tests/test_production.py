@@ -120,6 +120,16 @@ def test_recovery_keeps_failed_steps(tmp_path) -> None:
     assert run.pending_steps() == []
 
 
+def test_recovery_run_failed(tmp_path) -> None:
+    log = EventLog(tmp_path / "events.jsonl")
+    log.append("run_started", {})
+    log.append("step_started", {"step": "story"})
+    log.append("run_failed", {"error": "Tous les fournisseurs LLM ont échoué"})
+    run = ProductionRun.recover("proj-13", log)
+    assert run.status == "failed"
+    assert run.pending_steps() == ["story"]
+
+
 def test_approval_workflow(tmp_path) -> None:
     log = EventLog(tmp_path / "events.jsonl")
     run = ProductionRun(project_id="p", log=log)

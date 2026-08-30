@@ -14,7 +14,7 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 from nooa import Agent, CodeActStrategy, Context, EventQuery, strategy
 from nooa.agentdoc import hidden
@@ -205,6 +205,7 @@ class BaseAgent(Agent):
 
     _skill_registry: SkillRegistry
     _core_skills_loaded: bool = False
+    _skill_sink: Callable[[list[str]], None] | None = None
 
     def __init__(
         self,
@@ -324,12 +325,16 @@ class BaseAgent(Agent):
             value="\n".join(summaries), prefix=True,
         )
         self._core_skills_loaded = True
+        if self._skill_sink is not None:
+            self._skill_sink([f"<{len(summaries)} core summaries>"])
 
     @hidden
     def _load_skill(self, name: str) -> TextSkill:
         """Charge un skill complet dans le contexte (niveau 2+)."""
         skill = self._skill_registry.resolve(name)
         self.context[f"skill_{name}"] = Context(value=skill.__doc__ or "")
+        if self._skill_sink is not None:
+            self._skill_sink([name])
         return skill
 
     @hidden

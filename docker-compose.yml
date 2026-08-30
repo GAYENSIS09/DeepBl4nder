@@ -13,7 +13,7 @@
 #   ue5-server                      — Unreal Engine 5 REST API (optionnel, profile "ue5")
 #   godot-server                    — Godot 4 REST API (optionnel, profile "godot")
 #   ai-video-server                 — AI Video Generation REST API (optionnel, profile "ai-video")
-#   frontend                        — Next.js UI
+#   (Frontend remplacé par TUI terminal: `DeepBl4nder tui`)
 
 x-DeepBl4nder-env: &DeepBl4nder-env
   # Database
@@ -28,8 +28,8 @@ x-DeepBl4nder-env: &DeepBl4nder-env
   # Auth
   DeepBl4nder_SECRET_KEY: ${DeepBl4nder_SECRET_KEY}
   JWT_SECRET: ${JWT_SECRET:-${DeepBl4nder_SECRET_KEY}}
-  # CORS
-  DeepBl4nder_CORS_ORIGINS: http://localhost:3000,http://frontend:3000
+  # CORS (pour TUI et outils externes)
+  DeepBl4nder_CORS_ORIGINS: http://localhost:8000
   # LLM Providers
   GROQ_API_KEY: ${GROQ_API_KEY:-}
   GEMINI_API_KEY: ${GEMINI_API_KEY:-}
@@ -266,25 +266,6 @@ services:
               count: 1
               capabilities: [gpu]
     profiles: ["ai-video"]
-    restart: unless-stopped
-
-  # ══════════════════════════════════════════════════════════
-  #  Frontend (Next.js)
-  # ══════════════════════════════════════════════════════════
-
-  frontend:
-    image: deepbl4nder-frontend
-    build:
-      context: ./frontend
-      dockerfile: Dockerfile
-    ports:
-      - "3000:3000"
-    depends_on:
-      DeepBl4nder-api:
-        condition: service_healthy
-    environment:
-      NEXT_PUBLIC_API_URL: http://localhost:8000
-      NEXT_PUBLIC_SSE_URL: http://localhost:8000/api
     restart: unless-stopped
 
 volumes:

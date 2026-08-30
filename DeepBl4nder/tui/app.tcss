@@ -1,0 +1,420 @@
+/* DeepBl4nder TUI - brand palette (logo gradient on near-black).
+   Design tokens ($primary, $surface, ...) come from the registered
+   "deepbl4nder" Theme; brand greys are inlined as hex literals. */
+
+Screen {
+    background: $background;
+    color: $foreground;
+}
+
+Header {
+    background: $background;
+    color: $primary;
+    text-style: bold;
+    border-bottom: solid $primary;
+    dock: top;
+}
+
+Header .header--clock {
+    color: $text-muted;
+}
+
+Footer {
+    background: $background;
+    color: $text-muted;
+    border-top: solid #262626;
+    dock: bottom;
+}
+
+Footer > .footer--key {
+    background: $surface;
+    color: $primary;
+}
+
+Footer > .footer--description {
+    color: $text-muted;
+}
+
+/* ============ Console ============ */
+
+#console-root {
+    height: 1fr;
+    layout: vertical;
+}
+
+#console-split {
+    height: 1fr;
+    layout: horizontal;
+}
+
+AgentStream {
+    width: 2fr;
+    height: 1fr;
+    background: $surface;
+}
+
+AgentStream #stream-log {
+    background: $surface;
+    border: none;
+    padding: 1;
+    height: 1fr;
+    overflow-x: hidden;
+}
+
+AgentStream #stream-log .richlog--scrollbar {
+    background: #262626;
+}
+
+SidePanel {
+    width: 32;
+    height: 1fr;
+    background: $panel;
+    border-left: solid #262626;
+    padding: 1;
+    layout: vertical;
+}
+
+#panel-title, #panel-budget-title, #panel-llm-title {
+    color: $primary;
+    text-style: bold;
+    margin-bottom: 1;
+}
+
+#panel-budget, #panel-llm {
+    color: $text-muted;
+    margin-bottom: 1;
+}
+
+#panel-prod-name {
+    color: $text;
+    text-style: bold;
+}
+
+#panel-prod-status {
+    color: $text-muted;
+}
+
+#panel-progress {
+    margin: 1 0;
+}
+
+/* ============ Task bar ============ */
+
+#task-bar {
+    height: auto;
+    background: $panel;
+    border-bottom: solid #262626;
+    padding: 1;
+}
+
+#taskbar-layout {
+    height: auto;
+    layout: vertical;
+}
+
+#brief-input {
+    height: 6;
+    border: solid $accent;
+    background: $surface;
+    color: $text;
+    margin-bottom: 1;
+}
+
+#brief-input:focus {
+    border: solid $accent;
+}
+
+#taskbar-controls {
+    height: auto;
+    width: auto;
+    layout: horizontal;
+}
+
+#engine-row {
+    width: auto;
+    height: auto;
+    layout: horizontal;
+    align: left middle;
+}
+
+#engine-label {
+    color: $text-muted;
+    margin-right: 1;
+    height: 3;
+    content-align: left middle;
+}
+
+#engine-buttons {
+    width: auto;
+    height: auto;
+}
+
+.engine-btn {
+    min-width: 1;
+    margin-right: 1;
+}
+
+.engine-btn.selected {
+    border: solid $accent;
+    color: $accent;
+    text-style: bold;
+}
+
+#action-row {
+    width: auto;
+    height: auto;
+    layout: horizontal;
+    align: left middle;
+    margin-left: 2;
+}
+
+#action-row Button {
+    margin-right: 1;
+    min-width: 11;
+}
+
+/* ============ Status bar ============ */
+
+#status-bar {
+    dock: bottom;
+    height: 1;
+    background: #0A0A0A;
+    border-top: solid #262626;
+    layout: horizontal;
+}
+
+#status-row {
+    width: 1fr;
+    height: 100%;
+    align: left middle;
+}
+
+#status-row Label {
+    padding: 0 1;
+    color: $text-muted;
+}
+
+#status-text.status-running { color: $primary; text-style: bold; }
+#status-text.status-idle { color: $text-muted; }
+
+#step-text { color: $text-muted; }
+#step-text.step-idle { color: #62625C; }
+#models-text { color: #62625C; }
+
+#cost-text { color: $text-muted; }
+#cost-text.cost-idle { color: #62625C; }
+#budget-text { color: $text-muted; }
+#budget-text.budget-warning { color: $warning; }
+#clock-text { color: #62625C; }
+
+.status-sep {
+    color: #262626;
+}
+
+/* ============ Library ============ */
+
+#library-root {
+    height: 1fr;
+    layout: horizontal;
+    padding: 1;
+}
+
+#pane-productions {
+    width: 2fr;
+}
+
+#pane-artifacts {
+    width: 3fr;
+    margin-left: 1;
+}
+
+.tree-pane, .detail-pane {
+    layout: vertical;
+    background: $panel;
+    border: solid #262626;
+    padding: 1;
+}
+
+.section-title {
+    color: $primary;
+    text-style: bold;
+    margin-bottom: 1;
+}
+
+.artifact-tree {
+    height: 1fr;
+}
+
+#btn-refresh-productions {
+    margin-top: 1;
+    min-width: 8;
+}
+
+.artifact-actions {
+    margin-top: 1;
+    height: auto;
+}
+
+.artifact-actions Button {
+    margin-right: 1;
+    min-width: 14;
+}
+
+#artifact-preview-wrap {
+    height: 2fr;
+    margin-top: 1;
+    border: solid #262626;
+    background: $surface;
+}
+
+#artifact-preview {
+    padding: 1;
+    color: $text;
+}
+
+/* ============ Settings modal ============ */
+
+#settings-backdrop {
+    width: 100%;
+    height: 100%;
+    align: center middle;
+    background: #0A0A0A 85%;
+}
+
+#settings-card {
+    width: 76;
+    max-width: 100%;
+    height: auto;
+    background: $panel;
+    border: solid $primary;
+    padding: 2;
+    layout: vertical;
+}
+
+#settings-title {
+    color: $primary;
+    text-style: bold;
+    text-align: center;
+}
+
+#settings-subtitle {
+    color: $text-muted;
+    text-align: center;
+    margin-bottom: 2;
+}
+
+#settings-fields {
+    layout: vertical;
+}
+
+#settings-fields Horizontal {
+    height: 3;
+    align: center middle;
+    margin-bottom: 1;
+}
+
+.setting-label {
+    width: 28;
+    color: $text-muted;
+}
+
+.setting-input {
+    width: 1fr;
+    border: solid #262626;
+    background: $surface;
+}
+
+.setting-input:focus {
+    border: solid $accent;
+}
+
+#settings-actions {
+    margin-top: 2;
+    height: auto;
+    align: right middle;
+}
+
+#settings-actions Button {
+    margin-left: 1;
+    min-width: 10;
+}
+
+/* ============ Event detail overlay ============ */
+
+EventDetailScreen {
+    align: center middle;
+    background: #0A0A0A 92%;
+}
+
+#event-detail-scroll {
+    width: 92%;
+    height: 92%;
+    background: $panel;
+    border: solid $primary;
+    padding: 2 3;
+}
+
+#event-detail-body {
+    width: 100%;
+    height: auto;
+    color: $text;
+}
+
+/* ============ Shared widgets ============ */
+
+Button {
+    background: $surface;
+    color: $text;
+    border: solid #262626;
+}
+
+Button:focus {
+    border: solid $primary;
+}
+
+Button.primary { background: $primary; color: #0A0A0A; text-style: bold; }
+Button.success { background: $primary; color: #0A0A0A; text-style: bold; }
+Button.warning { background: $warning; color: #0A0A0A; text-style: bold; }
+Button.error { background: $error; color: #0A0A0A; text-style: bold; }
+Button:disabled { background: $surface; color: #62625C; border: solid #262626; }
+
+DataTable {
+    background: $surface;
+}
+
+DataTable > .datatable--header {
+    background: $primary 12%;
+    color: $primary;
+    text-style: bold;
+}
+
+DataTable > .datatable--cursor {
+    background: $primary 20%;
+    color: $text;
+}
+
+DataTable > .datatable--selected {
+    background: $primary 25%;
+    color: $text;
+}
+
+ProgressBar > .bar--bar {
+    color: $primary;
+}
+
+ProgressBar > .bar--bar__complete {
+    color: $primary;
+}
+
+Switch {
+    background: $surface;
+    border: solid #262626;
+}
+
+Switch:focus {
+    border: solid $primary;
+}
+
+OptionList {
+    background: $surface;
+}

@@ -55,7 +55,7 @@ RUN blender --version
 WORKDIR /app
 COPY pyproject.toml README.md ./
 COPY DeepBl4nder/ DeepBl4nder/
-RUN pip install --no-cache-dir ".[worker]"
+RUN pip install --no-cache-dir ".[worker,tui]"
 
 # Create work directory
 RUN mkdir -p /work /projects

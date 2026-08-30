@@ -46,6 +46,8 @@ class RenderFarmPlugin(Plugin):
         return cast("BlenderPlugin", self.plugins.get("blender")).bridge
 
     def submit(self, script: BlenderScript, workdir: Path) -> Future[ProcessResult]:
+        if self.plugins is not None:
+            self.plugins.record("render-farm", "submit")
         return self._get_scheduler().submit(lambda: self._get_bridge().run_script(script, workdir))
 
     def worker_count(self) -> int:
