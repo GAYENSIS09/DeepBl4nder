@@ -108,6 +108,10 @@ class SidePanel(Widget):
             lines.append(f"router: [b]{provider_line}[/b]")
         if models:
             lines.append(f"model: [b]{', '.join(models[:2])}[/b]")
+        elif provider_line.strip():
+            # Routeur actif mais aucun vainqueur réel : on ne fabrique pas un
+            # faux modèle statique — on montre l'état réel (attente/échec).
+            lines.append("model: [i](no reply yet)[/i]")
         self._llm.update("\n".join(lines))
 
 
@@ -356,6 +360,15 @@ class ConsoleScreen(BaseScreen):
         if kind == "budget_alert":
             self.notify("Budget exceeded - pipeline halted", severity="warning")
 
+        # La rotation LLM est LIVE : dès qu'un fournisseur répond (ou échoue
+        # et passe en cooldown), on rafraîchit l'étiquette fournisseur/modèle.
+        # Pas seulement aux frontières d'étape, sinon "model:" reste figé sur
+        # le premier fournisseur du pool.
+        if kind in ("llm_call", "llm_complete", "call_end", "call_start"):
+            self._refresh_provider_label()
+        elif kind in ("step_started", "step_completed", "step_failed"):
+            self._refresh_provider_label()
+
         self.stream.write_event(event)
 
         if kind in ("run_started", "step_completed", "step_failed", "cost_recorded", "run_completed", "run_failed", "revision_requested"):
@@ -378,9 +391,26 @@ class ConsoleScreen(BaseScreen):
         stats = self.api.router_stats()
         providers = stats.get("providers") or []
         status = self.api.get_agent_status()
+        # Vainqueur réel du dernier appel (rotation) ; chaine vide tant
+        # qu'aucun fournisseur n'a répondu (pas un faux modèle statique).
         models = sorted(
-            {info["model"] for info in status.values() if info.get("available") and info.get("model") != "unknown"}
+            {
+                info["model"]
+                for info in status.values()
+                if info.get("available") and info.get("model") not in (None, "", "unknown")
+            }
         )
+        last = self.api.last_llm_decision()
+        if last.get("model") and last["model"] not in models:
+            models = sorted([*models, last["model"]])
+        if not models:
+            # Aucune réponse réussie : on montre quand même la recherche —
+            # la dernière tentative (fournisseur, modèle, erreur) plutôt
+            # qu'un "no reply" figé.
+            attempt = self.api.last_llm_attempt()
+            if attempt.get("model") and attempt.get("provider"):
+                hint = f" · {attempt.get('error', '')}" if attempt.get("error") else ""
+                models = [f"[dim]{attempt['model']}{hint}[/dim]"]
         if not providers:
             label = ", ".join(models[:3]) if models else "no provider"
             return label, models

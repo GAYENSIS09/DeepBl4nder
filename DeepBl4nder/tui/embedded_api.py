@@ -92,7 +92,8 @@ def _format_pipeline_event(kind: str, payload: dict[str, Any]) -> str:
     if kind == "llm_call":
         status = payload.get("status", "")
         if status == "started":
-            return f"Calling LLM for {payload.get('agent', '')} ({payload.get('model', '')})"
+            model = payload.get("model", "") or "waiting"
+            return f"Calling LLM for {payload.get('agent', '')} ({model})"
         if status == "completed":
             tail = ", $%.4f" % cost if cost else ""
             tail = f"{tail}, {elapsed:.1f}s" if elapsed else tail
@@ -565,6 +566,26 @@ class EmbeddedAPI:
         from DeepBl4nder.llm import routing_stats
 
         return routing_stats()
+
+    def last_llm_decision(self) -> dict[str, str]:
+        """Dernier fournisseur/modèle réellement utilisés par le routeur partagé.
+
+        Reflète le vainqueur réel du dernier appel (rotation comprise) ;
+        vide tant qu'aucun appel n'a réussi.
+        """
+        from DeepBl4nder.llm import last_decision
+
+        return last_decision()
+
+    def last_llm_attempt(self) -> dict[str, str]:
+        """Dernière tentative (fournisseur, modèle, classe d'erreur).
+
+        Renseignée à chaque échec : l'UI montre la recherche en cours même
+        quand aucun fournisseur ne réussit.
+        """
+        from DeepBl4nder.llm import last_attempt
+
+        return last_attempt()
 
 
 # Global instance for the TUI

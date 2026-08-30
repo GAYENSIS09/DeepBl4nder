@@ -238,6 +238,47 @@ def test_event_query_wired_from_env(monkeypatch: pytest.MonkeyPatch) -> None:
     assert query.type == "Task"
 
 
+def test_get_model_id_prefers_real_router_decision(monkeypatch: pytest.MonkeyPatch) -> None:
+    """``_get_model_id`` affiche le vainqueur réel du routeur (rotation),
+    pas le modèle statique du premier fournisseur du pool."""
+    from DeepBl4nder import llm
+    from nooa.unifiedllm import FakeLLMClient
+
+    class _FakeRouter(FakeLLMClient):
+        def __init__(self, last_provider: str, last_model: str, static_model: str) -> None:
+            super().__init__(scripted_responses=["ok"])
+            self._last_provider_id = last_provider
+            self._last_model = last_model
+            self.model = static_model
+
+        @property
+        def last_provider_id(self) -> str | None:
+            return self._last_provider_id
+
+        @property
+        def last_model(self) -> str | None:
+            return self._last_model
+
+    router = _FakeRouter("groq", "groq/openai/gpt-oss-120b", "gemini/gemini-3.7-flash")
+    agent = BaseAgent(llm=router)
+    assert agent._get_model_id() == "groq/openai/gpt-oss-120b"
+    assert agent._get_last_call_info() == {
+        "provider": "groq",
+        "model": "groq/openai/gpt-oss-120b",
+    }
+
+    # Jamais de décision réelle → un routeur ne prétend pas utiliser la
+    # config statique : modèle vide (l'UI affiche "(no reply yet)").
+    agent2 = BaseAgent(llm=_FakeRouter(None, None, "gemini/gemini-3.7-flash"))
+    assert agent2._get_model_id() == ""
+    assert agent2._get_last_call_info() == {}
+
+    # Client non-routeur (pas de ``last_provider_id``) : la config exposée
+    # EST le modèle réel.
+    agent3 = BaseAgent(llm=FakeLLMClient(scripted_responses=["ok"]))
+    assert agent3._get_model_id() == agent3._llm.model
+
+
 # ------------------------------------------------------- mémoire long terme
 
 

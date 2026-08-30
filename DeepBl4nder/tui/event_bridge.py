@@ -64,6 +64,21 @@ def _g(event: Any, name: str, default: Any = "") -> Any:
     return default if value is None else value
 
 
+def _real_last_call(agent: Any) -> dict[str, str]:
+    """Vainqueur réel du dernier appel LLM d'un agent (rotation).
+
+    Lit ``_get_last_call_info`` de l'agent (``last_provider_id`` /
+    ``last_model`` du routeur) ; vide tant qu'aucun appel n'a réussi.
+    """
+    getter = getattr(agent, "_get_last_call_info", None)
+    if not callable(getter):
+        return {}
+    try:
+        return getter()
+    except Exception:  # noqa: BLE001 - l'info d'affichage ne doit jamais casser le flux
+        return {}
+
+
 class EventBroker:
     """In-process async pub/sub with a replayable ring buffer."""
 
@@ -160,8 +175,13 @@ def attach_agent_bridge(
         reasoning = _g(event, "reasoning_content")
         tool_calls = _g(event, "tool_calls", []) or []
         dynamic = _g(event, "dynamic_context")
+        # Le vainqueur réel du routeur prime sur le ``model_name`` statique que
+        # NOOA recopie depuis la config (``router.model``) : la rotation est
+        # ainsi visible dans le flux, pas seulement en fin d'étape.
+        real = _real_last_call(agent)
+        real_model = real.get("model") or _g(event, "model_name") or ""
         meta: dict[str, Any] = {
-            "model": event.model_name,
+            "model": real_model,
             "tokens": event.completion_tokens,
             "prompt_tokens": event.prompt_tokens,
             "cached_tokens": _g(event, "cached_tokens", 0),
@@ -172,20 +192,22 @@ def attach_agent_bridge(
             "dynamic_context": dynamic,
             "dynamic_context_len": len(dynamic),
         }
+        if real.get("provider"):
+            meta["provider"] = real["provider"]
         name = str(_g(event, "method_name") or actor)
-        summary = f"{name} -> {_g(event, 'model_name') or 'unknown'}"
+        summary = f"{name} -> {real_model or 'unknown'}"
         if cost:
             summary += f" (${cost:.4f}, {event.completion_tokens} tokens)"
         if reasoning:
             emit("reasoning", _snip(reasoning, 1200),
-                 {"model": event.model_name, "chars": len(reasoning), "_full": reasoning})
+                 {"model": real_model, "chars": len(reasoning), "_full": reasoning})
         for call in tool_calls:
             fn = call.get("function_name", call.get("name", "tool"))
             args = str(call.get("arguments", ""))
             emit("tool_call", f"called {fn}", {"arguments": _snip(args, 600), "_full": args, "tool": fn})
         if dynamic:
             emit("context", f"context block: {len(dynamic)} chars injected",
-                 {"chars": len(dynamic), "model": event.model_name, "_full": dynamic})
+                 {"chars": len(dynamic), "model": real_model, "_full": dynamic})
         emit("llm_complete", summary, meta)
 
     def on_python(event: Any) -> None:

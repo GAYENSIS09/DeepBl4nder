@@ -571,6 +571,77 @@ def test_module_routing_stats_uninitialized() -> None:
     assert stats["providers"] == []
 
 
+def test_module_last_decision_empty_before_any_router(monkeypatch: pytest.MonkeyPatch) -> None:
+    """``last_decision()`` ne construit PAS le routeur (GET de statut)."""
+    _clear_llm_env(monkeypatch)
+    llm.reset_router()
+    assert llm.last_decision() == {}
+
+
+def test_module_last_decision_reflects_real_winner(monkeypatch: pytest.MonkeyPatch) -> None:
+    """``last_decision()`` expose le vainqueur réel du routeur partagé, pas le
+    modèle statique du premier fournisseur du pool."""
+    _clear_llm_env(monkeypatch)
+    monkeypatch.setenv("GEMINI_API_KEY", "k1")
+    monkeypatch.setenv("GROQ_API_KEY", "k2")
+    registry = {"gemini/gemini-3.6-flash": [RuntimeError("429 rate limit")]}
+    router = llm.LLMRouter(
+        client_factory=lambda model, **kw: _StubClient(model, registry.get(model))
+    )
+    llm._ROUTER = router  # le singleton partagé (test d'unité d'affichage)
+    assert llm.last_decision() == {}
+    router.call([{"role": "user", "content": "a"}])
+    assert llm.last_decision() == {"provider": "groq", "model": "groq/openai/gpt-oss-120b"}
+
+
+def test_router_tracks_last_attempt_even_when_all_fail(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """``last_attempt`` est renseigné à chaque échec (provider + modèle +
+    classe d'erreur) : l'UI montre la recherche en cours, pas un faux gagnant."""
+    _clear_llm_env(monkeypatch)
+    monkeypatch.setenv("GEMINI_API_KEY", "k1")
+    monkeypatch.setenv("GROQ_API_KEY", "k2")
+    registry = {
+        "gemini/gemini-3.6-flash": [RuntimeError("429 rate limit")],
+        "groq/openai/gpt-oss-120b": [RuntimeError("NotFoundError: model not found")],
+    }
+    router = llm.LLMRouter(
+        client_factory=lambda model, **kw: _StubClient(model, registry.get(model))
+    )
+    assert router.last_attempt is None
+    with pytest.raises(RuntimeError):
+        router.call([{"role": "user", "content": "a"}])
+    # Dernière tentative : groq (le fournisseur du dernier modèle essayé).
+    assert router.last_attempt[0] == "groq"
+    assert router.last_attempt[1] == "groq/openai/gpt-oss-120b"
+    assert router.last_attempt[2] == "model"
+
+
+def test_module_last_attempt_reports_last_failed_probe(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """``last_attempt()`` expose la recherche en cours même sans vainqueur."""
+    _clear_llm_env(monkeypatch)
+    monkeypatch.setenv("GEMINI_API_KEY", "k1")
+    monkeypatch.setenv("GROQ_API_KEY", "k2")
+    registry = {
+        "gemini/gemini-3.6-flash": [RuntimeError("429 rate limit")],
+        "groq/openai/gpt-oss-120b": [RuntimeError("429 rate limit")],
+    }
+    router = llm.LLMRouter(
+        client_factory=lambda model, **kw: _StubClient(model, registry.get(model))
+    )
+    llm._ROUTER = router
+    assert llm.last_attempt() == {}
+    with pytest.raises(RuntimeError):
+        router.call([{"role": "user", "content": "a"}])
+    attempt = llm.last_attempt()
+    assert attempt["provider"] == "groq"
+    assert attempt["model"] == "groq/openai/gpt-oss-120b"
+    assert attempt["error"] == "rate_limit"
+
+
 def test_get_router_returns_shared_singleton(monkeypatch: pytest.MonkeyPatch) -> None:
     _clear_llm_env(monkeypatch)
     monkeypatch.setenv("GEMINI_API_KEY", "k1")

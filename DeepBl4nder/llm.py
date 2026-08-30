@@ -721,6 +721,7 @@ class LLMRouter:
         # tout appel. Sert à rapporter le fournisseur réellement utilisé
         # (événements LLM, observabilité) plutôt que la config statique.
         self._last_decision: tuple[str, str] | None = None
+        self._last_attempt: tuple[str, str, str] | None = None
         self._lock = threading.Lock()
 
     # ------------------------------------------------------------------ pool
@@ -844,6 +845,22 @@ class LLMRouter:
         with self._lock:
             self._last_decision = (provider_id, model) if model else None
 
+    @property
+    def last_attempt(self) -> tuple[str, str, str] | None:
+        """(fournisseur, modèle, classe d'erreur) de la dernière tentative.
+
+        Renseigné À CHAQUE échec d'un modèle — même quand aucun fournisseur
+        ne réussit : l'UI voit la recherche/rotation en cours au lieu d'un
+        "no reply" figé. ``None`` avant toute tentative.
+        """
+        with self._lock:
+            return self._last_attempt
+
+    def _set_last_attempt(self, provider_id: str, model: str, kind: str) -> None:
+        """Mémorise la dernière tentative (appel échoué) d'un fournisseur."""
+        with self._lock:
+            self._last_attempt = (provider_id, model, kind)
+
     def providers(self) -> list[LLMProvider]:
         return list(self._providers)
 
@@ -918,6 +935,7 @@ class LLMRouter:
             except Exception as exc:  # noqa: BLE001
                 kind = _classify_error(exc)
                 last_exc = exc
+                self._set_last_attempt(provider.id, model, kind)
                 if kind in {"auth", "rate_limit", "context"}:
                     raise
                 logger.info(
@@ -1218,6 +1236,37 @@ def routing_stats() -> dict[str, Any]:
     if _ROUTER is None:
         return {"rotation": "uninitialized", "cooldown_seconds": 0, "pool": [], "providers": []}
     return _ROUTER.routing_stats()
+
+
+def last_decision() -> dict[str, str]:
+    """Dernier fournisseur/modèle réellement utilisés (vide avant tout appel).
+
+    Lit ``last_provider_id`` / ``last_model`` du routeur partagé sans le
+    construire si aucun routeur n'existe encore. Ensemble vide = aucune
+    décision réelle (routeur non créé, ou tous les fournisseurs en échec).
+    """
+    if _ROUTER is None:
+        return {}
+    provider = _ROUTER.last_provider_id
+    model = _ROUTER.last_model
+    if provider and model:
+        return {"provider": str(provider), "model": str(model)}
+    return {}
+
+
+def last_attempt() -> dict[str, str]:
+    """Dernière tentative (fournisseur, modèle, classe d'erreur) du routeur.
+
+    Renseigné À CHAQUE échec — l'UI affiche la rotation/la recherche en cours
+    même quand aucun fournisseur ne répond. Vide si aucun routeur créé.
+    """
+    if _ROUTER is None:
+        return {}
+    attempt = _ROUTER.last_attempt
+    if attempt is None:
+        return {}
+    provider, model, kind = attempt
+    return {"provider": str(provider), "model": str(model), "error": str(kind)}
 
 
 def build_llm(provider_ids: list[str] | None = None, fake: bool = False) -> Any:

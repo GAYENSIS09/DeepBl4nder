@@ -353,14 +353,25 @@ class BaseAgent(Agent):
         return self._skill_registry
 
     def _get_model_id(self) -> str:
-        """Retourne l'identifiant du modèle LLM utilisé."""
+        """Retourne l'identifiant du modèle LLM utilisé.
+
+        Priorité au modèle réellement gagnant du dernier appel (``last_model``
+        du routeur). Un routeur sans décision réelle (premier appel, ou tous
+        les fournisseurs en échec/cooldown) ne prétend PAS utiliser la config
+        statique du pool : on renvoie chaine vide plutôt qu'un faux modèle.
+        """
+        info = self._get_last_call_info()
+        if info:
+            return info["model"]
         llm = getattr(self, "_llm", None)
-        if llm is not None:
-            try:
-                return model_name_of(llm)
-            except Exception:  # noqa: BLE001 - modèle non exposé : on reste générique
-                return "unknown"
-        return "unknown"
+        if llm is None:
+            return ""
+        if hasattr(llm, "last_provider_id"):
+            return ""
+        try:
+            return model_name_of(llm)
+        except Exception:  # noqa: BLE001 - modèle non exposé : on reste générique
+            return ""
 
     @hidden
     def _get_last_call_info(self) -> dict[str, str]:
