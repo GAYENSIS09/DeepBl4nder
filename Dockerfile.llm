@@ -6,27 +6,21 @@
 #
 # This serves Qwen3 models via llama-cpp-python with GPU acceleration.
 
-FROM python:3.12-slim AS base
+FROM nvidia/cuda:12.4.1-devel-ubuntu22.04 AS base
 
-# Install CUDA toolkit and system dependencies
+# Install Python 3.12 from deadsnakes PPA
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    wget \
-    gnupg2 \
-    && wget https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2204/x86_64/cuda-keyring_1.1-1_all.deb \
-    && dpkg -i cuda-keyring_1.1-1_all.deb \
+    software-properties-common \
+    && add-apt-repository -y ppa:deadsnakes/ppa \
     && apt-get update \
     && apt-get install -y --no-install-recommends \
-    cuda-toolkit-12-4 \
+    python3.12 \
     python3.12-venv \
+    python3-pip \
     git \
     curl \
     ca-certificates \
-    && rm -rf /var/lib/apt/lists/* \
-    && rm -f cuda-keyring_1.1-1_all.deb
-
-# Set CUDA paths
-ENV PATH="/usr/local/cuda-12.4/bin:${PATH}"
-ENV LD_LIBRARY_PATH="/usr/local/cuda-12.4/lib64:${LD_LIBRARY_PATH}"
+    && rm -rf /var/lib/apt/lists/*
 
 # Create virtual environment
 RUN python3.12 -m venv /opt/venv
@@ -50,16 +44,14 @@ WORKDIR /app
 
 ENV PYTHONUNBUFFERED=1 \
     NVIDIA_VISIBLE_DEVICES=all \
-    NVIDIA_DRIVER_CAPABILITIES=compute,utility \
-    PATH="/usr/local/cuda-12.4/bin:/opt/venv/bin:${PATH}" \
-    LD_LIBRARY_PATH="/usr/local/cuda-12.4/lib64:${LD_LIBRARY_PATH}"
+    NVIDIA_DRIVER_CAPABILITIES=compute,utility
 
 EXPOSE 8080
 
 HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
     CMD curl -f http://localhost:8080/v1/models || exit 1
 
-CMD ["python", "-m", "llama_cpp.server", \
+CMD ["python3.12", "-m", "llama_cpp.server", \
      "--model", "/models/qwen3-8b-q4_k_m.gguf", \
      "--host", "0.0.0.0", \
      "--port", "8080", \
