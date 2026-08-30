@@ -6,11 +6,10 @@
 #
 # This serves Qwen3 models via llama-cpp-python with GPU acceleration.
 
-FROM nvidia/cuda:12.4.1-devel-ubuntu22.04 AS base
+FROM nvidia/cuda:12.4.1-devel-ubuntu24.04 AS base
 
-# System dependencies
+# System dependencies (Python 3.12 is included in Ubuntu 24.04)
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    python3.12 \
     python3.12-venv \
     python3-pip \
     git \
