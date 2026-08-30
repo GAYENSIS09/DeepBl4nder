@@ -1,5 +1,4 @@
 import Link from 'next/link'
-import Image from 'next/image'
 import { ArrowRight, Bot, Cpu, Box, Github, Zap, Shield, Terminal } from 'lucide-react'
 
 export default function Home() {
@@ -9,7 +8,7 @@ export default function Home() {
       <header className="border-b border-db-border/50 backdrop-blur-sm sticky top-0 z-50 bg-db-bg/80">
         <div className="max-w-6xl mx-auto px-6 py-4 flex items-center justify-between">
           <Link href="/" className="flex items-center gap-3">
-            <Image src="/logo.svg" alt="DeepBl4nder" width={140} height={35} priority />
+            <img src="/DeepBl4nder/logo.svg" alt="DeepBl4nder" width={140} height={35} />
           </Link>
           <nav className="flex items-center gap-6">
             <Link href="/docs" className="text-db-muted hover:text-db-text transition text-sm font-medium">
@@ -29,10 +28,6 @@ export default function Home() {
         <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[400px] bg-db-accent/10 blur-[120px] rounded-full" />
 
         <div className="relative max-w-4xl mx-auto px-6 py-32 text-center">
-          <div className="inline-flex items-center gap-2 px-4 py-2 mb-8 text-xs font-medium text-db-accent bg-db-accent/10 border border-db-accent/20 rounded-full backdrop-blur-sm">
-            <span className="w-2 h-2 bg-db-accent rounded-full animate-pulse" />
-            v0.2 - Now with Local LLM
-          </div>
 
           <h1 className="text-5xl md:text-7xl font-bold mb-6 tracking-tight">
             <span className="gradient-text">AI-Powered</span>
@@ -141,7 +136,7 @@ export default function Home() {
       <footer className="border-t border-db-border">
         <div className="max-w-6xl mx-auto px-6 py-10">
           <div className="flex flex-col md:flex-row items-center justify-between gap-4">
-            <Image src="/logo.svg" alt="DeepBl4nder" width={120} height={30} />
+            <img src="/DeepBl4nder/logo.svg" alt="DeepBl4nder" width={120} height={30} />
             <p className="text-db-dim text-sm">
               Open-source under MIT License
             </p>
