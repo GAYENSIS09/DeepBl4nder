@@ -34,8 +34,12 @@ RUN apt-get update \
 
 WORKDIR /app
 COPY pyproject.toml README.md ./
+RUN --mount=type=cache,target=/root/.cache/pip \
+    pip install --no-cache-dir --no-deps . || true
+
 COPY DeepBl4nder ./DeepBl4nder
-RUN pip install --no-cache-dir .
+RUN --mount=type=cache,target=/root/.cache/pip \
+    pip install --no-cache-dir .
 
 ENV BLENDER_EXE=${BLENDER_EXE} \
     PYTHONUNBUFFERED=1

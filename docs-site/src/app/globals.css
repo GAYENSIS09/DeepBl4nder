@@ -12,7 +12,7 @@ body {
   color: #0A0A0A;
 }
 
-/* Glow effect */
+/* Glow effects */
 .glow {
   box-shadow: 0 0 60px rgba(170, 255, 0, 0.1);
 }
@@ -29,13 +29,21 @@ body {
   background-clip: text;
 }
 
-/* Code blocks */
+/* Code blocks - rehype-pretty-code integration */
 pre {
-  background: #121212;
+  background: #121212 !important;
   border: 1px solid #262626;
   border-radius: 8px;
   padding: 1rem;
   overflow-x: auto;
+  margin: 1.5rem 0;
+}
+
+pre > code {
+  display: grid;
+  background: none;
+  padding: 0;
+  margin: 0;
 }
 
 code {
@@ -48,12 +56,57 @@ code {
   color: #AAFF00;
   padding: 0.125rem 0.375rem;
   border-radius: 4px;
+  font-size: 0.8em;
+}
+
+/* Code line highlights */
+pre > code > [data-highlighted-line] {
+  background: rgba(170, 255, 0, 0.08);
+  border-left: 2px solid #AAFF00;
+  margin-left: -1rem;
+  margin-right: -1rem;
+  padding-left: calc(1rem - 2px);
+  padding-right: 1rem;
+}
+
+/* Code line numbers */
+pre > code > [data-line-numbers] {
+  counter-reset: line;
+}
+pre > code > [data-line-numbers] > [data-line]::before {
+  counter-increment: line;
+  content: counter(line);
+  display: inline-block;
+  width: 1rem;
+  margin-right: 1rem;
+  text-align: right;
+  color: #7A7A72;
+}
+
+/* Word highlight */
+[data-highlighted-word] {
+  background: rgba(170, 255, 0, 0.15);
+  border-bottom: 1px solid #AAFF00;
+  padding: 1px 0;
+}
+
+/* Code block title */
+pre > code > [data-metadata] {
+  display: block;
+  padding: 0.5rem 1rem;
+  margin: -1rem -1rem 0.75rem -1rem;
+  background: #171717;
+  border-bottom: 1px solid #262626;
+  border-radius: 8px 8px 0 0;
+  font-size: 0.8rem;
+  color: #A0A098;
 }
 
 /* Links */
 a {
   color: #AAFF00;
   text-decoration: none;
+  transition: color 0.2s;
 }
 
 a:hover {
@@ -105,3 +158,76 @@ a:hover {
 .fade-in-delay-1 { animation-delay: 0.1s; opacity: 0; }
 .fade-in-delay-2 { animation-delay: 0.2s; opacity: 0; }
 .fade-in-delay-3 { animation-delay: 0.3s; opacity: 0; }
+
+/* Mermaid diagram styles */
+.mermaid-svg svg {
+  max-width: 100%;
+  height: auto;
+}
+
+/* React Flow overrides */
+.react-flow__node {
+  font-size: 13px;
+}
+
+.react-flow__controls {
+  box-shadow: 0 0 10px rgba(0, 0, 0, 0.3);
+}
+
+/* Table of contents (auto-generated) */
+.toc {
+  border-left: 2px solid #262626;
+  padding-left: 1rem;
+}
+
+.toc a {
+  color: #A0A098;
+  font-size: 0.875rem;
+  transition: color 0.2s;
+}
+
+.toc a:hover {
+  color: #AAFF00;
+}
+
+/* Prose container */
+.prose-db {
+  max-width: 48rem;
+  margin: 0 auto;
+}
+
+.prose-db > * + * {
+  margin-top: 1.5rem;
+}
+
+.prose-db h1 + p,
+.prose-db h2 + p,
+.prose-db h3 + p {
+  margin-top: 0.75rem;
+}
+
+/* Step indicator */
+.steps > div + div {
+  margin-top: 2rem;
+}
+
+/* Badge inline */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  font-size: 0.75rem;
+  font-weight: 500;
+  padding: 0.125rem 0.5rem;
+  border-radius: 9999px;
+  border: 1px solid;
+}
+
+/* Animated gradient background for hero */
+@keyframes hero-glow {
+  0%, 100% { opacity: 0.3; }
+  50% { opacity: 0.6; }
+}
+
+.hero-glow {
+  animation: hero-glow 4s ease-in-out infinite;
+}

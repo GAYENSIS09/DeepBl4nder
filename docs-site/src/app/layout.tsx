@@ -3,7 +3,7 @@ import './globals.css'
 
 export const metadata: Metadata = {
   title: 'DeepBl4nder - AI-Powered 3D Production',
-  description: 'Open-source AI agent orchestration for 3D animation and rendering.',
+  description: 'Open-source AI agent orchestration for 3D animation and rendering. 14 NOOA agents, local LLM, multi-engine support.',
   icons: { icon: '/DeepBl4nder/favicon.svg' },
   openGraph: {
     title: 'DeepBl4nder - AI-Powered 3D Production',

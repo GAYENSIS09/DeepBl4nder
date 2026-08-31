@@ -5,10 +5,16 @@
 #   docker run --rm --gpus all -p 8080:8080 -v ./models:/models deepbl4nder-llm:latest
 #
 # This serves Qwen3 models via llama-cpp-python with GPU acceleration.
+# Models are downloaded automatically at first startup.
 
-FROM nvidia/cuda:12.4.1-devel-ubuntu22.04 AS base
+# ── Stage 1: builder — compile llama-cpp-python ──────────────────────
+FROM nvidia/cuda:12.4.1-devel-ubuntu22.04 AS builder
 
-# Install Python 3.12 from deadsnakes PPA
+ENV DEBIAN_FRONTEND=noninteractive \
+    TZ=Etc/UTC
+
+RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
+
 RUN apt-get update && apt-get install -y --no-install-recommends \
     software-properties-common \
     && add-apt-repository -y ppa:deadsnakes/ppa \
@@ -17,23 +23,58 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     python3.12 \
     python3.12-venv \
     python3-pip \
+    build-essential \
+    cmake \
     git \
-    curl \
     ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
-# Create virtual environment
 RUN python3.12 -m venv /opt/venv
 ENV PATH="/opt/venv/bin:$PATH"
 
-# Install llama-cpp-python with CUDA support
-RUN pip install --no-cache-dir \
+ENV CMAKE_ARGS="-DGGML_CUDA=on" \
+    FORCE_CMAKE=1
+
+RUN --mount=type=cache,target=/root/.cache/pip \
+    pip install --no-cache-dir \
     llama-cpp-python[server] \
     huggingface-hub \
     uvicorn
 
+# ── Stage 2: runtime — slim image with only what we need ────────────
+FROM nvidia/cuda:12.4.1-runtime-ubuntu22.04 AS runtime
+
+ENV DEBIAN_FRONTEND=noninteractive \
+    TZ=Etc/UTC
+
+RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
+
+# Install prerequisites, then add PPA, then install Python 3.12
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends \
+       gnupg \
+       software-properties-common \
+       bash \
+    && add-apt-repository -y ppa:deadsnakes/ppa \
+    && apt-get update \
+    && apt-get install -y --no-install-recommends \
+       python3.12 \
+       python3.12-venv \
+       curl \
+       ca-certificates \
+       libgomp1 \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy virtual environment from builder
+COPY --from=builder /opt/venv /opt/venv
+ENV PATH="/opt/venv/bin:$PATH"
+
 # Models directory
 RUN mkdir -p /models
+
+# Entrypoint script
+COPY scripts/llm-entrypoint.sh /usr/local/bin/llm-entrypoint.sh
+RUN chmod +x /usr/local/bin/llm-entrypoint.sh
 
 # Non-root user
 RUN groupadd -r llm && useradd -r -g llm -d /app -s /sbin/nologin llm \
@@ -44,17 +85,13 @@ WORKDIR /app
 
 ENV PYTHONUNBUFFERED=1 \
     NVIDIA_VISIBLE_DEVICES=all \
-    NVIDIA_DRIVER_CAPABILITIES=compute,utility
+    NVIDIA_DRIVER_CAPABILITIES=compute,utility \
+    DeepBl4nder_MODELS_DIR=/models \
+    DeepBl4nder_MODEL=qwen3-8b
 
 EXPOSE 8080
 
-HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
+HEALTHCHECK --interval=30s --timeout=10s --start-period=180s --retries=3 \
     CMD curl -f http://localhost:8080/v1/models || exit 1
 
-CMD ["python3.12", "-m", "llama_cpp.server", \
-     "--model", "/models/qwen3-8b-q4_k_m.gguf", \
-     "--host", "0.0.0.0", \
-     "--port", "8080", \
-     "--n_ctx", "32768", \
-     "--n_gpu_layers", "-1", \
-     "--chat_format", "chatml"]
+ENTRYPOINT ["/usr/local/bin/llm-entrypoint.sh"]

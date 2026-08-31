@@ -39,14 +39,16 @@ RUN curl -fsSL --retry 3 --retry-delay 5 --connect-timeout 30 "$BLENDER_URL" -o 
     && ln -s /opt/blender/blender /usr/local/bin/blender \
     && rm /tmp/blender.tar.xz
 
-# Verify Blender
-RUN blender --version
-
-# Python dependencies
+# Python dependencies — copy only dependency files first for layer caching
 WORKDIR /app
 COPY pyproject.toml README.md ./
+RUN --mount=type=cache,target=/root/.cache/pip \
+    pip install --no-cache-dir --no-deps . || true
+
+# Now copy full source and install properly
 COPY DeepBl4nder/ DeepBl4nder/
-RUN pip install --no-cache-dir ".[tui]"
+RUN --mount=type=cache,target=/root/.cache/pip \
+    pip install --no-cache-dir ".[tui]"
 
 # Create directories
 RUN mkdir -p /work /projects /output /data /models

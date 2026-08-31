@@ -25,6 +25,22 @@ output/
 # Models (mounted as volume, not copied)
 models/*.gguf
 
+# Documentation (not needed in build context)
+docs/
+docs-site/
+
+# Tests (not needed in production images)
+tests/
+
+# Scripts (except entrypoints needed by Docker)
+scripts/deploy.sh
+scripts/setup.sh
+scripts/backup.sh
+scripts/health-check.sh
+
+# Production config
+production/
+
 # IDE
 .idea/
 .vscode/
@@ -34,3 +50,7 @@ models/*.gguf
 # OS
 .DS_Store
 Thumbs.db
+
+# Docker files (avoid recursive context)
+Dockerfile*
+docker-compose*.yml

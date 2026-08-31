@@ -40,41 +40,31 @@ class LocalModel:
 # ── Registre des modèles supportés ──────────────────────────────────────
 
 MODELS: dict[str, LocalModel] = {
-    "qwen3-1.5b": LocalModel(
-        id="qwen3-1.5b",
-        gguf_filename="qwen3-1.5b-q4_k_m.gguf",
-        category=ModelCategory.FAST,
-        vram_gb=1.5,
-        context_window=32_768,
-        description="Ultra-rapide : routing, classification, validation",
-        huggingface_repo="Qwen/Qwen3-1.5B-GGUF",
-        huggingface_file="qwen3-1.5b-q4_k_m.gguf",
-    ),
     "qwen3-4b": LocalModel(
         id="qwen3-4b",
-        gguf_filename="qwen3-4b-q4_k_m.gguf",
+        gguf_filename="Qwen3-4B-Q4_K_M.gguf",
         category=ModelCategory.GENERAL,
         vram_gb=3.0,
         context_window=32_768,
         description="Chat général, summarization, traduction",
         huggingface_repo="Qwen/Qwen3-4B-GGUF",
-        huggingface_file="qwen3-4b-q4_k_m.gguf",
+        huggingface_file="Qwen3-4B-Q4_K_M.gguf",
     ),
     "qwen3-8b": LocalModel(
         id="qwen3-8b",
-        gguf_filename="qwen3-8b-q4_k_m.gguf",
+        gguf_filename="Qwen3-8B-Q4_K_M.gguf",
         category=ModelCategory.CODING,
         vram_gb=5.5,
         context_window=32_768,
         description="Code generation, reasoning complexe",
         huggingface_repo="Qwen/Qwen3-8B-GGUF",
-        huggingface_file="qwen3-8b-q4_k_m.gguf",
+        huggingface_file="Qwen3-8B-Q4_K_M.gguf",
     ),
 }
 
 # Alias pour les catégories → modèles recommandés
 CATEGORY_DEFAULTS: dict[ModelCategory, list[str]] = {
-    ModelCategory.FAST: ["qwen3-1.5b", "qwen3-4b"],
+    ModelCategory.FAST: ["qwen3-4b"],
     ModelCategory.GENERAL: ["qwen3-4b", "qwen3-8b"],
     ModelCategory.CODING: ["qwen3-8b", "qwen3-4b"],
     ModelCategory.REASONING: ["qwen3-8b", "qwen3-4b"],
