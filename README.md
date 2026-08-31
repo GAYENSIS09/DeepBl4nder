@@ -103,6 +103,30 @@ DeepBl4nder runs Qwen3 models locally through llama-cpp-python. The CascadeRoute
 
 This approach means your production costs are zero beyond the initial hardware investment. There are no API rate limits, no monthly subscriptions, and no data leaving your machine.
 
+## Known Issues
+
+> **⚠️ À corriger au prochain sprint libre.** Ces problèmes ont été identifiés lors des tests du pipeline local sur GPU de laptop (8 GB) et sont documentés ici pour traçabilité.
+
+### 1. `500 Internal Server Error` / crash du serveur LLM lors de l'inférence
+
+- **Symptôme** : Le serveur démarre correctement (`GET /v1/models` → 200), mais renvoie `500 Internal Server Error` dès le premier `POST /v1/chat/completions`.
+- **Cause probable** : **OOM GPU.** Le context window est configuré à `32768` tokens dans `model_registry.py`, ce qui génère un KV cache trop volumineux pour un GPU de laptop (8 GB). Les poids du modèle (~3-5.5 GB) + un KV cache de 32K context dépassent la VRAM disponible.
+- **Piste de correction** :
+  - Réduire `context_window` à `4096`–`8192` (via `DeepBl4nder_N_CTX`).
+  - Vérifier le VRAM libre avec `nvidia-smi` avant de lancer.
+  - Réduire `max_tokens` (ex. `context_window // 2`).
+
+### 2. `TypeError: object of type 'NoneType' has no len()`
+
+- **Symptôme** : Erreur Python au tout premier appel LLM du `StoryAgent`.
+- **Cause probable** : Le framework NOOA peut renvoyer `messages=None` à `LLMClient.acall()` (le render du contexte échoue silencieusement), et `interface.py` ne fait aucun garde-fou avant `len(messages)`.
+- **Piste de correction** : Ajouter un garde-fou en tête de `LLMClient.acall()` (ex. `if not messages: messages = [{"role": "user", "content": ""}]`).
+
+### 3. `Method Not Allowed` sur `/v1/chat/completions`
+
+- **Symptôme** : En ouvrant `http://127.0.0.1:8080/v1/chat/completions` dans le navigateur, une erreur `{"detail": "Method Not Allowed"}` apparaît.
+- **Cause** : **Comportement normal.** Le navigateur envoie un `GET`, mais l'endpoint n'accepte que `POST`. Ce n'est pas un bug du serveur — le client (`client.py`) utilise bien `POST`.
+
 ## Multi-Engine Support
 
 The system supports four rendering targets, each behind a clean bridge interface:
