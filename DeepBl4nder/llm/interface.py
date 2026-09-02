@@ -67,6 +67,9 @@ class LLMClient:
         3. Appelle le serveur
         4. Escalade en cas d'échec
         """
+        if not messages:
+            messages = [{"role": "user", "content": ""}]
+
         # Extraire le texte de la dernière tâche
         task_text = ""
         if messages:
