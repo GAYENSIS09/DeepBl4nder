@@ -426,6 +426,9 @@ class LLMRouter:
         **kwargs: Any,
     ) -> Any:
         """Appel asynchrone : fallback séquentiel ou vote selon le mode."""
+        if not messages:
+            logger.warning("LLM : messages vide/indéfini → payload de secours")
+            messages = [{"role": "user", "content": ""}]
         now = self._clock()
         voters = [p for p in self._providers if not self._provider_is_cooling(p, now)]
         logger.debug(

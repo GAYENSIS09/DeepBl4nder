@@ -545,6 +545,42 @@ def test_router_acall_vote_async(monkeypatch: pytest.MonkeyPatch) -> None:
     assert result["model"] == "groq/openai/gpt-oss-120b"
 
 
+def test_router_acall_guards_None_or_empty_messages(monkeypatch: pytest.MonkeyPatch) -> None:
+    _clear_llm_env(monkeypatch)
+    monkeypatch.setenv("GEMINI_API_KEY", "k1")
+    monkeypatch.setenv("GROQ_API_KEY", "k2")
+
+    class _CaptureClient:
+        def __init__(self, model: str, answer: str | None = None) -> None:
+            self.model = model
+            self.answer = answer
+            self.seen: list[list[dict] | None] = []
+
+        def call(self, messages, tools=None, output_model=None, **kwargs: object):
+            self.seen.append(messages)
+            return {"model": self.answer or self.model}
+
+        async def acall(self, messages, tools=None, output_model=None, **kwargs: object):
+            self.seen.append(messages)
+            return {"model": self.answer or self.model}
+
+    captured: list[_CaptureClient] = []
+
+    def factory(model: str, **kw: object) -> _CaptureClient:
+        client = _CaptureClient(model)
+        captured.append(client)
+        return client
+
+    router = llm.LLMRouter(client_factory=factory)
+    result = asyncio.run(router.acall(None))
+    assert result["model"]
+    assert captured and captured[0].seen[0] == [{"role": "user", "content": ""}]
+
+    result2 = asyncio.run(router.acall([]))
+    assert result2["model"]
+    assert captured[0].seen[-1] == [{"role": "user", "content": ""}]
+
+
 def test_router_stats_shape(monkeypatch: pytest.MonkeyPatch) -> None:
     _clear_llm_env(monkeypatch)
     monkeypatch.setenv("GEMINI_API_KEY", "k1")
