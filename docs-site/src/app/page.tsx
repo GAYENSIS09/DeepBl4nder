@@ -35,7 +35,7 @@ export default function Home() {
 
           <p className="text-lg md:text-xl text-db-muted max-w-2xl mx-auto mb-10 leading-relaxed">
             14 specialized AI agents collaborate to transform text into 3D scenes.
-            Local LLM, multi-engine support, zero API keys.
+            Cloud LLM routing across 5 providers. Blender-first rendering.
           </p>
 
           <div className="flex flex-col sm:flex-row justify-center gap-4">
@@ -72,10 +72,10 @@ export default function Home() {
             <div className="w-12 h-12 bg-db-accent/10 rounded-xl flex items-center justify-center mb-4 group-hover:bg-db-accent/20 transition">
               <Brain className="w-6 h-6 text-db-accent" />
             </div>
-            <h3 className="text-lg font-semibold text-db-text mb-2">Local LLM Cascade</h3>
+            <h3 className="text-lg font-semibold text-db-text mb-2">Cloud LLM Router</h3>
             <p className="text-sm text-db-muted leading-relaxed">
-              Qwen3-1.5B/4B/8B via llama-cpp-python. Heuristic classification routes
-              tasks to the optimal model. Auto-escalation on failure.
+              litellm multi-provider routing across Gemini, Groq, NVIDIA, OpenRouter,
+              and Cloudflare. Automatic failover and health tracking.
             </p>
           </div>
 
@@ -118,7 +118,7 @@ export default function Home() {
             <div className="w-12 h-12 bg-db-accent/10 rounded-xl flex items-center justify-center mb-4 group-hover:bg-db-accent/20 transition">
               <Puzzle className="w-6 h-6 text-db-accent" />
             </div>
-            <h3 className="text-lg font-semibold text-db-text mb-2">36+ Skills</h3>
+            <h3 className="text-lg font-semibold text-db-text mb-2">32 Skills</h3>
             <p className="text-sm text-db-muted leading-relaxed">
               Embedded skills for 3D, narrative, audio, QA, and more.
               Progressive disclosure loads only what's needed.
@@ -138,10 +138,7 @@ export default function Home() {
 <span className="text-db-accent">git clone</span> https://github.com/GAYENSIS09/DeepBl4nder.git{'\n'}
 <span className="text-db-accent">cd</span> DeepBl4nder{'\n'}
 <span className="text-db-accent">pip install</span> -e <span className="text-db-muted">".[tui]"</span>{'\n\n'}
-<span className="text-db-dim"># Download models (~10GB)</span>{'\n'}
-<span className="text-db-accent">python -m</span> DeepBl4nder.llm.download --all{'\n\n'}
-<span className="text-db-dim"># Start services</span>{'\n'}
-<span className="text-db-accent">docker compose</span> up -d{'\n\n'}
+<span className="text-db-dim"># Configure at least one LLM provider key in .env</span>{'\n\n'}
 <span className="text-db-dim"># Launch TUI</span>{'\n'}
 <span className="text-db-accent">DeepBl4nder</span> tui</code></pre>
         </div>
@@ -158,8 +155,8 @@ export default function Home() {
           {[
             { label: 'UI Layer', desc: 'TUI + CLI', icon: Terminal, color: '#AAFF00' },
             { label: 'Agent Layer', desc: '14 NOOA Agents', icon: Bot, color: '#88CC00' },
-            { label: 'LLM Layer', desc: 'Cascade Routing', icon: Brain, color: '#E6C229' },
-            { label: 'Worker Layer', desc: 'Docker + GPU', icon: Cpu, color: '#56B6C2' },
+            { label: 'LLM Layer', desc: 'Cloud Router', icon: Brain, color: '#E6C229' },
+            { label: 'Worker Layer', desc: 'Blender + GPU', icon: Cpu, color: '#56B6C2' },
           ].map((layer) => {
             const Icon = layer.icon
             return (
@@ -178,11 +175,11 @@ export default function Home() {
         <div className="grid grid-cols-2 md:grid-cols-6 gap-6">
           {[
             { value: '14', label: 'AI Agents' },
-            { value: '36+', label: 'Skills' },
-            { value: '3', label: 'Local Models' },
-            { value: '4', label: 'Engines' },
+            { value: '32', label: 'Skills' },
+            { value: '5', label: 'LLM Providers' },
+            { value: '1', label: 'Engine (Blender)' },
             { value: '10', label: 'Plugins' },
-            { value: '0', label: 'API Keys' },
+            { value: '5', label: 'API Keys' },
           ].map((stat) => (
             <div key={stat.label} className="text-center">
               <div className="text-3xl font-bold gradient-text mb-1">{stat.value}</div>

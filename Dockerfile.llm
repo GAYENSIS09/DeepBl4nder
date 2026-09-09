@@ -8,7 +8,7 @@
 # Models are downloaded automatically at first startup.
 
 # ── Stage 1: builder — compile llama-cpp-python ──────────────────────
-FROM nvidia/cuda:12.4.1-devel-ubuntu22.04 AS builder
+FROM nvidia/cuda:12.9.2-devel-ubuntu22.04 AS builder
 
 ENV DEBIAN_FRONTEND=noninteractive \
     TZ=Etc/UTC
@@ -42,7 +42,7 @@ RUN --mount=type=cache,target=/root/.cache/pip \
     uvicorn
 
 # ── Stage 2: runtime — slim image with only what we need ────────────
-FROM nvidia/cuda:12.4.1-runtime-ubuntu22.04 AS runtime
+FROM nvidia/cuda:12.9.2-runtime-ubuntu22.04 AS runtime
 
 ENV DEBIAN_FRONTEND=noninteractive \
     TZ=Etc/UTC

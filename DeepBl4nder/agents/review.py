@@ -18,7 +18,7 @@ from DeepBl4nder.domain.scene import SceneSpec, RenderOutput
 from DeepBl4nder.skills.registry import SkillRegistry
 
 
-def _review_postcondition(agent: Any, result: Any, call: Any) -> None:
+def _review_postcondition(_agent: BaseAgent | None, result: Any, call: Any) -> None:
     if not isinstance(result, ReviewReport):
         return
     if not hasattr(result, "score"):

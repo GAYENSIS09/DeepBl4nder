@@ -33,7 +33,7 @@ const NAV = [
   { href: '/docs/llm-system', label: 'LLM System', icon: Brain, group: 'Core' },
   { href: '/docs/context', label: 'Context Management', icon: Database, group: 'Advanced' },
   { href: '/docs/knowledge-graph', label: 'Knowledge Graph', icon: Network, group: 'Advanced' },
-  { href: '/docs/skills', label: 'Skills (36+)', icon: Puzzle, group: 'Advanced' },
+  { href: '/docs/skills', label: 'Skills (32)', icon: Puzzle, group: 'Advanced' },
   { href: '/docs/bridges', label: 'Bridges & Engines', icon: Cpu, group: 'Advanced' },
   { href: '/docs/codegen', label: 'CodeGen', icon: FileCode, group: 'Advanced' },
   { href: '/docs/plugins', label: 'Plugins', icon: BoxIcon, group: 'Advanced' },

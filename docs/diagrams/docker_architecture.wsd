@@ -23,56 +23,40 @@ node "Host Machine" {
     }
 }
 
-package "Core Services (Always)" {
-    [llm-server:8080\nllama.cpp + Qwen3-8B\nGPU: NVIDIA] as LLM
+package "Services" {
+    [llm-server:8080\nOPTIONNEL — llama.cpp + Qwen3\nLocal (inférence locale)] as LLM
     [blender-worker\nBlender 4.1 + FFmpeg\nGPU: NVIDIA] as Blender
-}
-
-package "Optional Profiles" {
-    [ue5-server:8081\nUnreal Engine 5\nLumen + Nanite + MRQ] as UE5
-    [godot-server:8082\nGodot 4\nGDScript + WebGL] as Godot
-    [ai-video-server:8083\nCogVideoX / SVD\nGPU] as AIVid
+    [tui (profil tui)\nInterface Textual] as TUI
 }
 
 package "Host Volumes" {
-    [./models → /models\nQwen3 GGUF] as VolModels
+    [./models → /models\nGGUF (locale optionnelle)] as VolModels
     [./work → /work\nScripts Blender] as VolWork
     [./projects → /projects\nProjets] as VolProjects
     [./output → /output\nRendus finaux] as VolOutput
-    [ai-video-cache\nCache AI Video] as VolCache
 }
 
 ' Connections
 Compose --> LLM
 Compose --> Blender
-Compose -.-> UE5 : --profile ue5
-Compose -.-> Godot : --profile godot
-Compose -.-> AIVid : --profile ai-video
+Compose --> TUI
 
 LLM --> VolModels : Read GGUF
 Blender --> VolWork : Scripts
 Blender --> VolProjects : Assets
 Blender --> VolOutput : Renders
-AIVid --> VolCache : Cache
 
 ' Network
-LLM ..> Blender : HTTP :8080 (llm-server)
-UE5 ..> LLM : HTTP :8080
-Godot ..> LLM : HTTP :8080
-AIVid ..> LLM : HTTP :8080
+LLM ..> Blender : HTTP :8080 (llm-server local)
 
 ' TUI
-[DeepBl4nder TUI\n(Localhost)] as TUI
-TUI --> LLM : HTTP localhost:8080
+TUI --> LLM : HTTP localhost:8080 (si llm-server)
 
 legend right
     | Service | Port | GPU | Profile |
-    | llm-server | 8080 | Oui | Core |
+    | llm-server (optionnel) | 8080 | Oui | Core |
     | blender-worker | — | Oui | Core |
-    | ue5-server | 8081 | Oui | ue5 |
-    | godot-server | 8082 | Oui | godot |
-    | ai-video-server | 8083 | Oui | ai-video |
-    | TUI | Local | Non | — |
+    | TUI | Local | Non | tui |
 endlegend
 
 @enduml

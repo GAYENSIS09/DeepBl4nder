@@ -43,7 +43,6 @@ echo "  3. Open: http://localhost:3000 (frontend)"
 echo "  4. API: http://localhost:8000/docs"
 echo ""
 echo "Optional services:"
-echo "  - UE5: docker compose --profile ue5 up -d"
 echo "  - Langfuse: http://localhost:3002"
 echo "  - MinIO: http://localhost:9001"
 

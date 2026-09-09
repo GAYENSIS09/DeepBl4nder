@@ -745,11 +745,15 @@ def test_fallback_mode_moves_to_next_provider_on_failure(
 # ------------------------------------------------- correctifs audit 2026-08
 
 
-def test_nvidia_default_model_is_live_llama() -> None:
-    """deepseek-r1 est décommissionné chez NVIDIA (404 en direct) ; le modèle
-    par défaut du pool doit être llama-3.3-70b, vérifié actif."""
-    assert llm.PROVIDERS["nvidia"].default_model() == "nvidia_nim/meta/llama-3.3-70b-instruct"
-    assert all("deepseek" not in m for m in llm.PROVIDERS["nvidia"].models)
+def test_nvidia_default_model_is_live_nemotron() -> None:
+    """llama-3.3-70b et deepseek-r1 sont décommissionnés (404/410 vérifiés) ;
+    le modèle par défaut doit être le nemotron actuel route OpenAI-compatible."""
+    assert (
+        llm.PROVIDERS["nvidia"].default_model()
+        == "openai/nvidia/nemotron-3.5-lightning-30b-a3b"
+    )
+    assert "deepseek-r1" not in " ".join(llm.PROVIDERS["nvidia"].models)
+    assert llm.PROVIDERS["nvidia"].api_base() == "https://integrate.api.nvidia.com/v1"
 
 
 @pytest.mark.parametrize(
@@ -912,15 +916,27 @@ def test_select_models_prefers_newest_within_same_tier() -> None:
     assert llm.select_models(raw, rule)[0] == "gemini-3.6-flash"
 
 
-def test_nvidia_rules_drop_dead_deepseek_route() -> None:
+def test_nvidia_rules_keep_current_catalog() -> None:
+    """/v1/models surnaturellement liste la flotte ancienne + actuelle ; les
+    règles ne doivent garder que les modèles servis en 2026."""
     rule = llm.MODEL_SELECTION_RULES["nvidia"]
     raw = [
         "deepseek-ai/deepseek-r1",
-        "meta/llama-3.3-70b-instruct",
         "meta/llama-3.1-405b-instruct",
+        "meta/llama-3.3-70b-instruct",
+        "01-ai/yi-large",
         "nvidia/nv-embedqa-e5-v5",
+        "nvidia/nemotron-3.5-content-safety",
+        "nvidia/nemotron-3-ultra-550b-a55b",
+        "nvidia/nemotron-3.5-lightning-30b-a3b",
+        "moonshotai/kimi-k3",
+        "deepseek-ai/deepseek-v4-pro-0813",
     ]
-    assert llm.select_models(raw, rule) == ("meta/llama-3.3-70b-instruct",)
+    assert llm.select_models(raw, rule) == (
+        "nvidia/nemotron-3.5-lightning-30b-a3b",
+        "nvidia/nemotron-3-ultra-550b-a55b",
+        "moonshotai/kimi-k3",
+    )
 
 
 def test_discover_models_parses_openai_payload(
@@ -1030,9 +1046,9 @@ def test_compose_litellm_ids_prefixes_native_ids() -> None:
     provider = llm.PROVIDERS["nvidia"]
     rule = llm.selection_rule_for("nvidia")
     composed = llm.compose_litellm_ids(
-        provider, ("meta/llama-3.3-70b-instruct",), rule
+        provider, ("nvidia/nemotron-3.5-lightning-30b-a3b",), rule
     )
-    assert composed == ("nvidia_nim/meta/llama-3.3-70b-instruct",)
+    assert composed == ("openai/nvidia/nemotron-3.5-lightning-30b-a3b",)
 
 
 def test_router_falls_back_to_static_when_discovery_fails(

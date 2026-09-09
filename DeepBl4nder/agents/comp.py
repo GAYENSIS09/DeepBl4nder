@@ -19,7 +19,7 @@ from DeepBl4nder.domain.scene import SceneSpec
 from DeepBl4nder.skills.registry import SkillRegistry
 
 
-def _compositing_postcondition(agent: Any, result: Any, call: Any) -> None:
+def _compositing_postcondition(_agent: BaseAgent | None, result: Any, call: Any) -> None:
     if not isinstance(result, CompositeSpec):
         return
     if not result.passes:

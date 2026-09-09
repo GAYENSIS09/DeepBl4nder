@@ -44,7 +44,7 @@ But the TUI is not a throwback to the 1980s. It is built on Textual, a modern Py
 
 The decision to favor terminal over web was driven by three practical observations about DeepBl4nder's use cases.
 
-**First, DeepBl4nder runs locally.** The LLM server runs on the user's machine (or in Docker on the user's machine). The Blender worker runs locally. The production data lives on local disk. A web interface would add a network hop between the user and the system they are controlling — a hop that provides no benefit and introduces latency, complexity, and a failure mode (the web server process) that does not exist in the terminal approach.
+**First, DeepBl4nder's pipeline runs locally.** The Blender worker runs locally. The production data lives on local disk. Agent reasoning is handled by a cloud LLM router configured by API keys, so no local model server is required. A web interface would add a network hop between the user and the system they are controlling — a hop that provides no benefit and introduces latency, complexity, and a failure mode (the web server process) that does not exist in the terminal approach.
 
 **Second, DeepBl4nder targets developers and technical artists.** These users already live in the terminal. They use command-line tools daily, they are comfortable with keyboard-driven interfaces, and they value speed over visual polish. A terminal interface meets these users where they are, rather than forcing them to open a browser and navigate to localhost:3000.
 
@@ -138,7 +138,7 @@ The EventBridge translates NOOA's event types into a normalized format that the 
 
 **turn_start** and **turn_end** indicate when an agent begins and finishes an LLM generation turn. These events include the turn number, method name, and strategy — giving the operator visibility into the agent's reasoning process.
 
-**llm_complete** is the most information-rich event. It includes the model used, token counts, cost, and the real provider and model from the LLM router. This event is what drives the agent stream's display of "DirectorAgent -> qwen3-8b ($0.0042, 1,247 tokens)."
+**llm_complete** is the most information-rich event. It includes the model used, token counts, cost, and the real provider and model from the cloud LLM router. This event is what drives the agent stream's display of "DirectorAgent -> gemini/gemini-3.6-flash ($0.0042, 1,247 tokens)."
 
 **reasoning** captures the agent's chain-of-thought reasoning. This is the internal monologue that the agent produces before taking action — and it is displayed in the agent stream so the operator can understand why the agent is making specific decisions.
 
@@ -147,6 +147,16 @@ The EventBridge translates NOOA's event types into a normalized format that the 
 **python_output** captures stdout and stderr from executed Python scripts. This is essential for debugging — when a Blender script fails, the error output appears in the agent stream immediately.
 
 **budget_alert** fires when the production exceeds its budget limit. The alert includes the budget, total cost, and overshoot amount, and it triggers an automatic production stop.
+
+**agent_call_start** and **agent_call_end** frame the agent harness itself — the start and end of a full method invocation (coarser than turns). They carry the method name, whether it is an LLM method or a pure-Python method, nesting information (\`top_level\`/\`parent_call_id\`), and the final status (\`done\` or \`failed\` with the exception type). This is where an operator sees the global lifecycle of the 14-agent harness, not just individual turns.
+
+**context_compacted** makes context management observable. When NOOA's context manager summarizes or collapses old events (the \`Summary\` event), the TUI shows which event range was compacted and — on summarized ranges — the generated summary text (full text via the detail view). Operators see exactly when and how the context window is being compressed.
+
+**tool_result** surfaces the returned value of an executed tool call (the \`value\` of a \`PythonOutput\`), complementing stdout/stderr — so both what a tool printed and what it returned are visible.
+
+### Live LLM Metrics
+
+The side panel includes a **LLM metrics** section refreshed every two seconds from the in-process metrics sink (\`DeepBl4nder/llm/metrics.py\`). It shows cumulative calls, total cost, total tokens, average/p50/p95 latency, and the top agents by call volume — a live financial and performance dashboard for the whole pipeline. The same spans are persisted to \`<data>/logs/llm_spans.jsonl\`, so cost and latency can be audited after the run without leaving the terminal.
 
 ### The Ring Buffer
 
@@ -210,7 +220,7 @@ pip install -e ".[tui]"
 DeepBl4nder tui
 \`\`\`
 
-The TUI requires a terminal with 256 color support and a minimum size of 80x24 characters. Most modern terminal emulators meet these requirements. The TUI also requires the LLM models to be downloaded — the \`_tui_preflight()\` function checks for model availability at startup and warns if models are missing.
+The TUI requires a terminal with 256 color support and a minimum size of 80x24 characters. Most modern terminal emulators meet these requirements. The TUI also requires at least one cloud LLM provider API key to be configured (Gemini, Groq, NVIDIA, OpenRouter, or Cloudflare) — the \`_tui_preflight()\` function checks the LLM router's configured providers at startup and warns if no cloud LLM API key is available.
 `
 
 export default function TUIPage() {

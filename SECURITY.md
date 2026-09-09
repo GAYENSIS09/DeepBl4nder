@@ -32,4 +32,4 @@ Please include the following information in your report:
 This security policy applies to the code in this repository. It does not cover:
 - Third-party dependencies (report upstream)
 - Deployed instances managed by users
-- The Blender or Unreal Engine software itself
+- The Blender software itself

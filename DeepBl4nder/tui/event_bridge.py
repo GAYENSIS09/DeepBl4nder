@@ -23,6 +23,9 @@ from dataclasses import dataclass, field
 from functools import partial
 from typing import Any, Callable
 
+from DeepBl4nder.agents.base import BaseAgent
+from DeepBl4nder.llm.metrics import get_metrics
+
 _PY_CAP = 4000  # Cap per-line payloads to keep the log responsive.
 _DATA_CAP = 1200
 
@@ -64,7 +67,7 @@ def _g(event: Any, name: str, default: Any = "") -> Any:
     return default if value is None else value
 
 
-def _real_last_call(agent: Any) -> dict[str, str]:
+def _real_last_call(agent: BaseAgent) -> dict[str, str]:
     """Vainqueur réel du dernier appel LLM d'un agent (rotation).
 
     Lit ``_get_last_call_info`` de l'agent (``last_provider_id`` /
@@ -120,7 +123,7 @@ class EventBroker:
 
 def attach_agent_bridge(
     *,
-    agent: Any,
+    agent: BaseAgent,
     actor: str,
     broker: EventBroker,
     production_id: Callable[[], str | None],
@@ -135,6 +138,9 @@ def attach_agent_bridge(
         return
 
     now = time.time
+    # Start wall-clock of the current in-flight call, keyed by actor, used to
+    # compute per-call latency for the live metrics sink.
+    _call_started: dict[str, float] = {}
 
     def emit(kind: str, content: str, meta: dict[str, Any] | None = None) -> None:
         broker.publish(
@@ -210,6 +216,22 @@ def attach_agent_bridge(
                  {"chars": len(dynamic), "model": real_model, "_full": dynamic})
         emit("llm_complete", summary, meta)
 
+        # Live + persistent metrics sink (best-effort, never raises).
+        started = _call_started.pop(actor, None)
+        latency_ms = (time.perf_counter() - started) * 1000.0 if started else 0.0
+        get_metrics().record(
+            agent=actor,
+            step=str(_g(event, "method_name") or ""),
+            model=real_model,
+            provider=real.get("provider") or "",
+            input_tokens=int(_g(event, "prompt_tokens", 0) or 0),
+            output_tokens=int(_g(event, "completion_tokens", 0) or 0),
+            cost_usd=float(cost or 0.0),
+            latency_ms=latency_ms,
+            success=bool(_g(event, "success", True)),
+            cache_hit=int(_g(event, "cached_tokens", 0) or 0) > 0,
+        )
+
     def on_python(event: Any) -> None:
         stdout, stderr = _g(event, "stdout"), _g(event, "stderr")
         if stdout:
@@ -221,6 +243,47 @@ def attach_agent_bridge(
         error = _g(event, "error")
         if error:
             emit("error", f"execution error: {_snip(error, 600)}", {"channel": "exec", "_full": error})
+        value = _g(event, "value", None)
+        if value is not None:
+            emit("tool_result", f"returned: {_snip(str(value), 400)}",
+                 {"channel": "value", "_full": str(value)})
+
+    def on_agent_call(event: Any, *, start: bool) -> None:
+        method = str(_g(event, "method_name") or "")
+        needs_gen = bool(_g(event, "needs_generation"))
+        top_level = bool(_g(event, "is_top_level"))
+        meta: dict[str, Any] = {
+            "method": method,
+            "needs_generation": needs_gen,
+            "top_level": top_level,
+            "call_id": _g(event, "call_id", ""),
+            "parent_call_id": _g(event, "parent_call_id", ""),
+        }
+        tag = "LLM method" if needs_gen else "python method"
+        if not top_level:
+            tag += " (nested)"
+        if start:
+            emit("agent_call_start", f"agent call started - {method} ({tag})", meta)
+        else:
+            status = (
+                f"failed ({event.exception_type})" if event.success is False else "done"
+            )
+            emit("agent_call_end", f"agent call finished ({status}) - {method}",
+                 {**meta, "success": bool(event.success)})
+
+    def on_summary(event: Any) -> None:
+        """Compaction/summarisation du contexte par le contexte manager."""
+        replaced = _g(event, "replaced_range", (0, 0)) or (0, 0)
+        start, end = (replaced[0], replaced[1]) if isinstance(replaced, (tuple, list)) else (0, 0)
+        summary_text = _g(event, "summary_text") or ""
+        meta: dict[str, Any] = {
+            "events": f"{start}..{end}",
+            "collapsed": not bool(summary_text),
+            "summary_text": summary_text,
+            "_full": summary_text,
+        }
+        verb = "summarized" if summary_text else "collapsed"
+        emit("context_compacted", f"context {verb}: events {start}..{end}", meta)
 
     last_sys_hash = ""
 
@@ -248,6 +311,12 @@ def attach_agent_bridge(
              {"chars": len(content), "route": _g(event, "route", ""),
               "consecutive": consecutive, "_full": content})
 
+    def on_call_start(event: Any) -> None:
+        _call_started[actor] = time.perf_counter()
+        emit(
+            "call_start", f"waiting on model - {event.method_name} (turn {event.turn_number})",
+            {"turn": event.turn_number, "method": event.method_name})
+
     def on_call_end(event: Any) -> None:
         ok = "ok" if event.success else f"error: {event.exception_type}"
         emit("call_end", f"model replied ({ok})", {"success": event.success})
@@ -263,12 +332,18 @@ def attach_agent_bridge(
         "Feedback": lambda e: emit("feedback", _snip(_g(e, "content"), _DATA_CAP)),
         "Message": lambda e: emit("message", _snip(_g(e, "content"), _DATA_CAP)),
         "Task": lambda e: emit("task", _snip(_g(e, "prompt"), _DATA_CAP)),
-        "LLMCallStart": lambda e: emit(
-            "call_start", f"waiting on model - {e.method_name} (turn {e.turn_number})",
-            {"turn": e.turn_number, "method": e.method_name}),
+        "LLMCallStart": on_call_start,
         "LLMCallEnd": on_call_end,
         "SystemPrompt": on_system_prompt,
         "TextOnlyReply": on_text_reply,
+        # Harness global des agents : ouverture/fermeture d'un appel de méthode
+        # (périmètre coarser que les tours — un appel = une méthode complète,
+        # avec sa graine LLM ou pure-Python, son imbrication et son issue).
+        "BeforeAgentCall": partial(on_agent_call, start=True),
+        "AfterAgentCall": partial(on_agent_call, start=False),
+        # Gestion des contextes : compaction/sumarisation du contexte par le
+        # contexte manager (Summary de NOOA) - visible pour l'opérateur.
+        "Summary": on_summary,
     }
 
     for event_type, handler in _HANDLERS.items():

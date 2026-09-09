@@ -18,7 +18,7 @@ from DeepBl4nder.domain.scene import SceneSpec
 from DeepBl4nder.skills.registry import SkillRegistry
 
 
-def _music_postcondition(agent: Any, result: Any, call: Any) -> None:
+def _music_postcondition(_agent: BaseAgent | None, result: Any, call: Any) -> None:
     if not isinstance(result, MusicPlan):
         return
     if not result.cues:

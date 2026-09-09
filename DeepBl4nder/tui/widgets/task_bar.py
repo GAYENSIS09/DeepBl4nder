@@ -10,9 +10,6 @@ from textual.widgets import Button, Label, TextArea
 
 ENGINE_OPTIONS = [
     ("Blender", "blender"),
-    ("Unreal Engine 5", "ue5"),
-    ("Godot", "godot"),
-    ("AI Video", "ai_video"),
 ]
 
 

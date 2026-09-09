@@ -236,9 +236,6 @@ class EmbeddedAPI:
             raise
 
         agents = dict(zip(_AGENT_RUNNER_KEYS, built, strict=True))
-        ue5 = self._try_build_ue5()
-        if ue5 is not None:
-            agents["ue5"] = ue5
 
         for slug, agent in agents.items():
             attach_agent_bridge(
@@ -267,16 +264,6 @@ class EmbeddedAPI:
         self._agents_ready = True
         logger.info("Built %d agents", len(agents))
         return agents
-
-    def _try_build_ue5(self) -> Any | None:
-        try:
-            from DeepBl4nder.agents import UE5Agent
-            from DeepBl4nder.llm import build_llm
-
-            return UE5Agent(llm=build_llm())
-        except Exception as exc:  # noqa: BLE001
-            logger.debug("UE5 agent unavailable: %s", exc)
-            return None
 
     @property
     def agent_error(self) -> Exception | None:
@@ -327,8 +314,10 @@ class EmbeddedAPI:
         for event in events:
             if event.kind == "run_completed":
                 progress = 1.0
-            if event.kind == "director_completed" and "brief" in event.payload:
-                brief = str(event.payload.get("brief", "Unknown"))[:200]
+            if event.kind in ("run_started", "director_completed") and "brief" in event.payload:
+                candidate = str(event.payload.get("brief", "Unknown"))[:200]
+                if candidate and candidate != "Unknown":
+                    brief = candidate
             if event.kind == "cost_recorded":
                 cost += float(event.payload.get("cost", 0.0))
 
@@ -414,8 +403,6 @@ class EmbeddedAPI:
         for key in _AGENT_RUNNER_KEYS:
             if key in self._agents:
                 kwargs[key] = self._agents[key]
-        if "ue5" in self._agents:
-            kwargs["ue5"] = self._agents["ue5"]
         return kwargs
 
     async def run_production(self, production_id: str) -> RunOutcome:
@@ -567,6 +554,12 @@ class EmbeddedAPI:
 
         return routing_stats()
 
+    def llm_metrics(self) -> dict[str, Any]:
+        """Metrics LLM live : tokens, coût, latence, par agent / par modèle."""
+        from DeepBl4nder.llm import llm_metrics
+
+        return llm_metrics()
+
     def last_llm_decision(self) -> dict[str, str]:
         """Dernier fournisseur/modèle réellement utilisés par le routeur partagé.
 
@@ -586,6 +579,25 @@ class EmbeddedAPI:
         from DeepBl4nder.llm import last_attempt
 
         return last_attempt()
+
+    # ========== LLM provider pool selection ==========
+
+    @property
+    def default_providers(self) -> list[str]:
+        """Pool LLM restreint configuré (env, puis fichier config).
+
+        Vide = tous les fournisseurs disponibles.
+        """
+        from DeepBl4nder.llm import configured_providers
+
+        return configured_providers()
+
+    @default_providers.setter
+    def default_providers(self, provider_ids: list[str]) -> None:
+        """Persiste le pool restreint pour les futures sessions."""
+        from DeepBl4nder.llm import set_configured_providers
+
+        set_configured_providers(provider_ids)
 
 
 # Global instance for the TUI

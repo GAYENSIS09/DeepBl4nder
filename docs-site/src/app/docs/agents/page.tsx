@@ -65,7 +65,7 @@ The StoryboardAgent reads the StorySpec and translates it into visual terms. Whe
 
 The agent plans each shot with specific camera angles (wide, medium, close-up, overhead), camera movements (pan, tilt, dolly, crane), and transitions (cut, dissolve, fade). It estimates the duration of each shot based on the emotional weight of the corresponding beat. A dramatic reveal might get a slow, lingering shot. A tense action sequence might get rapid cuts between multiple angles.
 
-This shot-by-shot planning is what separates DeepBl4nder from simpler AI video generators. Instead of producing a single continuous clip, it plans a sequence of shots that could be assembled by a professional editor. The storyboard is the bridge between the abstract narrative and the concrete 3D scene.
+This shot-by-shot planning is what separates DeepBl4nder from simpler generative tools that produce a single continuous clip. Instead, it plans a sequence of shots that could be assembled by a professional editor. The storyboard is the bridge between the abstract narrative and the concrete 3D scene.
 
 ### The DirectorAgent: The Central Orchestrator
 
@@ -113,9 +113,9 @@ The **TemplateStrategy** is used for deterministic outputs where the model's cre
 
 ## The Shared LLM Client
 
-All 14 agents share a single LLMClient instance. This is not just a convenience — it is a architectural decision with important implications. The shared client means that model selection, caching, and budget tracking happen at a single point of control. When the TaskClassifier routes a request to the 8B model, the decision is made once and logged once. When a model fails and the CascadeRouter escalates to the next heavier model, the escalation history is shared across all agents.
+All 14 agents share a single \`LLMRouter\` instance, built via the \`build_llm()\` function in \`DeepBl4nder/llm/__init__.py\`. This is not just a convenience — it is an architectural decision with important implications. The shared router means that provider selection, health tracking, cooldown management, caching, and budget enforcement all happen at a single point of control. When a provider fails and the router falls back to the next provider in the pool, that failure is logged and the provider is placed on cooldown across all agents — not just the one that happened to hit it.
 
-The shared client also means that the KV cache is shared. If the StoryAgent's system prompt is in the cache, the StoryboardAgent can reuse those cached key-value pairs because they share the same client. This cache sharing reduces the total number of tokens that need to be processed, which directly translates to faster response times and lower VRAM usage.
+The router implements NOOA's \`UnifiedLLM\` interface, so every agent interacts with it through the same API regardless of which cloud provider ultimately handles the request. Budget tracking is centralized: the router monitors cumulative USD spend across all providers and can enforce a configurable cap, preventing runaway costs from a misbehaving pipeline. This shared infrastructure means individual agents do not need to be budget-aware — the router handles it globally.
 `
 
 export default function AgentsPage() {

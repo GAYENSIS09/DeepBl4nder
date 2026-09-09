@@ -71,9 +71,9 @@ DirectorAgent ──▶ SceneSpec ──▶ ProvenanceGraph
   │  [optionnel]   ├──▶ CharacterDesignerAgent
   │                └──▶ EnvironmentArtistAgent
   ▼
-BlenderAgent / UE5Agent / GodotAgent / AIVideoAgent ──▶ BlenderScript / UE5Commands / GodotCommands / AIVideoCommands
+BlenderAgent ──▶ BlenderScript
   │                          ▼
-  │                     Validation AST / REST API
+  │                     Validation AST
   ▼
 QAAgent ──▶ QAReport
   │          │
@@ -274,9 +274,7 @@ def __init__(
     compositing: Any = None,            # CompositingAgent (optionnel)
     review: Any = None,                 # ReviewAgent (optionnel)
     target_languages: list[str] | None, # Langues cibles de localisation
-    blender_bridge: Any = None,         # Bridge d'exécution Blender
-    ue5: Any = None,                    # Agent UE5
-    ue5_bridge: Any = None,             # Bridge UE5
+blender_bridge: Any = None,         # Bridge d'exécution Blender
     session_factory: Any = None,        # Factory SQLAlchemy pour patches
     production_id: str | None = None,   # ID production (pour patches API)
     enable_cache: bool = True,          # Activer le cache LLM
@@ -330,9 +328,7 @@ def __init__(
 | `_synthesize_storyboard` | `(story_spec: StorySpec) -> StoryboardSpec` | Fallback déterministe pour le storyboard. |
 | `_synthesize_blender_script` | `(scene: SceneSpec) -> BlenderScript` | Fallback déterministe pour le script Blender. |
 | `_plan` | `async (brief, story_spec, storyboard_spec) -> SceneSpec` | Exécute `DirectorAgent → SceneSpec`. |
-| `_build` | `async (scene: SceneSpec) -> tuple[Any, Path]` | Route vers le bon moteur (Blender ou UE5). |
-| `_build_ue5` | `async (scene: SceneSpec) -> tuple[UE5Commands, Path]` | Génère et exécute les commandes UE5. |
-| `_synthesize_ue5_commands` | `(scene: SceneSpec) -> UE5Commands` | Fallback déterministe pour les commandes UE5. |
+| `_build` | `async (scene: SceneSpec) -> tuple[Any, Path]` | Route vers le moteur Blender. |
 | `_build_blender` | `async (scene: SceneSpec) -> tuple[BlenderScript, Path]` | Génère le script Blender (logique originale). |
 | `_assess` | `async (scene, script_path, validation, script) -> QAReport` | Exécute `QAAgent.assess()` avec validation AST. |
 | `_target_step` | `(report: QAReport, validation: ValidationReport) -> str` | Détermine l'étape cible de la révision. |
@@ -353,7 +349,7 @@ def __init__(
 6. Charge les checkpoints (`CheckpointManager.load_checkpoints()`).
 7. Calcule la chaîne de reprise et les étapes invalidées par révision/patches.
 8. Exécute séquentiellement : story → storyboard → HITL approval → director → character_design → environment → script.
-9. Valide le script (AST Blender ou commandes UE5).
+9. Valide le script (AST Blender).
 10. Exécute le QA (boucle de révision si échec).
 11. Animation (optionnelle, si QA passé).
 12. Post-production parallèle (`asyncio.gather`).
@@ -914,10 +910,7 @@ def synthesize_blender_script(scene: SceneSpec, workdir: Path) -> BlenderScript
 | `DeepBl4nder.domain.patch` | `Patch`, `apply_patches` |
 | `DeepBl4nder.domain.project` | `Brief` |
 | `DeepBl4nder.domain.qa` | `Issue`, `IssueKind`, `QAReport`, `RevisionSpec` |
-| `DeepBl4nder.domain.scene` | `BlenderScript`, `SceneSpec`, `RenderOutput`, `ShotSpec`, `ENGINE_BLENDER`, `ENGINE_UE5`, `ENGINE_GODOT`, `ENGINE_AI_VIDEO` |
-| `DeepBl4nder.domain.ue5` | `UE5Commands`, `UE5Command` |
-| `DeepBl4nder.domain.godot` | `GodotCommands`, `GodotCommand` |
-| `DeepBl4nder.domain.ai_video` | `AIVideoCommands`, `AIVideoCommand` |
+| `DeepBl4nder.domain.scene` | `BlenderScript`, `SceneSpec`, `RenderOutput`, `ShotSpec`, `ENGINE_BLENDER` |
 | `DeepBl4nder.domain.media` | `AudioPlan`, `AudioMaster`, `CompositeSpec`, `LanguagePackage`, `MusicPlan`, `SoundDesignPlan` |
 | `DeepBl4nder.domain.narrative` | `StorySpec`, `StoryboardSpec`, `StoryboardShot` |
 | `DeepBl4nder.plugins.registry` | `PluginRegistry` |
@@ -998,7 +991,6 @@ fallbacks.py ─────└──▶ domain.scene, domain.narrative
 | `<scene_name>/script.py` | Python | Script Blender généré. |
 | `qa_report.json` | JSON | Rapport QA : `{script_sha256, passed, score, issues[], recommendations[]}`. |
 | `render_output.json` | JSON | Métadonnées rendu : `{script_sha256, render_output}`. |
-| `ue5_commands.json` | JSON | Commandes UE5 sérialisées. |
 | `revision_<N>_<target>.json` | JSON | RevisionSpec pour la révision N. |
 | `revision_request_<ts>.json` | JSON | Demande de révision humaine (HITL). |
 | `audio_plan.json` | JSON | Plan audio sérialisé. |
@@ -1043,12 +1035,6 @@ fallbacks.py ─────└──▶ domain.scene, domain.narrative
 | `render_failed` | Rendu échoué | `{error, attempts}` |
 | `storyboard_synthesized` | Fallback storyboard | `{shots, reason}` |
 | `blender_script_synthesized` | Fallback script | `{scene_name, reason}` |
-| `ue5_commands_synthesized` | Fallback UE5 | `{scene, reason}` |
-| `ue5_command_failed` | Commande UE5 échouée | `{endpoint, error}` |
-| `godot_commands_synthesized` | Fallback Godot | `{scene, reason}` |
-| `godot_command_failed` | Commande Godot échouée | `{endpoint, error}` |
-| `ai_video_commands_synthesized` | Fallback AI Video | `{scene, reason}` |
-| `ai_video_command_failed` | Commande AI Video échouée | `{endpoint, error}` |
 | `merge_failed` | Fusion FFmpeg échouée | `{error}` |
 | `scene_inspected` | Scène inspectée | `{objects}` |
 

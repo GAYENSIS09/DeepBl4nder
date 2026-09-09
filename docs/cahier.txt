@@ -60,7 +60,7 @@ L'utilisateur decrit ce qu'il veut. Le systeme d'agents se charge de tout.
   c) Generation de musique originale (pas de copie, pas de royalties)
   d) Iteration en temps reel (l'utilisateur voit et modifie en cours)
   e) Observabilite totale (chaque decision est tracee et expliquee)
-  f) Multi-moteur : Blender, Unreal Engine, Godot (extensible)
+  f) Moteur unique : Blender 4.x (pipeline 3D complet)
   g) Format VRM pour avatars cross-platform
 
 1.4  PRINCIPES FONDATEURS
@@ -96,11 +96,7 @@ PARTIE II — ARCHITECTURE TECHNIQUE
                          OpenRouter (overflow)
                          Portkey (guardrails optionnels)
   Moteurs 3D             Blender 4.x (principal)
-                         Unreal Engine 5 (cinematiques haute fidelite)
-                         Godot 4 (legere, web-ready)
-  Generation video       CogVideoX / Wan2.1 (AI video)
-                         FFmpeg + MoviePy (compositing)
-                         Stable Video Diffusion (animation 2D->3D)
+  Rendu video            FFmpeg + MoviePy (compositing)
   Audio & Musique        Bark / CosyVoice (TTS, voix)
                          ACE-Step / Stable Audio (musique)
                          AudioCraft/SFX (bruitages)
@@ -151,8 +147,7 @@ PARTIE II — ARCHITECTURE TECHNIQUE
               |                                           |
     +---------v-------------------------------------------v--------+
     |                        WORKERS                               |
-    |  Blender Headless | UE5/Godot | AI Video (CogVideoX)       |
-    |  TTS/Bark         | MusicGen  | FFmpeg                      |
+    |     Blender Headless | TTS/Bark     | FFmpeg |                  |
     +--------------------------------------------------------------+
               |
     +---------v----------------------------------------------------+
@@ -166,10 +161,6 @@ PARTIE II — ARCHITECTURE TECHNIQUE
 
   Interface RenderingEngine
     +-- BlenderEngine     (blender -b -P script.py)
-    +-- UnrealEngine      (UE5 -ExecutePythonScript + MRQ)
-    +-- GodotEngine       (godot --headless --script)
-    +-- AIVideoEngine     (CogVideoX / Wan2.1 pipeline)
-    +-- HybridEngine      (Blender base + AI enhancement)
 
   Chaque moteur implemente :
     - generate_script(spec) -> str
@@ -361,12 +352,6 @@ PARTIE IV — SKILLS & CONNAISSANCES
                      expressions faciales
   vrm-pipeline       Creation, import, export de modeles VRM,
                      retargeting d'animation, morph targets
-  ai-video           Utilisation de CogVideoX, Wan2.1, AnimateDiff
-                     pour la generation video IA
-  unreal-engine      Scripting UE5 via Python, MRQ automation,
-                     level sequencing, material creation
-  godot-engine       GDScript, scenes, signaux, physically-based
-                     rendering, export WebGL
   poly-haven         API Poly Haven, telechargement auto d'HDRI,
                      textures, modeles (CC0, pas de licence)
   motion-capture     Import BVH/FBX mocap, retargeting sur
@@ -381,8 +366,6 @@ PARTIE IV — SKILLS & CONNAISSANCES
   Source               Methode d'acces
   --------------------  --------------------------------------------------
   Documentation Blender Fichier SKILL.md (statique, mise a jour)
-  Docs Unreal Engine    WebFetch + cache
-  Docs Godot            WebFetch + cache
   Poly Haven API        REST API (pas d'auth, CC0)
   Sketchfab             REST API (OAuth, licences mixtes)
   GitHub repos          Git clone + indexation
@@ -523,63 +506,14 @@ PARTIE VI — MOTEURS DE GENERATION
      - Reflections/refractions realistes
      - Post-process (bloom, DOF, tone mapping)
 
-6.2  MOTEUR 3D : UNREAL ENGINE 5 (Haute Fidelite)
-
-  Pour les scenes necessitant une qualite cinematographique :
-
-  Integration UE5 :
-    1. Script Python -> envoie commande via REST API au serveur UE5
-    2. UE5 execute : level creation, material setup, lighting
-    3. MRQ (Movie Render Queue) rend hors-screen
-    4. Sortie : sequence d'images ou video H264/ProRes
-
-  Avantages :
-    - Nanite (geometrie haute densite sans polycount)
-    - Lumen (eclairage global en temps reel)
-    - MetaHuman (personnages realistes)
-    - Chaos (physique avancee)
-
-  Limites :
-    - GPU requis (pas de CPU rendering)
-    - Licence EULA (gratuit < $1M revenue)
-    - Plus lent que Blender pour les scenes simples
-
-  Quand utiliser UE5 :
-    - Personnages realistes (MetaHuman)
-    - Environnements photorealistes
-    - Effets speciaux complexes (explosions, fluides)
-    - Cinematiques de haute qualite
-
-6.3  MOTEUR IA : COGVIDEX / WAN2.1 (Generation Directe)
-
-  Pour les scenes ou la generation 3D est trop couteuse :
-
-  Pipeline AI Video :
-    Input : Prompt textuel + optional reference image
-      -> CogVideoX (5B model, 16GB VRAM)
-      -> ou Wan2.1 (14B model, 24GB+ VRAM)
-
-  Sortie : Sequence video 4-8 secondes
-
-  Usage :
-    - Brouillons rapides (avant rendu 3D complet)
-    - Effets speciaux (explosions, meteo, particules)
-    - Transitions et interludes
-    - Contenu social (clips courts)
-
-  Integration :
-    - GPU worker dedie (CUDA/ROCm)
-    - API REST interne : POST /gpu/render-ai
-    - Cache des generations (seed + prompt -> video)
-
-6.4  HYBRIDE : BLENDER + AI
+6.2  HYBRIDE : BLENDER + IA (PROCEDURAL)
 
   Le mode le plus puissant :
 
   1. Blender cree la scene de base (geometrie, camera, lighting)
-  2. AI genere les textures procedurales (Stable Diffusion)
-  3. AI enrichit les details (fog, particles, reflections)
-  4. AI post-traite le rendu (upscaling, style transfer)
+  2. IA genere les textures procedurales (procgen bpy)
+  3. IA enrichit les details (fog, particles, reflections)
+  4. IA post-traite le rendu (upscaling, style transfer)
   5. FFmpeg compositing final
 
   Ce workflow combine la precision de Blender avec la creativite de l'IA.
@@ -796,10 +730,6 @@ PARTIE IX — DEPLOIEMENT & INFRASTRUCTURE
   BLENDER_EXE=/usr/bin/blender
   DeepBl4nder_MAX_RENDER_RETRIES=2
 
-  # AI Video (optionnel)
-  COGVIDEX_MODEL_PATH=/models/cogvideox-5b
-  WAN21_MODEL_PATH=/models/wan2.1-14b
-
   # Audio
   BARK_MODEL_PATH=/models/bark
   TTS_BINARY=/usr/local/bin/piper
@@ -899,8 +829,6 @@ PARTIE X — SECURITE & CONFORMITE
   - MusicGen : CC BY-NC 4.0 -> pas commercialisable directement
   - Bark/Tortoise : MIT/Apache -> OK pour usage commercial
   - Blender : GPL -> OK (execute en subprocess, pas de linking)
-  - UE5 : EULA gratuit (< $1M revenue)
-  - CogVideoX/Wan2.1 : Apache 2.0 -> OK
 
 
 ================================================================================
@@ -926,7 +854,6 @@ PARTIE XI — ROADMAP DE DEVELOPPEMENT
   [x] AnimatorAgent (keyframes + lip sync)
   [x] Skill character-design
   [x] Skill vrm-pipeline
-  [x] Skill ai-video
   [ ] Bibliotheque locale de assets de base
   [ ] Templates de personnages VRM (fonctionnels)
   [ ] Skill vrm-pipeline
@@ -953,10 +880,7 @@ PARTIE XI — ROADMAP DE DEVELOPPEMENT
 
   Phase 5 : MOTEURS AVANCES (Semaines 17-20)
   --------------------------------------------
-  [ ] Integration Unreal Engine 5 (MRQ)
-  [ ] Integration Godot 4 (headless)
-  [ ] AI Video (CogVideoX / Wan2.1)
-  [ ] Mode hybride (Blender + AI)
+  [ ] Mode hybride avance (Blender + IA procédurale)
   [ ] Render farm distribue
   [ ] GPU auto-scaling
 
@@ -982,7 +906,7 @@ PARTIE XII — MODELE ECONOMIQUE
   ------------  ----------  ---------  --------------------------------
   Free          $0          50 credits 3 productions/mois, qualite basique
   Starter       $19         500 credits 20 productions/mois, qualite HD
-  Pro           $49         2000 credits 100 productions/mois, 4K, UE5
+  Pro           $49         2000 credits 100 productions/mois, 4K
   Studio        $199        10000 credits Illimite, priority GPU, support
 
 12.2  COUTS PAR CREDIT
@@ -1027,7 +951,6 @@ ANNEXE A — FICHIERS CLES A MODIFIER
   DeepBl4nder/api/app.py            + new endpoints (preview, patches)
   DeepBl4nder/domain/scene.py       + CharacterSpec, AnimationClip
   DeepBl4nder/domain/media.py       + MusicPlan, SoundDesignPlan
-  DeepBl4nder/plugins/rendering/    + UE5Engine, GodotEngine, AIVideoEngine
   DeepBl4nder/skills/               + 8 new skills
   frontend/src/app/                 + new pages (preview, library)
   frontend/src/components/          + ScenePreview, PatchEditor

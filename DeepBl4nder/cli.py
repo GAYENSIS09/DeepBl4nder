@@ -27,8 +27,6 @@ def build_parser() -> argparse.ArgumentParser:
 
     sub.add_parser("tui", help="Lance l'interface terminal (Textual TUI).")
 
-    sub.add_parser("download", help="Télécharge les modèles GGUF pour le LLM local.")
-
     return parser
 
 
@@ -70,11 +68,6 @@ def _cmd_validate(script: Path) -> int:
     return 1
 
 
-def _cmd_download() -> int:
-    from DeepBl4nder.llm.download import main as download_main
-    return download_main()
-
-
 def main(argv: Sequence[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     if args.command == "inspect":
@@ -83,8 +76,6 @@ def main(argv: Sequence[str] | None = None) -> int:
         return _cmd_validate(args.script)
     if args.command == "tui":
         return _cmd_tui()
-    if args.command == "download":
-        return _cmd_download()
     return 2
 
 
@@ -107,22 +98,17 @@ def _cmd_tui() -> int:
 
 def _tui_preflight() -> None:
     """Vérifie les prérequis avant de lancer le TUI."""
-    import os
-    from pathlib import Path
+    from DeepBl4nder.llm import PROVIDERS
 
-    # Vérifier que les modèles GGUF existent
-    from DeepBl4nder.llm.model_registry import MODELS
-    models_dir = Path(os.getenv("DeepBl4nder_MODELS_DIR", "models"))
-    missing = [m for m in MODELS.values() if not (models_dir / m.gguf_filename).exists()]
+    missing = [p for p in PROVIDERS.values() if not p.is_available()]
     if missing:
+        keys = ", ".join(sorted({p.api_key_env for p in missing}))
         print(
-            "AVERTISSEMENT : modèles GGUF manquants.",
+            "AVERTISSEMENT : aucune clé d'API LLM cloud configurée.",
             file=sys.stderr,
         )
-        for m in missing:
-            print(f"  - {m.id} ({m.gguf_filename})", file=sys.stderr)
         print(
-            "\nTéléchargez-les avec : python -m DeepBl4nder.llm.download",
+            f"Le routeur fonctionne en pool cloud uniquement — ajoutez au moins une clé dans .env : {keys}.",
             file=sys.stderr,
         )
 

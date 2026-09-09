@@ -567,7 +567,7 @@ Mapping phonème → poids de blendshape. Phonèmes supportés :
 | `available()` | — | `bool` | Toujours `True` (fallback RMS) |
 | `extract_phonemes(audio_path)` | `audio_path: Path` | `list[PhonemeTiming]` | Cascade : Whisper → Rhubarb → RMS |
 | `generate_blendshapes(phonemes, fps)` | `phonemes: list[PhonemeTiming], fps: float = 24.0` | `list[LipSyncFrame]` | Convertit les phonèmes en frames de blendshape avec lissage |
-| `export_json(frames, out_path)` | `frames: list[LipSyncFrame], out_path: Path` | `Path` | Exporte les blendshapes en JSON pour Blender/UE5 |
+| `export_json(frames, out_path)` | `frames: list[LipSyncFrame], out_path: Path` | `Path` | Exporte les blendshapes en JSON pour Blender |
 
 ##### Mapping caractère → phonème (`_char_to_phoneme`)
 
@@ -600,7 +600,7 @@ Fenêtre glissante de 3 frames par défaut, moyenne arithmétique sur chaque ble
 #### Connexion au système
 
 - **Non** dans `_BUILTINS` du `PluginRegistry`. Doit être enregistré manuellement.
-- Output JSON exportable pour Blender (Shape Keys) ou Unreal Engine 5 (Morph Targets).
+- Output JSON exportable pour Blender (Shape Keys).
 
 ---
 

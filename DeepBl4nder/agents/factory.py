@@ -7,8 +7,6 @@ la dépendance à l'ancien package api/.
 
 from __future__ import annotations
 
-from typing import Any
-
 from DeepBl4nder.agents import (
     AnimatorAgent,
     AudioAgent,

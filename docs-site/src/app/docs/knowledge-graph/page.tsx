@@ -61,7 +61,7 @@ A real graph database — Neo4j, ArangoDB, Neptune — would provide more sophis
 
 DeepBl4nder's Knowledge Graph is not trying to be a general-purpose graph database. It is a specialized tool for a specific purpose: tracking production entities and enabling semantic search over domain types. For this purpose, a JSON file is sufficient. The graph typically contains a few hundred nodes and a few thousand edges — well within the performance envelope of an in-memory data structure.
 
-More importantly, the simplicity of the JSON approach aligns with DeepBl4nder's local-first philosophy. There is no server to start, no database to configure, no credentials to manage. The graph is a file that lives on your hard drive, loads into memory at startup, and saves back to disk when modified. It is as simple and transparent as possible, which is exactly what a local-first system should be.
+More importantly, the simplicity of the JSON approach aligns with DeepBl4nder's self-contained design. There is no server to start, no database to configure, no credentials to manage. The graph is a file that lives on your hard drive, loads into memory at startup, and saves back to disk when modified. It is as simple and transparent as possible, which is exactly what a self-contained system should be.
 
 The trade-off is that the Knowledge Graph does not scale to millions of nodes. But for a production pipeline that typically generates a few dozen scenes and a few hundred shots per production, this is not a limitation. The graph is designed for the scale of the problem, not for theoretical maximum capacity.
 

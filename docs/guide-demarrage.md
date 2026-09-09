@@ -1,15 +1,24 @@
-# Guide de démarrage — DeepBl4nder Local-First
+# Guide de démarrage — DeepBl4nder
 
-DeepBl4nder s'exécute **entièrement en local** sur votre machine. Pas d'API keys, pas de cloud, pas de base de données externe.
+DeepBl4nder est un système de production audiovisuelle multi-agents. Il utilise un **routeur LLM cloud multi-fournisseurs** (via `litellm`) et Blender 4.1+ pour le rendu 3D. **Au moins une clé API LLM est requise**.
 
 ## Prérequis
 
 | Composant | Version | Notes |
 |-----------|---------|-------|
 | Python | 3.12+ | |
-| GPU NVIDIA | 8 GB VRAM minimum | Requis pour le LLM local |
-| Docker | 24+ | Avec NVIDIA Container Toolkit |
-| Blender | 4.1+ | Optionnel (pour runs locaux) |
+| Blender | 4.1+ | Requis — moteur de rendu 3D unique (Cycles/EEVEE) |
+| Docker | 24+ | Optionnel (recommandé) |
+
+### Clés API (au moins une requise)
+
+| Fournisseur | Variable d'environnement |
+|-------------|--------------------------|
+| Gemini | `GEMINI_API_KEY` |
+| Groq | `GROQ_API_KEY` |
+| NVIDIA | `NVIDIA_API_KEY` |
+| OpenRouter | `OPENROUTER_API_KEY` |
+| Cloudflare | `CLOUDFLARE_API_KEY` + `CLOUDFLARE_ACCOUNT_ID` |
 
 ---
 
@@ -21,10 +30,11 @@ DeepBl4nder s'exécute **entièrement en local** sur votre machine. Pas d'API ke
 git clone https://github.com/GAYENSIS09/DeepBl4nder.git
 cd DeepBl4nder
 
-# Télécharger les modèles Qwen3 GGUF
-python -m DeepBl4nder.llm.download --all
+# Configurer les clés API (au moins une)
+cp .env.example .env
+# Éditer .env avec vos clés API
 
-# Lancer LLM + Blender worker
+# Lancer Blender worker + pipeline
 docker compose up -d
 ```
 
@@ -37,82 +47,58 @@ cd DeepBl4nder
 # Installer avec TUI
 pip install -e ".[tui]"
 
-# Télécharger modèles
-python -m DeepBl4nder.llm.download --all
+# Configurer les clés API
+cp .env.example .env
+# Éditer .env avec vos clés API
 
-# Lancer TUI (démarre le serveur LLM en interne)
+# Lancer TUI
 DeepBl4nder tui
 ```
 
 ---
 
-## Modèles LLM Locaux
+## Routeur LLM Multi-Fournisseurs
 
-DeepBl4nder utilise **Qwen3** via `llama-cpp-python` (GGUF Q4_K_M) :
+DeepBl4nder utilise `litellm` via un routeur cloud centralisé (`DeepBl4nder/llm/`). Les 5 fournisseurs supportés :
 
-| Modèle | VRAM | Rôle |
-|--------|------|------|
-| Qwen3-1.5B | ~1.5 GB | Routing, classification, validation |
-| Qwen3-4B | ~3 GB | Chat général, résumé, traduction |
-| Qwen3-8B | ~5.5 GB | Génération de code, raisonnement complexe |
+| Fournisseur | Modèle par défaut | Variable d'environnement |
+|-------------|-------------------|--------------------------|
+| Google Gemini | `gemini/gemini-3.6-flash` | `GEMINI_API_KEY` |
+| Groq | `groq/openai/gpt-oss-120b` | `GROQ_API_KEY` |
+| NVIDIA NIM | `nvidia_nim/meta/llama-3.3-70b-instruct` | `NVIDIA_API_KEY` |
+| OpenRouter | `openrouter/meta-llama/llama-3.3-70b-instruct` | `OPENROUTER_API_KEY` |
+| Cloudflare Workers AI | `cloudflare/@cf/meta/llama-3.3-70b-instruct` | `CLOUDFLARE_API_KEY` |
 
-**Routage en cascade** : le système essaie d'abord le plus petit modèle capable, puis escalade si nécessaire.
+**Modes de routage** (configurables via `DeepBl4nder_LLM_MODE`) :
+- **fallback** (défaut) : un seul fournisseur sollicité par appel, basculement sur erreur.
+- **vote** : tous les fournisseurs sains votent, majorité gagne.
 
-```bash
-# Télécharger tous les modèles
-python -m DeepBl4nder.llm.download --all
-
-# Lister disponibles
-python -m DeepBl4nder.llm.download --list
-
-# Télécharger un modèle spécifique
-python -m DeepBl4nder.llm.download --model qwen3-8b
-```
-
-Les modèles sont stockés dans `./models/` (gitignored).
+Le routeur implémente l'interface `UnifiedLLM` de NOOA, avec découverte dynamique des modèles via l'endpoint `/models` de chaque fournisseur, protection cooldown par provider, et budget USD configurable.
 
 ---
 
 ## Docker Compose
 
 ```bash
-# Core : LLM server + Blender worker
+# Core : Blender worker
 docker compose up -d
 
-# Profils optionnels
-docker compose --profile ue5 up -d       # Unreal Engine 5
-docker compose --profile godot up -d     # Godot 4
-docker compose --profile ai-video up -d  # AI Video
+# TUI
+docker compose --profile tui up -d
 ```
 
 ### Services
 
 | Service | Port | Description |
 |---------|------|-------------|
-| `llm-server` | 8080 | llama.cpp avec Qwen3 (GPU) |
 | `blender-worker` | — | Blender 4.1 headless + FFmpeg |
-| `ue5-server` | 8081 | Unreal Engine 5 (profile `ue5`) |
-| `godot-server` | 8082 | Godot 4 (profile `godot`) |
-| `ai-video-server` | 8083 | AI Video (profile `ai-video`) |
-
-### GPU
-
-Nécessite **NVIDIA Container Toolkit** :
-
-```bash
-# Vérifier accès GPU
-docker run --rm --gpus all nvidia/cuda:12.4.1-base-ubuntu22.04 nvidia-smi
-```
 
 ---
 
 ## Lancer le TUI
 
 ```bash
-# Si Docker tourne (connecte au serveur LLM sur port 8080)
-DeepBl4nder tui
-
-# Sans Docker (démarre le serveur LLM en interne)
+# Lancer TUI
 DeepBl4nder tui
 ```
 
@@ -149,7 +135,7 @@ Brief → Story → Storyboard → Director → Character/Environment → Blende
 |-------|-------|-------------|
 | 1 | **Story** | Structure narrative, actes, beats, dialogues |
 | 2 | **Storyboard** | Plan visuel, caméras, composition |
-| 3 | **Director** | Décisions finales, coordination |
+| 3 | **Director** | Décisions finales, SceneSpec |
 | 4 | **Character/Env** | Design personnages, environnements |
 | 5 | **Blender** | Génération script bpy, exécution |
 | 6 | **QA** | Validation qualité, score, issues |
@@ -158,7 +144,7 @@ Brief → Story → Storyboard → Director → Character/Environment → Blende
 
 ### Boucle de révision
 
-Si QA échoue → feedback → révision automatique → re-QA (max 3 itérations par défaut).
+Si QA échoue → feedback → révision automatique → re-QA (max 3 itérations par défaut). Sinon le run passe en `blocked`.
 
 ---
 
@@ -170,9 +156,6 @@ DeepBl4nder inspect
 
 # Valider un script Blender
 DeepBl4nder validate script.py
-
-# Télécharger modèles
-DeepBl4nder download --all
 
 # Lancer TUI
 DeepBl4nder tui
@@ -198,27 +181,29 @@ data/runs/{id}/
 
 | Problème | Solution |
 |----------|----------|
-| `docker compose up` échoue GPU | Installer NVIDIA Container Toolkit |
-| Modèles non trouvés | `python -m DeepBl4nder.llm.download --all` |
-| TUI ne se connecte pas au LLM | Vérifier `docker compose ps` et port 8080 |
+| `Aucune clé API LLM` | Configurer au moins une variable d'environnement (`GEMINI_API_KEY`, etc.) dans `.env` |
+| TUI ne se connecte pas au LLM | Vérifier les variables d'environnement dans `.env` |
 | Blender non trouvé | Définir `BLENDER_EXE` ou installer Blender 4.1+ |
-| VRAM insuffisante | Utiliser modèle plus petit (1.5B) |
 
 ---
 
 ## Variables d'Environnement
 
 ```bash
-# Modèles
-DeepBl4nder_MODELS_DIR=./models
+# LLM (au moins une requise)
+GEMINI_API_KEY=...
+GROQ_API_KEY=...
+NVIDIA_API_KEY=...
+OPENROUTER_API_KEY=...
+CLOUDFLARE_API_KEY=...
+CLOUDFLARE_ACCOUNT_ID=...
 
-# LLM
-DeepBl4nder_LLM_HOST=127.0.0.1
-DeepBl4nder_LLM_PORT=8080
+# Mode de routage LLM (fallback ou vote)
+DeepBl4nder_LLM_MODE=fallback
+
+# Budget max par production
+DeepBl4nder_BUDGET=1.0
 
 # Blender
 BLENDER_EXE=/usr/local/bin/blender
-
-# Budget
-DeepBl4nder_BUDGET=1.0
 ```

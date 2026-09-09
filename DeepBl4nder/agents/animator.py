@@ -18,7 +18,7 @@ from DeepBl4nder.domain.scene import SceneSpec
 from DeepBl4nder.skills.registry import SkillRegistry
 
 
-def _animation_postcondition(agent: Any, result: Any, call: Any) -> None:
+def _animation_postcondition(_agent: BaseAgent | None, result: Any, call: Any) -> None:
     if not isinstance(result, AnimationResult):
         return
     if not result.clips:

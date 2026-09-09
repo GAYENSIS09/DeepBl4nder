@@ -11,7 +11,7 @@ const section1 = `
 
 ## Why Architecture Matters
 
-Every software system makes implicit promises about how it will behave under pressure, how it will grow over time, and how contributors will navigate its internals. The architecture of DeepBl4nder is not an accident — it is the result of deliberate choices about what matters most in a local-first AI production pipeline. Understanding these choices helps you not only use the system effectively but also contribute meaningfully to its evolution.
+Every software system makes implicit promises about how it will behave under pressure, how it will grow over time, and how contributors will navigate its internals. The architecture of DeepBl4nder is not an accident — it is the result of deliberate choices about what matters most in a multi-agent cloud-LLM production pipeline. Understanding these choices helps you not only use the system effectively but also contribute meaningfully to its evolution.
 
 The core insight behind DeepBl4nder's architecture is that **separation of concerns is not just a software engineering principle — it is a survival strategy for complex AI systems**. When you have 14 agents, each with different skills, different context requirements, and different output formats, the only way to keep the system manageable is to give each component a clear, bounded responsibility.
 
@@ -23,9 +23,9 @@ The system is organized into four distinct layers, each with a specific purpose 
 
 **The Agent Layer** contains the 14 specialized NOOA agents. Each agent is an expert in one aspect of the production pipeline: one understands narrative structure, another understands camera composition, another understands Blender's Python API. These agents do not compete for resources or share mutable state. They communicate through typed domain objects — a StorySpec flows from the StoryAgent to the StoryboardAgent, a SceneSpec flows from the DirectorAgent to the BlenderAgent. This typed communication means that errors are caught at the boundary between agents, not deep inside some opaque processing step.
 
-**The LLM Layer** handles all language model interactions through a cascade routing system. Instead of sending every request to the largest, most expensive model, DeepBl4nder classifies each task and routes it to the smallest model that can handle it effectively. Simple classification tasks go to the 1.5B model. Narrative planning goes to the 4B model. Code generation goes to the 8B model. If a model fails or produces an invalid response, the system automatically escalates to the next heavier model. This cascade approach means you get the quality of the 8B model for code generation while using the 1.5B model for the majority of simple routing decisions — saving both time and VRAM.
+**The LLM Layer** handles all language model interactions through a cloud multi-provider router built on \`litellm\`. The router aggregates five providers — Gemini, Groq, NVIDIA, OpenRouter, and Cloudflare — into a unified pool. In **fallback mode** (the default), requests are sent to the first healthy provider and automatically retried with the next provider on failure. In **vote mode**, all healthy providers are queried in parallel and the best response is selected via majority voting with health-based tiebreaking. The router performs dynamic model discovery via each provider's \`/models\` endpoint and tracks per-provider health, cooldown after failures, and USD budget. This cloud-based approach means no local model downloads, no VRAM constraints for inference, and access to the latest models from each provider.
 
-**The Worker Layer** manages the actual execution of generated code. When the BlenderAgent produces a Python script, that script does not run in the same process as the agents. It runs in an isolated Docker container with its own GPU access, its own filesystem, and its own resource limits. This isolation is critical: if a generated script crashes or consumes excessive memory, it does not bring down the entire system. The worker layer also handles multiple rendering engines — Blender, Unreal Engine 5, Godot, and AI Video — each running in its own container with engine-specific configuration.
+**The Worker Layer** manages the actual execution of generated code. When the BlenderAgent produces a Python script, that script does not run in the same process as the agents. It runs in an isolated Docker container with its own GPU access, its own filesystem, and its own resource limits. This isolation is critical: if a generated script crashes or consumes excessive memory, it does not bring down the entire system. The worker layer runs Blender — the single rendering engine (4.1+, with Cycles and EEVEE) — in its own container.
 `
 
 const chart1 = `graph TB
@@ -36,18 +36,16 @@ const chart1 = `graph TB
     subgraph Agent["Agent Layer"]
         NOOA["NOOA Framework"]
         AGENTS["14 Agents"]
-        SKILLS["36+ Skills"]
+        SKILLS["32 Skills"]
     end
     subgraph LLM["LLM Layer"]
-        CLASSIFIER["TaskClassifier"]
-        ROUTER["CascadeRouter"]
-        MODELS["Qwen3 1.5B/4B/8B"]
+        ROUTER["LLMRouter (litellm)"]
+        MODELS["Cloud Multi-Provider Router"]
+        PROVIDERS["Gemini / Groq / NVIDIA / OpenRouter / Cloudflare"]
     end
     subgraph Worker["Worker Layer"]
         DOCKER["Docker Services"]
         BLENDER["Blender Bridge"]
-        UE5["Unreal Bridge"]
-        GODOT["Godot Bridge"]
     end
     UI --> Agent
     Agent --> LLM
@@ -64,7 +62,7 @@ The \`BaseAgent\` class extends NOOA's \`Agent\` with capabilities specific to 3
 
 ## The Factory Pattern
 
-All 14 agents are constructed through a single function: \`build_agents()\`. This is not just a convenience — it is a architectural constraint that ensures consistency. Every agent shares the same LLM client instance, which means model selection, caching, and budget tracking happen at a single point of control. If you want to switch from the 8B model to a different model, you change one line in the factory and all 14 agents adapt.
+All 14 agents are constructed through a single function: \`build_agents()\`. This is not just a convenience — it is an architectural constraint that ensures consistency. Every agent shares the same \`LLMRouter\` instance, built via \`build_llm()\`, which means provider selection, health tracking, caching, and budget tracking happen at a single point of control.
 
 The factory also ensures that agents are constructed in a known order with known dependencies. The StoryAgent does not depend on the BlenderAgent, but the DirectorAgent depends on both the StoryAgent and the StoryboardAgent. The factory makes these dependency relationships explicit and enforceable at construction time, not at runtime when a missing dependency would cause a cryptic error deep in the pipeline.
 
@@ -88,7 +86,7 @@ This fingerprint-based invalidation means that changes cascade correctly through
 
 ## Context Management Philosophy
 
-Language models have finite context windows. DeepBl4nder's 8B model supports 32K tokens, which sounds generous until you realize that a single agent's prompt — system instructions, loaded skills, domain schemas, conversation history, and dynamic context — can easily exceed that limit. The context management system exists to make intelligent decisions about what to keep and what to discard.
+Language models have finite context windows. A single agent's prompt — system instructions, loaded skills, domain schemas, conversation history, and dynamic context — can easily exceed typical context limits. The context management system exists to make intelligent decisions about what to keep and what to discard.
 
 The approach is multi-layered. First, the \`ContextInjector\` adds runtime variables like recent pipeline events and QA feedback. Then the \`ContextPruner\` deduplicates content by hash, truncates each context type to its token budget, and summarizes content that exceeds its limit. Finally, the \`PromptCacheManager\` separates stable prefix blocks (system prompt, skill summaries) from volatile suffix blocks (loaded skills, dynamic context) to maximize KV cache hits on the LLM provider.
 
@@ -109,9 +107,9 @@ const section3 = `
 
 After the QA agent approves the generated scripts and animations, the pipeline enters post-production. This phase runs multiple tasks concurrently: rendering, music composition, sound design, audio mixing, localization, and compositing. These tasks are independent — they do not depend on each other's outputs — so running them in parallel dramatically reduces total production time.
 
-The parallelism is controlled through async semaphores. LLM calls are limited to two concurrent requests to prevent GPU memory exhaustion. GPU rendering is limited to four concurrent shots to avoid overwhelming the graphics card. Post-production tasks have no concurrency limit because they primarily use CPU resources or external tools like FFmpeg.
+The parallelism is controlled through async semaphores. LLM calls are rate-limited to manage cloud API quotas and budget consumption. GPU rendering is limited to concurrent shots to avoid overwhelming the graphics card. Post-production tasks have no concurrency limit because they primarily use CPU resources or external tools like FFmpeg.
 
-This controlled parallelism is a practical compromise between speed and resource management. Without limits, the system would attempt to run all 14 agents simultaneously, all rendering tasks at once, and all post-production in parallel — which would quickly exhaust GPU memory and cause cascading failures. The semaphore approach gives you the speed benefits of parallelism while respecting the physical constraints of your hardware.
+This controlled parallelism is a practical compromise between speed and resource management. Without limits, the system would attempt to run all 14 agents simultaneously and all rendering tasks at once, which would quickly exhaust cloud quotas and cause cascading failures. The semaphore approach gives you the speed benefits of parallelism while respecting the constraints of your API budgets and hardware.
 `
 
 export default function ArchitecturePage() {

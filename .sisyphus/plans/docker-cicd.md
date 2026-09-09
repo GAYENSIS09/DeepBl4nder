@@ -2,7 +2,7 @@
 
 ## Contexte
 
-Le setup Docker actuel est minimal : 3 services (worker, scheduler, API) sans PostgreSQL, Redis, MinIO, Langfuse, ni UE5. Le CI/CD fait juste lint+test. Il faut un setup production-ready avec tous les prérequis.
+Le setup Docker actuel est minimal : 3 services (worker, scheduler, API) sans PostgreSQL, Redis, MinIO, Langfuse. Le CI/CD fait juste lint+test. Il faut un setup production-ready avec tous les prérequis.
 
 ## État actuel
 
@@ -10,7 +10,7 @@ Le setup Docker actuel est minimal : 3 services (worker, scheduler, API) sans Po
 |---------|---------|
 | `Dockerfile` | Python 3.12 + Blender + FFmpeg (basique) |
 | `Dockerfile.worker` | Blender 4.1 from tarball + DeepBl4nder |
-| `docker-compose.yml` | 3 services, pas de DB/Redis/UE5 |
+| `docker-compose.yml` | 3 services, pas de DB/Redis |
 | `.github/workflows/ci.yml` | lint + typecheck + test |
 | `.env.example` | Variables LLM + binaires |
 
@@ -89,24 +89,6 @@ services:
     depends_on: [redis, DeepBl4nder-worker]
     environment: *DeepBl4nder-env
     restart: unless-stopped
-
-  # ── UE5 Server (optionnel) ─────────────────────────────
-  ue5-server:
-    build:
-      context: ./ue5-server
-      dockerfile: Dockerfile
-    ports: ["8080:8080"]
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: 1
-              capabilities: [gpu]
-    environment:
-      UE5_EXE: /opt/UnrealEngine/Engine/Binaries/Linux/UnrealEditor-Cmd
-    restart: unless-stopped
-    profiles: ["ue5"]
 
   # ── Frontend ────────────────────────────────────────────
   frontend:
@@ -200,28 +182,6 @@ EXPOSE 3000
 CMD ["node", "server.js"]
 ```
 
-### 2d. `ue5-server/Dockerfile` (NOUVEAU)
-
-```dockerfile
-FROM ubuntu:22.04
-
-# Install UE5 dependencies
-RUN apt-get update && apt-get install -y \
-    libx11-6 libxcursor1 libxinerama1 libxrandr2 libxi6 \
-    libgl1-mesa-glx libglu1-mesa libasound2 libpulse0 \
-    && rm -rf /var/lib/apt/lists/*
-
-# Copy UE5 server plugin
-COPY . /ue5-server
-WORKDIR /ue5-server
-
-# Install Python dependencies
-RUN pip install fastapi uvicorn requests
-
-EXPOSE 8080
-CMD ["python", "server.py"]
-```
-
 ---
 
 ## Étape 3 : `.env.production` (template)
@@ -306,31 +266,7 @@ jobs:
 
 ---
 
-## Étape 5 : UE5 Server Plugin
-
-**Dossier** : `ue5-server/` (NOUVEAU)
-
-Le serveur UE5 est un script Python qui tourne DANS l'éditeur UE5 et expose une API REST.
-
-```
-ue5-server/
-├── Dockerfile
-├── server.py          # FastAPI server
-├── endpoints/
-│   ├── __init__.py
-│   ├── level.py       # Level creation
-│   ├── asset.py       # Asset import
-│   ├── material.py    # Material creation (Lumen)
-│   ├── lighting.py    # Lighting setup
-│   ├── sequencer.py   # Animation
-│   └── render.py      # MRQ render
-├── requirements.txt
-└── README.md
-```
-
----
-
-## Étape 6 : Scripts de déploiement
+## Étape 5 : Scripts de déploiement
 
 **Dossier** : `scripts/` (NOUVEAU)
 
@@ -352,9 +288,6 @@ scripts/
 | `Dockerfile.api` | CRÉER |
 | `Dockerfile.worker` | MODIFIER — ajouter FFmpeg, fix healthcheck |
 | `frontend/Dockerfile` | CRÉER |
-| `ue5-server/Dockerfile` | CRÉER |
-| `ue5-server/server.py` | CRÉER |
-| `ue5-server/endpoints/*.py` | CRÉER |
 | `.env.production` | CRÉER |
 | `.github/workflows/ci.yml` | RÉÉCRIRE — stages complets |
 | `scripts/deploy.sh` | CRÉER |
@@ -363,14 +296,12 @@ scripts/
 
 ## Prérequis GPU
 
-Pour Blender + UE5 en GPU, le docker host doit avoir :
+Pour le rendu Blender en GPU, le docker host doit avoir :
 - `nvidia-container-toolkit` installé
 - Docker daemon configuré avec `--gpus` support
-- Sufficient VRAM (Blender: 4GB+, UE5: 8GB+)
+- Sufficient VRAM (Blender: 4GB+)
 
 ## Risques
 
-- **UE5 Docker image** : UE5 fait 50GB+, l'image Docker sera énorme → utiliser un volume externe ou un image pré-construit
 - **GPU pas disponible en CI** : les tests GPU nécessitent un runner self-hosted avec GPU
-- **Licence UE5** : redistribution UE5 peut nécessiter une licence Epic Games
 - **Backup Minio** : les assets stockés doivent être backupés régulièrement

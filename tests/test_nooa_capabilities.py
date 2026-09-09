@@ -241,7 +241,6 @@ def test_event_query_wired_from_env(monkeypatch: pytest.MonkeyPatch) -> None:
 def test_get_model_id_prefers_real_router_decision(monkeypatch: pytest.MonkeyPatch) -> None:
     """``_get_model_id`` affiche le vainqueur réel du routeur (rotation),
     pas le modèle statique du premier fournisseur du pool."""
-    from DeepBl4nder import llm
     from nooa.unifiedllm import FakeLLMClient
 
     class _FakeRouter(FakeLLMClient):

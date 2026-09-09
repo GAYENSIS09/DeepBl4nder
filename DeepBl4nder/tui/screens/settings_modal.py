@@ -9,6 +9,7 @@ from textual.containers import Container, Horizontal, Vertical
 from textual.screen import Screen
 from textual.widgets import Button, Input, Label, Switch
 
+from DeepBl4nder.llm import PROVIDERS
 from DeepBl4nder.tui.embedded_api import EmbeddedAPI
 
 
@@ -34,6 +35,19 @@ class SettingsModal(Screen):
                     yield Horizontal(Label("Render budget (USD)", classes="setting-label"), Input(str(self.api.budget.budget), type="number", id="set-budget", classes="setting-input"))
                     yield Horizontal(Label("Max revisions", classes="setting-label"), Input(str(self.api.max_revisions), type="number", id="set-revisions", classes="setting-input"))
                     yield Horizontal(Label("Blender executable", classes="setting-label"), Input(self._bridge_exe(), id="set-blender", classes="setting-input", placeholder="auto-detected"))
+                    yield Horizontal(Label("Provider pool (LLM)", classes="setting-label"))
+                    with Vertical(id="settings-providers"):
+                        for pid, provider in PROVIDERS.items():
+                            available = provider.is_available()
+                            yield Horizontal(
+                                Label(f"{pid} ({provider.api_key_env})", classes="setting-provider-name"),
+                                Switch(
+                                    value=available and pid in self.api.default_providers,
+                                    disabled=not available,
+                                    id=f"set-provider-{pid}",
+                                    classes="setting-input",
+                                ),
+                            )
                     yield Horizontal(Label("Enable generation cache", classes="setting-label"), Switch(value=self.api.enable_cache, id="set-cache", classes="setting-input"))
                 with Horizontal(id="settings-actions"):
                     yield Button("Save", id="btn-settings-save", variant="success")
@@ -63,6 +77,12 @@ class SettingsModal(Screen):
 
                 self.api.blender_bridge._blender_exe = _find_blender()
             self.api.enable_cache = self.query_one("#set-cache", Switch).value
+            selected = [
+                pid
+                for pid, provider in PROVIDERS.items()
+                if provider.is_available() and self.query_one(f"#set-provider-{pid}", Switch).value
+            ]
+            self.api.default_providers = selected
             self.notify("Settings saved", severity="success")
         except ValueError as exc:
             self.notify(f"Invalid value: {exc}", severity="error")

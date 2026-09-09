@@ -100,13 +100,15 @@ This event log serves two purposes. First, it provides crash recovery through ev
 
 The event log also feeds the TUI's real-time streaming display. As events are recorded, they are published to the EventBus, which the TUI subscribes to. This means you see each agent's activity as it happens — not after the entire pipeline completes, but as each step starts, processes, and finishes.
 
+For efficiency, the event log is cached in memory and invalidated by file modification time. During a run, the runner inspects the recent run history through \`load()\` on hot paths (checkpoint resumption, run-history injection); the cache ensures these repeated reads do not re-parse the whole file unless it has actually changed, keeping the hot path constant-time per call.
+
 ## Parallel Execution and Resource Management
 
 The pipeline uses async semaphores to control parallelism. LLM calls are limited to two concurrent requests. GPU rendering is limited to four concurrent shots. Post-production tasks have no explicit limit because they primarily use CPU resources.
 
-These limits are not arbitrary — they reflect the physical constraints of your hardware. Each LLM call consumes GPU memory for the model weights and the KV cache. Two concurrent calls is typically the maximum that fits in 8GB of VRAM alongside the model itself. Each rendering job consumes GPU memory for the scene data and the render buffers. Four concurrent jobs is typically the maximum that fits in 24GB of VRAM.
+These limits are not arbitrary — they reflect the environment you are operating in. The LLM concurrency limit manages cloud quota and cost rather than local GPU memory: because agent reasoning is served by a cloud multi-provider router, each concurrent call consumes billed tokens against your provider quota and budget. Two concurrent calls keeps spend predictable and avoids rate-limit contention across the aggregated providers. Each rendering job consumes GPU memory for the scene data and the render buffers. Four concurrent jobs is typically the maximum that fits in a 24GB VRAM GPU.
 
-The semaphore approach ensures that the pipeline uses all available resources without overcommitting them. If you have more GPU memory, you can increase the limits. If you have less, you can decrease them. The system adapts to your hardware without requiring code changes.
+The semaphore approach ensures that the pipeline uses all available resources without overcommitting them. If you have more GPU memory, you can increase the render limits. If you have less, you can decrease them. LLM concurrency can likewise be tuned to match your provider quota and budget. The system adapts to your environment without requiring code changes.
 `
 
 export default function PipelinePage() {

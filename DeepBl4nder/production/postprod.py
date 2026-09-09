@@ -24,8 +24,10 @@ from DeepBl4nder.domain.scene import RenderOutput, SceneSpec
 from DeepBl4nder.production.events import EventLog
 from DeepBl4nder.production.plugins import PluginShortcuts
 from DeepBl4nder.production.runs import ProductionRun
+from DeepBl4nder.agents.base import BaseAgent
 from DeepBl4nder.artifacts.provenance import ProvenanceGraph
 from DeepBl4nder.artifacts.registry import Artifact, ArtifactRegistry
+from DeepBl4nder.plugins.registry import PluginRegistry
 
 logger = logging.getLogger("DeepBl4nder.production.postprod")
 
@@ -36,18 +38,18 @@ class PostProductionRunner(PluginShortcuts):
     def __init__(
         self,
         *,
-        audio: Any,
-        music_composer: Any,
-        sound_designer: Any,
-        localization: Any,
-        compositing: Any,
-        review: Any,
+        audio: BaseAgent,
+        music_composer: BaseAgent,
+        sound_designer: BaseAgent,
+        localization: BaseAgent,
+        compositing: BaseAgent,
+        review: BaseAgent,
         workdir: Path,
         artifacts: ArtifactRegistry,
         provenance: ProvenanceGraph,
         production_run: ProductionRun,
         event_log: EventLog,
-        plugins: Any,
+        plugins: PluginRegistry,
         event_hook: Callable[[str, dict[str, Any]], None],
         charge: Callable[[str, Artifact | None], None],
         write_json: Callable[[str, Any], Path],

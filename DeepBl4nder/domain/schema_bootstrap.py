@@ -20,9 +20,6 @@ _DOMAIN_MODULES = {
     "qa": "DeepBl4nder.domain.qa",
     "media": "DeepBl4nder.domain.media",
     "asset": "DeepBl4nder.domain.asset",
-    "ue5": "DeepBl4nder.domain.ue5",
-    "godot": "DeepBl4nder.domain.godot",
-    "ai_video": "DeepBl4nder.domain.ai_video",
 }
 
 

@@ -52,5 +52,9 @@ artifacts/
 # État NOOA / mémoire locale
 .nooa/
 
+# Données runtime TUI (plugins asset-library / production)
+DeepBl4nder/tui/asset-library/
+DeepBl4nder/tui/production/
+
 # Modèles LLM locaux (trop lourds pour Git)
 models/*.gguf

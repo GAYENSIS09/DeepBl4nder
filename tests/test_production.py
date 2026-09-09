@@ -90,6 +90,23 @@ def test_event_log_skips_corrupt_lines(tmp_path) -> None:
     assert len(EventLog(path).load()) == 1
 
 
+def test_event_log_load_is_cached_until_file_changes(tmp_path) -> None:
+    log = EventLog(tmp_path / "events.jsonl")
+    log.append("run_started", {"brief": "x"})
+    first = log.load()
+    assert [e.kind for e in first] == ["run_started"]
+
+    # idempotent : pas de relecture disque entre deux load() sans changement
+    again = log.load()
+    assert again is first
+
+    # append invalide le cache : le prochain load() revoit le nouvel événement
+    log.append("step_completed", {"step": "brief"})
+    second = log.load()
+    assert [e.kind for e in second] == ["run_started", "step_completed"]
+    assert second is not first
+
+
 def test_run_step_transitions_are_persisted(tmp_path) -> None:
     log = EventLog(tmp_path / "events.jsonl")
     run = ProductionRun(project_id="p", log=log)

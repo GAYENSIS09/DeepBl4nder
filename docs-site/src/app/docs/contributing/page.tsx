@@ -196,13 +196,13 @@ These issues are specifically prepared for new contributors. They come with clea
 The project structure reflects the separation of concerns that guides the architecture:
 
 - \`DeepBl4nder/agents/\` contains the 14 NOOA agents that drive the production pipeline
-- \`DeepBl4nder/skills/\` contains the 36+ skill definitions that provide domain knowledge
+- \`DeepBl4nder/skills/\` contains the 32 skill definitions that provide domain knowledge
 - \`DeepBl4nder/plugins/\` contains the 10 built-in plugins that bridge external systems
-- \`DeepBl4nder/bridges/\` contains the engine bridges for Blender, UE5, Godot, and AI Video
+- \`DeepBl4nder/bridges/\` contains the Blender engine bridge
 - \`DeepBl4nder/codegen/\` contains the AST validator and CodePolicy
 - \`DeepBl4nder/production/\` contains the pipeline orchestrator and event system
 - \`DeepBl4nder/tui/\` contains the Textual terminal user interface
-- \`DeepBl4nder/llm/\` contains the LLM routing and model management
+- \`DeepBl4nder/llm/\` contains the cloud multi-provider LLM router (litellm)
 - \`tests/\` contains the test suite
 
 When making a change, start by identifying which module it belongs to, and keep your changes within that module's boundaries.
@@ -213,7 +213,7 @@ If you have questions about the architecture, the conventions, or the contributi
 
 ## License
 
-By contributing to DeepBl4nder, you agree that your contributions will be licensed under the Apache 2.0 License. This is a permissive license that allows others to use, modify, and distribute your contributions without restriction.
+By contributing to DeepBl4nder, you agree that your contributions will be licensed under the MIT License. This is a permissive license that allows others to use, modify, and distribute your contributions without restriction.
 `
 
 export default function ContributingPage() {

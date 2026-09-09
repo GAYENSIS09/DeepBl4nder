@@ -11,11 +11,11 @@ const sections = [
   { href: '/docs/architecture', title: 'Architecture', description: 'System overview, 4-layer design, and principles', icon: Layers, color: '#AAFF00' },
   { href: '/docs/agents', title: 'Agents (14)', description: 'All NOOA agents with roles, inputs/outputs, and skills', icon: Bot, color: '#88CC00' },
   { href: '/docs/pipeline', title: 'Production Pipeline', description: 'Pipeline runner, checkpoints, revision loop, budget', icon: Workflow, color: '#56B6C2' },
-  { href: '/docs/llm-system', title: 'LLM System', description: 'TaskClassifier, CascadeRouter, 3 Qwen3 local models', icon: Brain, color: '#E6C229' },
+  { href: '/docs/llm-system', title: 'LLM System', description: 'Cloud multi-provider router, model discovery, failover', icon: Brain, color: '#E6C229' },
   { href: '/docs/context', title: 'Context Management', description: 'ContextInjector, Pruner, PromptCache, NOOA native', icon: Database, color: '#56B6C2' },
   { href: '/docs/knowledge-graph', title: 'Knowledge Graph', description: 'KnowledgeGraphPlugin, SchemaVectorStore, TF-IDF', icon: Network, color: '#AAFF00' },
-  { href: '/docs/skills', title: 'Skills (36+)', description: 'Progressive disclosure, SKILL.md format, skill loading', icon: Puzzle, color: '#88CC00' },
-  { href: '/docs/bridges', title: 'Bridges & Engines', description: 'Blender, UE5, Godot, AI Video engine integration', icon: Cpu, color: '#E6C229' },
+  { href: '/docs/skills', title: 'Skills (32)', description: 'Progressive disclosure, SKILL.md format, skill loading', icon: Puzzle, color: '#88CC00' },
+  { href: '/docs/bridges', title: 'Bridges & Engines', description: 'Blender engine bridge and integration', icon: Cpu, color: '#E6C229' },
   { href: '/docs/codegen', title: 'CodeGen', description: 'AST validator, CodePolicy, script validation', icon: FileCode, color: '#56B6C2' },
   { href: '/docs/plugins', title: 'Plugins', description: '10 built-in plugins: rendering, audio, storage, git', icon: Box, color: '#FF5C57' },
   { href: '/docs/docker', title: 'Docker Setup', description: 'Services, profiles, GPU config, dockerfiles', icon: Container, color: '#56B6C2' },
@@ -29,7 +29,7 @@ export default function DocsPage() {
     <>
       <h1 className="text-4xl font-bold text-db-text mb-2">Documentation</h1>
       <p className="text-db-muted text-lg mb-10">
-        Complete documentation for DeepBl4nder — an open-source, local-first AI production pipeline
+        Complete documentation for DeepBl4nder — an open-source, multi-agent 3D production pipeline
         that transforms text prompts into 3D scenes using 14 specialized agents.
       </p>
 

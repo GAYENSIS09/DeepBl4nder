@@ -119,13 +119,11 @@ Quads réguliers > Quads irréguliers > Triangles > N-gons
 # Appliquer la scale (CRITIQUE avant export/render)
 bpy.ops.object.transform_apply(location=False, rotation=False, scale=True)
 
-# Vérifier l'orientation
-# Blender utilise Z-up par défaut
-# Certains moteurs utilisent Y-up (Unity, Unreal)
+# Vérifier l'orientation (Blender = Z-up)
 ```
 
 - **Scale 1.0** = 1 mètre dans Blender.
-- **Orientation** : Z-up (Blender) vs Y-up (autres moteurs). Vérifier le pipeline.
+- **Orientation** : Blender est Z-up. Vérifier lors des exports.
 - **Origine** : au centre de masse ou au bas de l'objet (selon usage).
 
 ## Nommage
@@ -195,5 +193,5 @@ rock.modifiers["Subdivision"].levels = 2
 - Garder une topologie propre : quads dominants, éviter les n-gons et triangles visibles.
 - Centrer et orienter l'objet sur l'origine ; appliquer la scale avant export.
 - Nommer objets et collections explicitement (`obj_<type>_<name>`).
-- Vérifier la scale (échelle réaliste) et la norme (Y-up / Z-up selon pipeline).
+- Vérifier la scale (échelle réaliste) et la norme (Z-up, Blender).
 - Sortir un `AssetSpec` + code bpy réutilisable ; jamais de mesh généré par `exec`.

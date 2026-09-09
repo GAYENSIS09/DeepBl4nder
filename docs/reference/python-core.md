@@ -29,8 +29,7 @@
    - 2.13 [`agents/music.py`](#213-agentsmusicpy)
    - 2.14 [`agents/sfx.py`](#214-agentssfxpy)
    - 2.15 [`agents/qa.py`](#215-agentsqapy)
-   - 2.16 [`agents/review.py`](#216-agentsreviewpy)
-   - 2.17 [`agents/ue5.py`](#217-agentsue5py)
+- 2.16 [`agents/review.py`](#216-agentsreviewpy)
 3. [Domaine (domain/)](#3-domaine)
    - 3.1 [`domain/__init__.py`](#31-domain__init__py)
    - 3.2 [`domain/scene.py`](#32-domainscenepy)
@@ -39,9 +38,8 @@
    - 3.5 [`domain/qa.py`](#35-domainqapy)
    - 3.6 [`domain/project.py`](#36-domainprojectpy)
    - 3.7 [`domain/patch.py`](#37-domainpatchpy)
-   - 3.8 [`domain/asset.py`](#38-domainassetpy)
-   - 3.9 [`domain/ue5.py`](#39-domainue5py)
-   - 3.10 [`domain/utils.py`](#310-domainutilspy)
+- 3.8 [`domain/asset.py`](#38-domainassetpy)
+   - 3.9 [`domain/utils.py`](#39-domainutilspy)
 4. [API (api/)](#4-api)
    - 4.1 [`api/__init__.py`](#41-api__init__py)
    - 4.2 [`api/app.py`](#42-apiapppy)
@@ -60,8 +58,7 @@
 6. [Bridges (bridges/)](#6-bridges)
    - 6.1 [`bridges/blender/bridge.py`](#61-bridgesblenderbridgepy)
    - 6.2 [`bridges/blender/scheduler.py`](#62-bridgesblenderschedulerpy)
-   - 6.3 [`bridges/blender/worker.py`](#63-bridgesblenderworkerpy)
-   - 6.4 [`bridges/ue5/bridge.py`](#64-bridgesue5bridgepy)
+- 6.3 [`bridges/blender/worker.py`](#63-bridgesblenderworkerpy)
 7. [Codegen (codegen/)](#7-codegen)
    - 7.1 [`codegen/__init__.py`](#71-codegen__init__py)
    - 7.2 [`codegen/policy.py`](#72-codegenpolicypy)
@@ -539,7 +536,6 @@ Module d'export centralisé pour tous les agents du projet.
 | `SoundDesignerAgent` | `agents.sfx` |
 | `QAAgent` | `agents.qa` |
 | `ReviewAgent` | `agents.review` |
-| `UE5Agent` | `agents.ue5` |
 
 ---
 
@@ -1063,31 +1059,6 @@ class ReviewAgent(BaseAgent, DefaultsMixin):
 
 ---
 
-### 2.17 `agents/ue5.py`
-
-Agent Unreal Engine 5.
-
-**Classe :**
-
-### `UE5Agent`
-
-```python
-class UE5Agent(BaseAgent, DefaultsMixin):
-    name = "ue5_agent"
-    agent_config = {"model": "gpt-4o"}
-    skill_names = ["unreal-engine-5", "blueprint", "material-editor"]
-    output_type = UE5Commands
-    strategies = [codeact_with_sandbox(sandbox)]
-```
-
-**Description :** Agent qui prend un `SceneSpec` et produit des `UE5Commands` — une séquence de commandes exécutables dans Unreal Engine 5 (niveaux, matériaux, éclairage, animation, rendu).
-
-**Sortie :** `UE5Commands` (voir `domain/ue5.py`)
-
-**Fonction de postcondition :** `ue5_commands_postcondition()`
-
----
-
 ## 3. Domaine (domain/)
 
 ### 3.1 `domain/__init__.py`
@@ -1100,12 +1071,7 @@ Module d'export centralisé pour tous les types de domaine.
 |---------|---------------|
 | `Engine` | `domain.scene` |
 | `ENGINE_BLENDER` | `domain.scene` |
-| `ENGINE_UE5` | `domain.scene` |
-| `ENGINE_GODOT` | `domain.scene` |
-| `ENGINE_AI_VIDEO` | `domain.scene` |
 | `SUPPORTED_ENGINES` | `domain.scene` |
-| `UE5RenderSpec` | `domain.scene` |
-| `UE5CameraSpec` | `domain.scene` |
 | `LightingSpec` | `domain.scene` |
 | `CharacterSpec` | `domain.scene` |
 | `EnvironmentSpec` | `domain.scene` |
@@ -1150,8 +1116,6 @@ Module d'export centralisé pour tous les types de domaine.
 | `Patch` | `domain.patch` |
 | `AssetKind` | `domain.asset` |
 | `Asset` | `domain.asset` |
-| `UE5Command` | `domain.ue5` |
-| `UE5Commands` | `domain.ue5` |
 | `new_id` | `domain.utils` |
 
 ---
@@ -1165,43 +1129,11 @@ Types de domaine pour les scènes 3D, les plans, l'éclairage, les caméras et l
 | Nom | Type | Valeur | Description |
 |-----|------|--------|-------------|
 | `ENGINE_BLENDER` | `str` | `"blender"` | Identifiant du moteur Blender |
-| `ENGINE_UE5` | `str` | `"unreal"` | Identifiant du moteur Unreal Engine 5 |
-| `ENGINE_GODOT` | `str` | `"godot"` | Identifiant du moteur Godot |
-| `ENGINE_AI_VIDEO` | `str` | `"ai_video"` | Identifiant du moteur de vidéo IA |
-| `SUPPORTED_ENGINES` | `frozenset[str]` | `{ENGINE_BLENDER, ENGINE_UE5, ENGINE_GODOT, ENGINE_AI_VIDEO}` | Ensembles des moteurs supportés |
+| `SUPPORTED_ENGINES` | `frozenset[str]` | `{ENGINE_BLENDER}` | Ensembles des moteurs supportés |
 
 ---
 
 **Classes :**
-
-### `UE5RenderSpec`
-
-```python
-@dataclasses.dataclass
-class UE5RenderSpec:
-    width: int = 1920
-    height: int = 1080
-    frame_rate: int = 30
-    quality: str = "high"
-```
-
-**Description :** Spécification de rendu pour Unreal Engine 5.
-
----
-
-### `UE5CameraSpec`
-
-```python
-@dataclasses.dataclass
-class UE5CameraSpec:
-    position: tuple[float, float, float] = (0.0, -5.0, 2.0)
-    look_at: tuple[float, float, float] = (0.0, 0.0, 0.0)
-    fov: float = 90.0
-```
-
-**Description :** Spécification de caméra pour Unreal Engine 5.
-
----
 
 ### `LightingSpec`
 
@@ -1327,12 +1259,10 @@ class SceneSpec:
     engine: str = ENGINE_BLENDER
     name: str = ""
     description: str = ""
-    shots: list[ShotSpec] = dataclasses.field(default_factory=list)
-    ue5_render: UE5RenderSpec | None = None
-    ue5_camera: UE5CameraSpec | None = None
+shots: list[ShotSpec] = dataclasses.field(default_factory=list)
 ```
 
-**Description :** Spécification complète d'une scène. Type de sortie des `DirectorAgent` et `UE5Agent`.
+**Description :** Spécification complète d'une scène. Type de sortie du `DirectorAgent`.
 
 **Méthodes :**
 
@@ -2197,55 +2127,7 @@ class Asset:
 
 ---
 
-### 3.9 `domain/ue5.py`
-
-Types de domaine pour les commandes Unreal Engine 5.
-
-**Classes :**
-
-### `UE5Command`
-
-```python
-@dataclasses.dataclass
-class UE5Command:
-    action: str = ""
-    target: str = ""
-    params: dict = dataclasses.field(default_factory=dict)
-```
-
-**Description :** Une commande individuelle pour Unreal Engine 5.
-
-**Attributs :**
-
-| Attribut | Type | Description |
-|----------|------|-------------|
-| `action` | `str` | Type d'action (`"create_actor"`, `"set_material"`, `"add_light"`, etc.) |
-| `target` | `str` | Cible de la commande (nom de l'acteur, material, etc.) |
-| `params` | `dict` | Paramètres additionnels de la commande |
-
----
-
-### `UE5Commands`
-
-```python
-@dataclasses.dataclass
-class UE5Commands:
-    commands: list[UE5Command] = dataclasses.field(default_factory=list)
-    level_name: str = ""
-    description: str = ""
-    metadata: dict = dataclasses.field(default_factory=dict)
-```
-
-**Description :** Liste ordonnée de commandes UE5. Type de sortie du `UE5Agent`.
-
-**Méthodes :**
-
-- `to_mapping()` → `dict`
-- `from_mapping(data: dict)` → `UE5Commands`
-
----
-
-### 3.10 `domain/utils.py`
+### 3.9 `domain/utils.py`
 
 Utilitaires partagés du domaine.
 
@@ -3499,150 +3381,6 @@ def cleanup(self) -> None
 
 ---
 
-### 6.4 `bridges/ue5/bridge.py`
-
-Bridge pour l'intégration avec Unreal Engine 5.
-
-**Classes :**
-
-### `UE5ConnectionError`
-
-```python
-class UE5ConnectionError(Exception):
-    pass
-```
-
-**Description :** Exception levée en cas d'échec de connexion à UE5.
-
----
-
-### `UE5CommandError`
-
-```python
-class UE5CommandError(Exception):
-    pass
-```
-
-**Description :** Exception levée en cas d'erreur d'exécution d'une commande UE5.
-
----
-
-### `UE5CommandResult`
-
-```python
-@dataclasses.dataclass
-class UE5CommandResult:
-    success: bool = True
-    command: str = ""
-    output: str = ""
-    error: str | None = None
-    duration_sec: float = 0.0
-```
-
-**Description :** Résultat de l'exécution d'une commande UE5.
-
----
-
-### `UE5Bridge`
-
-```python
-class UE5Bridge:
-    def __init__(self, host: str = "localhost", port: int = 8080, timeout: float = 30.0):
-        ...
-```
-
-**Description :** Interface de communication avec Unreal Engine 5 via HTTP/WebSocket.
-
-**Constructeur :**
-
-| Paramètre | Type | Description |
-|-----------|------|-------------|
-| `host` | `str` | Adresse du serveur UE5 |
-| `port` | `int` | Port de communication |
-| `timeout` | `float` | Timeout des requêtes (secondes) |
-
-**Méthodes :**
-
-#### `health()`
-
-```python
-def health(self) -> bool
-```
-
-**Description :** Vérifie la connexion à UE5.
-
----
-
-#### `send_command()`
-
-```python
-def send_command(self, command: UE5Command) -> UE5CommandResult
-```
-
-**Description :** Envoie une commande individuelle à UE5.
-
----
-
-#### `send_commands()`
-
-```python
-def send_commands(self, commands: UE5Commands) -> list[UE5CommandResult]
-```
-
-**Description :** Envoie une séquence de commandes à UE5.
-
----
-
-#### `create_level()`
-
-```python
-def create_level(self, name: str) -> UE5CommandResult
-```
-
-**Description :** Crée un nouveau level dans UE5.
-
----
-
-#### `setup_material()`
-
-```python
-def setup_material(self, target: str, material_params: dict) -> UE5CommandResult
-```
-
-**Description :** Configure un matériau sur un acteur.
-
----
-
-#### `setup_lighting()`
-
-```python
-def setup_lighting(self, lights: list[LightingSpec]) -> UE5CommandResult
-```
-
-**Description :** Configure l'éclairage de la scène.
-
----
-
-#### `setup_animation()`
-
-```python
-def setup_animation(self, target: str, animation_params: dict) -> UE5CommandResult
-```
-
-**Description :** Configure l'animation d'un acteur.
-
----
-
-#### `render_movie()`
-
-```python
-def render_movie(self, output_path: str, params: dict) -> UE5CommandResult
-```
-
-**Description :** Lance le rendu vidéo dans UE5.
-
----
-
 ## 7. Codegen (codegen/)
 
 ### 7.1 `codegen/__init__.py`
@@ -4312,7 +4050,6 @@ DeepBl4nder/
 │   ├── sfx.py           # SoundDesignerAgent → SoundDesignPlan
 │   ├── qa.py            # QAAgent → QAReport
 │   ├── review.py        # ReviewAgent → ReviewReport
-│   └── ue5.py           # UE5Agent → UE5Commands
 │
 ├── domain/              # Types de domaine (dataclasses)
 │   ├── scene.py         # SceneSpec, ShotSpec, CameraSpec, LightingSpec...
@@ -4322,7 +4059,6 @@ DeepBl4nder/
 │   ├── project.py       # Project, Brief, Sequence, Shot
 │   ├── patch.py         # Patch, apply_patch, apply_patches
 │   ├── asset.py         # Asset, AssetKind, sha256_of_file
-│   ├── ue5.py           # UE5Command, UE5Commands
 │   └── utils.py         # new_id()
 │
 ├── api/                 # API FastAPI + SQLAlchemy
@@ -4341,12 +4077,10 @@ DeepBl4nder/
 │   └── worker.py        # WorkerProcess, WorkerCommand, ProcessResult
 │
 ├── bridges/             # Bridges moteurs 3D
-│   ├── blender/
-│   │   ├── bridge.py    # BlenderBridge, _find_blender, _detect_gpu
-│   │   ├── scheduler.py # WorkerScheduler, WorkerInfo
-│   │   └── worker.py    # BlenderWorker, WorkerStatus
-│   └── ue5/
-│       └── bridge.py    # UE5Bridge (health, send_command, render_movie...)
+│   └── blender/
+│       ├── bridge.py    # BlenderBridge, _find_blender, _detect_gpu
+│       ├── scheduler.py # WorkerScheduler, WorkerInfo
+│       └── worker.py    # BlenderWorker, WorkerStatus
 │
 ├── codegen/             # Validation de code
 │   ├── policy.py        # CodePolicy, ALLOWED_IMPORTS, FORBIDDEN_BUILTINS

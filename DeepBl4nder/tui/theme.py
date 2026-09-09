@@ -42,7 +42,6 @@ ACTOR_COLORS: dict[str, str] = {
     "localization": "#89CA78",
     "compositing": "#B294BB",
     "review": "#EF596F",
-    "ue5": "#7FC8FF",
 }
 
 ACTOR_LABELS: dict[str, str] = {
@@ -60,5 +59,4 @@ ACTOR_LABELS: dict[str, str] = {
     "localization": "Localization",
     "compositing": "Compositing",
     "review": "Review",
-    "ue5": "Unreal Engine",
 }

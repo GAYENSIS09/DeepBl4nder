@@ -10,14 +10,8 @@ const mermaidChart1 = `graph TB
     subgraph Host["Host Machine"]
       subgraph Docker["Docker Engine"]
         subgraph Core["Core Services"]
-          LLM["llm-server<br/>:8080<br/>GPU: CUDA/OptiX"]
+          LLM["llm-server<br/>:8080<br/>Optional Local Inference<br/>GPU: CUDA/OptiX"]
           BW["blender-worker<br/>GPU: CUDA/OptiX"]
-        end
-
-        subgraph Optional["Optional Services"]
-          UE5["ue5-server<br/>:8081<br/>GPU: CUDA"]
-          GODOT["godot-server<br/>:8082"]
-          AIV["ai-video-server<br/>:8083<br/>GPU: CUDA"]
         end
       end
     end
@@ -28,7 +22,7 @@ const section1 = `
 
 The decision to containerize DeepBl4nder's services was not made for convenience or deployment simplicity — though it provides both. It was made because Docker provides something that bare-metal execution cannot: **process isolation with resource control**. When an LLM generates a Python script that will execute Blender in headless mode, that script needs to run in an environment where its effects are bounded, its resources are allocated, and its failures do not cascade to the host system. Docker provides all three guarantees, and it does so with a maturity and ecosystem that makes it the natural choice for production deployment.
 
-But Docker introduces its own challenges, particularly around GPU access. LLM inference and 3D rendering are GPU-intensive workloads, and containers do not have native access to host GPUs. DeepBl4nder solves this through NVIDIA Container Toolkit, which provides transparent GPU passthrough to containers. The result is that services inside containers see and use GPUs as if they were running on bare metal, while the host system maintains control over resource allocation and process isolation.
+But Docker introduces its own challenges, particularly around GPU access. 3D rendering is a GPU-intensive workload, and containers do not have native access to host GPUs. DeepBl4nder solves this through NVIDIA Container Toolkit, which provides transparent GPU passthrough to containers. The result is that services inside containers see and use GPUs as if they were running on bare metal, while the host system maintains control over resource allocation and process isolation.
 
 ## Why Docker Matters for Isolation
 
@@ -36,7 +30,7 @@ The isolation provided by Docker serves three purposes in DeepBl4nder: security,
 
 **Security isolation.** When BlenderBridge executes a Python script, that script runs inside a Docker container with a limited filesystem view, no network access (unless explicitly configured), and controlled resource limits. Even if the AST validator misses a dangerous operation, the Docker container limits what the operation can affect. The script cannot access files outside its mounted volumes, it cannot make network connections, and it cannot consume more CPU or memory than allocated.
 
-**Resource management.** Each service in the DeepBl4nder stack has different resource requirements. The LLM server needs GPU memory for model inference. The Blender worker needs CPU cores for scene computation and GPU cores for rendering. The AI video server needs GPU memory for video generation. Docker Compose's \`deploy.resources\` configuration allows each service to declare its GPU requirements, and the NVIDIA Container Toolkit ensures that only the allocated GPUs are accessible to each service.
+**Resource management.** Each service in the DeepBl4nder stack has different resource requirements. The Blender worker needs CPU cores for scene computation and GPU cores for rendering. The optional local LLM server needs GPU memory for model inference if it is used. Docker Compose's \`deploy.resources\` configuration allows each service to declare its GPU requirements, and the NVIDIA Container Toolkit ensures that only the allocated GPUs are accessible to each service.
 
 **Reproducibility.** Docker images encapsulate the exact versions of Blender, FFmpeg, Python, and all dependencies that a service requires. A production that works today will work tomorrow, next week, and next year — regardless of what software is installed on the host machine. This reproducibility is essential for a system that may run productions over extended periods.
 `
@@ -97,99 +91,57 @@ services:
               capabilities: [gpu]
 \`\`\`
 
-The \`count: 1\` parameter reserves one GPU for the service. The \`capabilities: [gpu]\` parameter grants the service access to CUDA compute capabilities. Together, these ensure that the LLM server has exclusive access to one GPU, and the Blender worker has exclusive access to another.
+The \`count: 1\` parameter reserves one GPU for the service. The \`capabilities: [gpu]\` parameter grants the service access to CUDA compute capabilities. The Blender worker reserves GPU access for Cycles rendering. The optional local LLM server also reserves a GPU if it is used for local inference. If you have only one GPU, you can run the local LLM server in CPU mode or — more commonly — rely on cloud LLM providers entirely and skip the local LLM server.
 
-This exclusive allocation is important because GPU memory is not easily shared between processes. If the LLM server and Blender worker both tried to use the same GPU, they would compete for memory, potentially causing out-of-memory errors. By allocating separate GPUs to each service, DeepBl4nder eliminates this contention.
-
-<Callout type="warning" title="GPU Requirements">
-The LLM server requires an NVIDIA GPU with at least 8 GB VRAM for the Qwen3-8B model. The Blender worker benefits from GPU acceleration for Cycles rendering but can fall back to CPU rendering. The AI video server requires a GPU with at least 12 GB VRAM for video generation. If you have only one GPU, prioritize the LLM server and run the Blender worker in CPU mode.
+<Callout type="info" title="GPU Requirements">
+A GPU is required for Blender rendering (Cycles benefits greatly from GPU acceleration, though CPU rendering is a fallback). The optional local \`llm-server\` also uses an NVIDIA GPU for local inference with llama.cpp/Qwen3 — but it is NOT required when using cloud LLM providers. When agents are backed by the cloud LLM router (Gemini, Groq, NVIDIA, OpenRouter, Cloudflare), no local LLM GPU is needed at all.
 </Callout>
 
 ## The Services: What Each Container Does
 
-DeepBl4nder's Docker Compose configuration defines five services, each in its own container. The default profile starts only the two core services — the LLM server and the Blender worker. Optional services are started on demand using Docker Compose profiles.
+DeepBl4nder's Docker Compose configuration defines three services — the optional local LLM server, the Blender worker, and the TUI. The **primary production service for rendering is the \`blender-worker\`**. The \`llm-server\` is an optional, legacy local inference service that is not required when using cloud LLM providers, which is how the agents are normally powered.
 
-### LLM Server
-
-The LLM server runs llama.cpp with the Qwen3 model for local inference. It exposes an OpenAI-compatible API on port 8080, which means any tool or library that can call the OpenAI API can also call the local LLM server. The server loads the model into GPU memory at startup and serves inference requests with low latency.
-
-The LLM server is the foundation of the entire system. Without it, agents cannot reason, code cannot be generated, and productions cannot proceed. This is why it is the only service that is always started — the \`docker compose up\` command starts the LLM server and the Blender worker by default.
-
-The server uses a health check that polls the \`/v1/models\` endpoint every 30 seconds. Other services depend on this health check, ensuring that they do not start until the LLM server is ready to handle requests.
-
-### Blender Worker
+### Blender Worker — The Core Rendering Service
 
 The Blender worker runs Blender 4.1 in headless mode, along with FFmpeg for video processing. It does not expose a network port — instead, it communicates with the rest of the system through shared volumes. The worker receives scripts via the filesystem, executes them in Blender, and writes output to the shared output directory.
 
 The worker container includes both Blender and FFmpeg because these tools are tightly coupled in the production pipeline. Blender renders frames, and FFmpeg assembles them into video. Keeping them in the same container avoids the complexity of cross-container file transfer for intermediate rendering products.
 
-The worker also reserves a GPU for Cycles rendering. While Blender can render on CPU, GPU rendering is significantly faster — often 5 to 10 times faster for complex scenes. The GPU reservation ensures that the worker has exclusive access to a GPU for rendering.
+The worker reserves a GPU for Cycles rendering. While Blender can render on CPU, GPU rendering is significantly faster — often 5 to 10 times faster for complex scenes. The GPU reservation ensures that the worker has exclusive access to a GPU for rendering. Blender is the only rendering engine in the stack (Cycles or EEVEE on Blender 4.1+).
 
-### UE5 Server (Optional)
+### LLM Server (Optional Local Inference)
 
-The UE5 server runs Unreal Engine 5 as a REST API service on port 8081. It provides commands for level creation, asset import, material setup, lighting, and rendering via Movie Render Queue. The server requires its own GPU for real-time rendering and ray tracing.
+The \`llm-server\` service is an optional, legacy local inference option that runs llama.cpp with a Qwen3 GGUF model. It exposes an OpenAI-compatible API on port 8080 and is built from \`Dockerfile.llm\`. This service is **not required** — the agents' LLM is a cloud multi-provider router aggregated via litellm and configured by API keys. The local \`llm-server\` exists for environments where an operator specifically wants to run a local model instead of using cloud providers.
 
-This service is started on demand using the \`ue5\` Docker Compose profile:
+If you choose to run the local LLM server, it loads the model into GPU memory at startup and serves inference requests with low latency. It uses a health check that polls the \`/v1/models\` endpoint. For most deployments, however, agents are configured with cloud provider API keys, and the local server is left disabled.
 
-\`\`\`bash
-docker compose --profile ue5 up -d
-\`\`\`
+### TUI Service
 
-The UE5 server depends on the LLM server being healthy, ensuring that the full pipeline is available when production begins.
+A \`tui\` service is defined under the \`tui\` Docker profile, providing a containerized way to launch the terminal interface.
 
-### Godot Server (Optional)
+## Docker Profiles: Service Startup
 
-The Godot server runs Godot 4 as a REST API service on port 8082. It provides scene management, procedural mesh generation, material setup, lighting, and WebGL export. Unlike UE5, Godot does not require GPU access for its REST API operations, making it lighter on resources.
-
-This service is started on demand using the \`godot\` profile:
-
-\`\`\`bash
-docker compose --profile godot up -d
-\`\`\`
-
-### AI Video Server (Optional)
-
-The AI video server runs text-to-video and image-to-video generation models on port 8083. It supports CogVideoX, SVD, and AnimateDiff models. This is the most GPU-intensive service in the stack — video generation requires significant VRAM and compute time.
-
-The server uses a named Docker volume (\`ai-video-cache\`) for caching generated videos and intermediate models. This cache persists across container restarts, avoiding the need to re-download models every time the service starts.
-
-\`\`\`bash
-docker compose --profile ai-video up -d
-\`\`\`
-
-## Docker Profiles: Selective Service Startup
-
-Docker Compose profiles allow DeepBl4nder to start only the services that are needed. The default profile starts the core services — the LLM server and the Blender worker. Optional profiles add services on demand.
+The \`docker compose up\` command starts the core services — the Blender worker (and the optional LLM server if enabled):
 
 \`\`\`bash
 # Core services only (default)
 docker compose up -d
-
-# With Unreal Engine 5
-docker compose --profile ue5 up -d
-
-# With Godot 4
-docker compose --profile godot up -d
-
-# With AI Video generation
-docker compose --profile ai-video up -d
-
-# All services
-docker compose --profile ue5 --profile godot --profile ai-video up -d
 \`\`\`
 
-This selective startup is important for resource management. Not every production needs UE5 or Godot. Not every workstation has the VRAM for AI video generation. Profiles allow operators to start only what they need, conserving resources for the services that matter.
+Blender is the only rendering engine in the stack, so no optional engine profiles are needed. This keeps the deployment simple and the resource footprint predictable.
 
 ## Environment Variables
 
 The Docker configuration uses environment variables to control service behavior. The most important variables are shared across services through the \`x-common-env\` YAML anchor:
 
-- \`DeepBl4nder_MODELS_DIR\` controls where LLM models are stored (default: \`./models\`)
-- \`DeepBl4nder_LLM_HOST\` and \`DeepBl4nder_LLM_PORT\` configure the LLM server connection
+- \`GEMINI_API_KEY\`, \`GROQ_API_KEY\`, \`NVIDIA_API_KEY\`, \`OPENROUTER_API_KEY\` configure the cloud LLM router providers (at least one is required)
+- \`CLOUDFLARE_API_KEY\` and \`CLOUDFLARE_ACCOUNT_ID\` configure the Cloudflare LLM provider
+- \`DeepBl4nder_BUDGET\` sets the default production budget in USD (default: \`1.0\`)
+- \`DeepBl4nder_LLM_HOST\` and \`DeepBl4nder_LLM_PORT\` configure the optional local \`llm-server\` connection
+- \`DeepBl4nder_MODELS_DIR\` controls where local LLM models are stored (default: \`./models\`) — used only by the optional local \`llm-server\`
 - \`BLENDER_EXE\` points to the Blender binary inside the container (default: \`/usr/local/bin/blender\`)
 - \`FFMPEG_EXE\` points to the FFmpeg binary (default: \`/usr/local/bin/ffmpeg\`)
-- \`DeepBl4nder_BUDGET\` sets the default production budget in USD (default: \`1.0\`)
-- \`DeepBl4nder_DATA_DIR\` controls where production data is stored (default: \`./data\`)
+- \`GIT_EXE\` points to the Git binary
 
 These variables are defined in the \`docker-compose.yml\` file and can be overridden in a \`.env\` file for local customization.
 
@@ -198,7 +150,7 @@ Common Docker issues and their solutions:
 
 - **GPU not found**: Verify that \`nvidia-smi\` works on the host, then check that the NVIDIA Container Toolkit is installed and Docker has been restarted
 - **Port conflict**: If port 8080 is already in use, change the port mapping in \`docker-compose.yml\` or stop the conflicting service
-- **Out of memory**: Use a smaller model (Qwen3-1.5B or Qwen3-4B) or reduce \`--n-gpu-layers\` in the LLM server command
+- **Out of memory (local LLM server)**: Use a smaller model (Qwen3-1.5B or Qwen3-4B) or reduce the GPU layers in the LLM server command — or disable the local server and use cloud providers
 - **Blender not found**: The container includes Blender — if it is missing, rebuild the Docker image with \`docker compose build\`
 </Callout>
 `

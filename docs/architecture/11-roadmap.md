@@ -1,7 +1,7 @@
 # 11 — Roadmap d'implémentation et architecture des dossiers
 
 > Consolidation de : Roadmap A §25/§34, B §5/§23, C §39/§42-44.
-> Mise à jour post-consolidation API (ADR-002) : SaaS FastAPI + frontend Next.js intégrés.
+> Mise à jour : suppression de l'architecture SaaS (FastAPI, PostgreSQL, Redis, MinIO, frontend Next.js). TUI in-process + routeur LLM cloud.
 
 ## Architecture des dossiers (finale)
 
@@ -18,20 +18,18 @@ DeepBl4nder/
 │   └── cahier-de-conception-v1.md
 ├── DeepBl4nder/               ← paquet Python
 │   ├── __init__.py
-│   ├── cli.py                 ← point d'entrée `DeepBl4nder` (inspect|validate|serve|seed)
-│   ├── llm.py                 ← multi-provider LLM router (vote)
-│   ├── agents/                ← sous-classes nooa.Agent (director, blender, ue5, godot, ai_video, qa, audio, compositing, localization)
+│   ├── cli.py                 ← point d'entrée `DeepBl4nder` (inspect|validate)
+│   ├── llm/                   ← routeur LLM cloud multi-fournisseurs (litellm)
+│   ├── agents/                ← sous-classes nooa.Agent (director, blender, qa, audio, compositing, localization)
 │   ├── domain/                ← objets métier typés (project, scene, shot, asset, qa, media)
 │   ├── skills/                ← registry/loader (mécanique NOOA : TextSkill)
-│   ├── bridges/               ← clients REST pour moteurs externes (blender, ue5, godot, ai_video)
+│   ├── bridges/               ← clients pour moteurs externes (blender)
 │   ├── blender/               ← bridge, worker, scheduler
 │   ├── codegen/               ← blender_python, validator (AST), policy
 │   ├── artifacts/             ← registry, versioning, provenance
 │   ├── production/            ← runs, scheduler, budget, recovery
 │   ├── bridge/                ← worker process (frontière isolée)
-│   ├── plugins/               ← 13 plugins (audio, blender, ue5, godot, ai-video, ffmpeg, git, storage, knowledge, asset-library, rendering, media, tools)
-│   └── api/                   ← API SaaS FastAPI (auth, orgs, workspaces, projects, productions, SSE, worker, usage, validate)
-├── frontend/                  ← Next.js 14 (App Router) : dashboard, pipeline, realtime, costs, members
+│   └── plugins/               ← 10 plugins builtins (blender, ffmpeg, audio, tts, storage, asset-library, subtitle, git, knowledge-graph, render-farm)
 ├── tests/                     ← unit + decoupling + integration (17 suites)
 └── examples/                  ← exemples et fixtures (scratch/, run_pipeline.py, run_director.py)
 ```
@@ -45,14 +43,11 @@ DeepBl4nder/
 | 2 | Verticale Blender : bridge → worker → render (headless, `BLENDER_EXE`) | Code fait ; render réel à valider dans l'image Docker (Blender absent de l'hôte) |
 | 3 | Production state / artifacts / provenance / revisions / human-in-the-loop | Fait (registry, provenance, runs, approbations) |
 | 4 | Recovery / observabilité / budgets | Fait (journal JSONL + replay, SSE `/events`, alerte budget, `/budget`) |
-| 5 | Skills complets (catalogue 26 skills) | Fait |
+| 5 | Skills complets (catalogue 32 skills) | Fait |
 | 6 | Audio / compositing / localisation | Fait (plugins audio/ffmpeg/subtitle/tts, specs média, `LanguagePackage`) |
 | 7 | Industrialisation : render farm, GPU scheduling, storage, caching | Fait (scheduler CPU/GPU extensible à chaud, `RenderFarmPlugin`, `StoragePlugin`) |
 | 8 | SaaS Foundation : auth/JWT, multi-tenant, RBAC 4 rôles, FastAPI, frontend Next.js | Fait |
 | 9 | Vagues 0-3 : hygiène, rendu fiable, contrats de production, pipeline créatif | En cours |
-| 10 | Verticale UE5 : bridge → agent → server (Lumen, Nanite, MRQ) | Fait |
-| 11 | Verticale Godot : bridge → agent → server (GDScript, WebGL) | Fait |
-| 12 | Verticale AI Video : bridge → agent → server (CogVideoX, SVD, AnimateDiff) | Fait |
 
 ## Ordre de priorité
 
@@ -63,5 +58,5 @@ métier manquantes → valider avec une verticale Blender → étendre progressi
 ## Décisions d'architecture enregistrées (ADR)
 
 - **ADR-001** : `docs/architecture/` = source de vérité unique ; `docs/roadmaps/` archivées.
-- **ADR-002** (cette session) : Consolidation API sur FastAPI `app.py` ; dépréciation `server.py` ; `docker-compose.yml` et CLI `serve` pointent vers FastAPI ; endpoint `/validate` porté.
+- **ADR-002** : Suppression de l'architecture SaaS (FastAPI, PostgreSQL, Redis, MinIO, frontend Next.js). TUI in-process + routeur LLM cloud multi-fournisseurs.
 

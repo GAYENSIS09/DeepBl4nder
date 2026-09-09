@@ -3,111 +3,147 @@ import { MermaidDiagram } from '@/components/diagrams/MermaidDiagram'
 
 export const metadata = {
   title: 'LLM System - DeepBl4nder',
-  description: 'The cascade routing system, task classification, and local model management.',
+  description: 'The cloud multi-provider LLM router, model discovery, fallback strategies, and budget management.',
 }
 
 const section1 = `
 # LLM System
 
-## The Case for Local Language Models
+## Cloud Multi-Provider Architecture
 
-Running language models locally is not just about privacy — though privacy matters enormously when your creative briefs contain proprietary stories and your Blender scripts contain trade secrets. The deeper reason for local inference is **determinism and control**. When you call a cloud API, you are at the mercy of the provider's rate limits, availability, and model updates. A model that works perfectly today might behave differently tomorrow after an silent update. With local models, you control the exact version, the exact configuration, and the exact behavior.
+DeepBl4nder uses a cloud-based multi-provider LLM router built on \`litellm\`. Rather than relying on a single API or running models locally, the system aggregates five providers into a unified pool: **Gemini**, **Groq**, **NVIDIA**, **OpenRouter**, and **Cloudflare**. Each provider is configured via its own API key, and at least one key is required to use the system.
 
-DeepBl4nder uses three Qwen3 models in GGUF format, served through llama-cpp-python. These are not the largest or most capable models in the world — they are the right models for the job. The 1.5B model handles routing and classification with minimal latency. The 4B model handles narrative planning and dialogue generation. The 8B model handles code generation and complex reasoning. Each model is sized to fit comfortably in GPU memory alongside the other components that need it.
+The router implements NOOA's \`UnifiedLLM\` interface, meaning every agent in the pipeline interacts with it through a single, consistent API — regardless of which provider ultimately handles the request. This abstraction decouples your agents from any specific vendor and gives you the flexibility to use whichever providers you have access to.
 
-## The Cascade Philosophy
+## Provider Configuration
 
-The cascade routing system embodies a simple but powerful idea: **use the smallest model that can do the job well**. This is not about saving tokens or reducing costs — with local models, token cost is essentially zero. It is about speed and quality.
+Providers are configured through environment variables and an optional configuration file at \`~/.deepbl4nder/llm.json\`. The environment variable \`DeepBl4nder_LLM_PROVIDERS\` can specify a comma-separated list of providers to use, overriding the defaults.
 
-The 1.5B model responds in milliseconds. The 4B model responds in a second or two. The 8B model takes several seconds. For a routing decision — "which category does this task belong to?" — waiting several seconds for the 8B model is wasteful when the 1.5B model can make the same decision in a fraction of the time. For code generation — "write a Blender script that creates this scene" — the 8B model's additional capability produces meaningfully better code than the 4B model.
+| Provider | Environment Variable | Notes |
+|---|---|---|
+| Gemini | \`GEMINI_API_KEY\` | Google's Gemini models |
+| Groq | \`GROQ_API_KEY\` | Low-latency inference on Groq hardware |
+| NVIDIA | \`NVIDIA_API_KEY\` | NVIDIA NIM-hosted models |
+| OpenRouter | \`OPENROUTER_API_KEY\` | Multi-model aggregator |
+| Cloudflare | \`CLOUDFLARE_API_KEY\` + \`CLOUDFLARE_ACCOUNT_ID\` | Cloudflare Workers AI |
 
-The cascade approach gives you the speed of the small model for simple tasks and the quality of the large model for complex tasks. The system selects the appropriate model automatically, so you never have to think about which model to use. And if a model fails — produces invalid output, times out, or encounters an error — the system automatically escalates to the next heavier model. This escalation is transparent: you see the final output, not the intermediate failures.
+Each provider is registered with a set of selection rules that filter which models are available from that provider. The router performs dynamic model discovery by querying each provider's \`/models\` endpoint at startup, and applies these rules to build a curated pool of available models.
 
-## Task Classification Without Language Models
+## Fallback vs Vote Modes
 
-One of the most interesting design decisions in DeepBl4nder's LLM system is that **task classification does not use a language model**. The TaskClassifier is a purely heuristic system that categorizes tasks based on keyword matching, regex patterns, and message history analysis.
+The router supports two operational modes, configurable at runtime.
 
-This is a deliberate choice. Using a language model to classify tasks would mean spending tokens and time on a decision that can be made faster and more reliably with simple rules. The classifier checks for coding keywords ("import", "bpy", "def", "class"), reasoning keywords ("analyze", "plan", "evaluate"), and general keywords ("write", "describe", "explain"). It applies regex patterns to detect code snippets. It analyzes the message history to boost coding scores when previous messages contain code indicators. And it boosts the FAST category for short messages of five words or fewer.
+**Fallback mode** (default) sends each request to the first healthy provider in pool order. If the request fails — due to a timeout, rate limit, or error — the router moves to the next provider in the pool and retries. This gives you reliability: as long as at least one provider is healthy, your pipeline keeps running.
 
-The result is a classification system that runs in microseconds, costs zero tokens, and is deterministic — the same input always produces the same classification. This determinism is important because it means the system's behavior is predictable and debuggable. You can trace exactly why a particular task was routed to a particular model, which is essential for understanding and optimizing the system's performance.
+**Vote mode** queries all healthy providers in parallel and collects their responses. It then applies majority voting to select the best response, using provider health scores as a tiebreaker. Vote mode is useful when you need higher confidence in the output and are willing to spend more tokens to get it.
 
-Here is how a task gets classified:
+## Health, Cooldown, and Budget
 
-\`\`\`python
-from DeepBl4nder.llm.classifier import TaskClassifier
+The router tracks per-provider health. When a provider fails, it is placed on a cooldown period during which it is excluded from the pool. After the cooldown expires, the provider is retried with a lightweight health check before being fully reinstated.
 
-classifier = TaskClassifier()
-complexity = classifier.classify("Generate a medieval castle scene with fog")
-# Returns: ComplexityLevel.COMPLEX -> routes to Qwen3-8B
-\`\`\`
+Budget tracking is built into the router. It monitors cumulative USD spend across all providers and can enforce a configurable budget cap. Once the cap is reached, the router stops issuing requests and returns a budget-exceeded error. This prevents runaway costs from a misbehaving pipeline or an unexpectedly long production run.
+
+## Dynamic Model Discovery
+
+Instead of hardcoding model names, the router queries each provider's \`/models\` endpoint to discover available models at startup. Selection rules filter these models based on criteria such as provider priority, model capabilities, and cost tiers. This means that if a provider adds or removes models, the router adapts automatically without code changes.
+
+The selection rules are configured in \`~/.deepbl4nder/llm.json\` and can be overridden per environment. This makes it straightforward to experiment with different model configurations or restrict the pipeline to a specific provider for compliance reasons.
 `
 
-const heuristicChart = `graph LR
-    H1["Token Count"] --> SCORE["Complexity Score"]
-    H2["Code Blocks"] --> SCORE
-    H3["Schema Refs"] --> SCORE
-    H4["Conversation Depth"] --> SCORE
-    SCORE -->|"< 5"| LITE["1.5B Model"]
-    SCORE -->|"5-15"| MID["4B Model"]
-    SCORE -->|"> 15"| HEAVY["8B Model"]`
+const providerPoolChart = `graph LR
+    REQ["Agent Request"] --> ROUTER["LLMRouter"]
+    ROUTER --> GEMINI["Gemini"]
+    ROUTER --> GROQ["Groq"]
+    ROUTER --> NVIDIA["NVIDIA"]
+    ROUTER --> OPENROUTER["OpenRouter"]
+    ROUTER --> CLOUDFLARE["Cloudflare"]
+    GEMINI -->|"success"| RESP["Response"]
+    GEMINI -->|"failure"| FALLBACK["Fallback"]
+    FALLBACK --> GROQ`
 
 const section2 = `
-## The Model Server
+## Fallback Routing in Detail
 
-The ModelServer manages a llama-cpp-python subprocess that loads and serves one model at a time. The server exposes an OpenAI-compatible API, which means any tool or library that works with OpenAI's API can also work with the local server.
+When an agent sends a request, the router selects the first healthy provider from its pool. The pool order is determined by provider priority, which can be configured in \`~/.deepbl4nder/llm.json\`. If the selected provider fails — returns an error, times out, or returns malformed output — the router records the failure, places that provider on cooldown, and retries the request with the next provider in the pool.
 
-Starting the server is a heavyweight operation — it involves loading the model weights from disk into GPU memory, which can take anywhere from a few seconds for the 1.5B model to nearly a minute for the 8B model. The server stays running between requests, so this startup cost is paid only once per model load.
+This escalation continues until either a provider succeeds or all providers have been exhausted. If all providers fail, the router raises an error with details about each failure, allowing the calling agent to decide how to proceed. The escalation history is logged for debugging and monitoring.
 
-When the cascade router determines that a different model is needed, the server performs a hot swap. It shuts down the current subprocess, starts a new one with the different model, and waits for the health check to pass. This swap takes a few seconds, during which requests are queued. The swap is necessary because llama-cpp-python does not support dynamic model switching within a single process.
-
-The server auto-detects the GPU backend at startup. For NVIDIA GPUs, it prefers OptiX (NVIDIA's hardware-accelerated ray tracing API) over CUDA. For AMD GPUs, it uses HIP. For Apple Silicon, it uses Metal. This detection happens transparently — you do not need to configure anything. The server simply uses the fastest available backend for your hardware.
-
-## Model Selection and Escalation
-
-When an agent makes an LLM call, the system follows a precise sequence of decisions. First, the TaskClassifier categorizes the task. Then the CascadeRouter selects the lightest model that supports that category. The system ensures the selected model's server is running, sends the request, and validates the response.
-
-If the response is invalid — the model produces malformed JSON, returns an empty response, or times out — the system escalates to the next heavier model. The 1.5B model escalates to the 4B model. The 4B model escalates to the 8B model. The 8B model has no heavier model to escalate to, so a failure at that level raises an error.
-
-The escalation chain is recorded in the router's history. If a particular model fails repeatedly for a specific category, the router learns to skip it for future requests in that category. This adaptive behavior means the system becomes more efficient over time, avoiding models that are known to struggle with certain types of tasks.
+The cooldown period is adaptive: repeated failures from the same provider increase its cooldown duration, while successful requests reset it. This prevents a provider that is experiencing a sustained outage from being hammered with retry traffic.
 `
 
-const cascadeChart = `graph TB
-    REQ["Agent Request"] --> CLASSIFY["TaskClassifier"]
-    CLASSIFY -->|"trivial"| M1["Qwen3-1.5B"]
-    CLASSIFY -->|"simple"| M2["Qwen3-4B"]
-    CLASSIFY -->|"complex"| M3["Qwen3-8B"]
-    M1 -->|"failure"| ESC1["Escalate"]
-    ESC1 --> M2
-    M2 -->|"failure"| ESC2["Escalate"]
-    ESC2 --> M3
-    M1 --> RESULT["Response"]
-    M2 --> RESULT
-    M3 --> RESULT`
+const fallbackChart = `graph TB
+    REQ["Agent Request"] --> ROUTER["LLMRouter"]
+    ROUTER -->|"priority 1"| P1["Provider A"]
+    P1 -->|"success"| RESP["Response"]
+    P1 -->|"failure"| COOLDOWN["Cooldown"]
+    COOLDOWN -->|"try next"| P2["Provider B"]
+    P2 -->|"success"| RESP
+    P2 -->|"failure"| P3["Provider C"]
+    P3 -->|"success"| RESP`
 
 const section3 = `
 ## The Unified Interface
 
-All agents interact with the LLM system through a single \`LLMClient\` interface. This interface handles classification, model selection, server management, escalation, response validation, and caching — all in a single method call. The agent does not need to know which model is being used, how the server is managed, or what happens when a model fails. It simply sends a request and receives a response.
+All 14 agents interact with the LLM system through NOOA's \`UnifiedLLM\` interface. The shared router instance is built via the \`build_llm()\` function in \`DeepBl4nder/llm/__init__.py\`, which always returns an \`LLMRouter\` instance (unless \`fake=True\` is passed for testing). This single function call constructs the router, registers all configured providers, and returns a client ready for use.
 
-The LLMClient also caches responses for one hour. If an agent makes the same request twice within an hour, the cached response is returned without hitting the model. This caching is particularly useful during revision loops, where the same context might be sent multiple times with minor modifications. The cache key includes the full message history, so only identical requests are served from cache.
+The interface handles provider selection, request routing, health tracking, cooldown management, and budget enforcement — all transparently to the calling agent. An agent simply sends a request with a prompt and receives a response. It does not need to know which provider handled the request, how many retries occurred, or what the current budget status is.
 
-## VRAM Management
+## Configuration File
 
-With only one model loaded at a time, VRAM management is straightforward but critical. The 8B model needs about 5.5GB of VRAM. Blender's Cycles renderer needs additional VRAM for the scene being rendered. If both the LLM server and the Blender worker are running on the same GPU, you need at least 8GB of VRAM to accommodate both.
+The optional configuration file at \`~/.deepbl4nder/llm.json\` allows you to customize provider priority, selection rules, model filters, cooldown durations, and budget caps. The file is loaded at startup and merged with environment variable configuration, with environment variables taking precedence.
 
-For systems with limited VRAM, the Docker configuration allows you to run the LLM server on one GPU and the Blender worker on another. This separation ensures that neither component starves the other of memory. The \`CUDA_VISIBLE_DEVICES\` environment variable controls which GPU each container uses.
+A minimal configuration might specify which providers to enable and their relative priorities. A full configuration might include per-provider selection rules that filter models by capability, cost tier, or context window size. The configuration is optional — with at least one API key set, the router works with sensible defaults.
 
-The system monitors VRAM usage and reports it through the TUI's status bar. If VRAM usage approaches the limit, the system can automatically switch to a smaller model to free up memory. This adaptive sizing ensures that the system remains responsive even under memory pressure.
+## Prompt Caching
+
+DeepBl4nder enables LiteLLM cache-control by default: each client is created with \`cache_control_injection_points=["messages"]\`, which keeps the stable request prefix (system prompt, skills, schema) in the provider's KV cache between calls. On long multi-turn runs (every agent reuses the same system prompt prefix), this measurably cuts latency and token cost. It can be disabled per environment with:
+
+\`\`\`bash
+export DeepBl4nder_LLM_CACHE=off
+\`\`\`
+
+## Live LLM Observability
+
+Every LLM call is recorded by an in-process, thread-safe metrics sink (\`DeepBl4nder/llm/metrics.py\`), fed from the real-time agent event bridge. For each call it captures:
+
+- **tokens** (input, output, cached) and **cost** (USD)
+- **latency** per call (wall-clock between call start and completion)
+- **provider/model attribution** (the actual winner, not the static pool config)
+- success/failure and **cache hits**
+
+A snapshot is exposed live to the TUI through \`EmbeddedAPI.llm_metrics()\` and rendered in the side panel (calls, cumulative cost, token count, average/p50/p95 latency, and the top agents by call volume). The same spans are appended to \`<data>/logs/llm_spans.jsonl\` for offline analysis, so you can audit cost and behavior after a run without leaving the terminal.
+`
+
+const metricsChart = `graph TB
+    AGENT["Agent (NOOA)"] -->|"LLMComplete / LLMCallStart"| BRIDGE["Event Bridge"]
+    BRIDGE --> METRICS["LLMMetrics sink"]
+    METRICS --> JSONL["llm_spans.jsonl"]
+    METRICS --> TUI["TUI side panel (live)"]
+    METRICS --> STATS["routing_stats / llm_metrics()"]`
+
+const section4 = `
+## Metrics You Can Act On
+
+The live metrics panel answers the questions that matter for an autonomous pipeline:
+
+- **Cost**: total spend for the current run, plus per-agent and per-model breakdowns.
+- **Latency**: average, p50, and p95 per call — a persistent p95 spike points to a slow provider worth reordering out of the pool.
+- **Tokens**: total token burn, so you can spot a runaway agent or an oversized skill block.
+- **Success rate and cache hit rate**: tells you whether prompt caching is working and whether a provider is flaky.
+
+These numbers are consumed from the same event stream that powers the TUI, so there is no separate wiring or daemon — observability is a byproduct of the normal event flow.
 `
 
 export default function LLMSystemPage() {
   return (
     <>
       <MDXRenderer source={section1} />
-      <MermaidDiagram chart={heuristicChart} title="Model Selection Heuristics" />
+      <MermaidDiagram chart={providerPoolChart} title="Provider Pool and Fallback" />
       <MDXRenderer source={section2} />
-      <MermaidDiagram chart={cascadeChart} title="Cascade Routing Flow" />
+      <MermaidDiagram chart={fallbackChart} title="Fallback Routing Flow" />
       <MDXRenderer source={section3} />
+      <MermaidDiagram chart={metricsChart} title="LLM Metrics Flow" />
+      <MDXRenderer source={section4} />
     </>
   )
 }

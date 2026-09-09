@@ -48,7 +48,7 @@ package "Embedded API" {
 
 package "Agents & LLM" {
     [14 Agents NOOA] as Agents
-    [LLMClient\nllama.cpp HTTP] as LLM
+    [LLMClient\nlitellm cloud router] as LLM
 }
 
 ' Connections
@@ -73,7 +73,7 @@ Broker --> StatusBar : Status, Cost, Model
 Embedded --> Runner : PipelineRunner.run(brief)
 Embedded --> Agents : build_agents()
 Agents --> LLM : acall(messages)
-LLM --> LLM : llama.cpp:8080
+LLM --> LLM : Fournisseurs cloud (fallback/vote)
 
 Runner --> Tracker : Events, Budget, Cost
 Tracker --> Broker : Publish events

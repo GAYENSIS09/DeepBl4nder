@@ -16,6 +16,8 @@ from DeepBl4nder.artifacts.provenance import ProvenanceGraph
 from DeepBl4nder.artifacts.registry import Artifact, ArtifactRegistry
 from DeepBl4nder.codegen.validator import validate_for_worker
 from DeepBl4nder.domain.scene import BlenderScript, RenderOutput, SceneSpec, ShotSpec
+from DeepBl4nder.agents.base import BaseAgent
+from DeepBl4nder.bridges.blender.bridge import BlenderBridge
 from DeepBl4nder.plugins.registry import PluginRegistry
 from DeepBl4nder.production.events import EventLog
 from DeepBl4nder.production.checkpoints import CheckpointManager
@@ -35,8 +37,8 @@ class RenderManager(PluginShortcuts):
     def __init__(
         self,
         *,
-        blender_bridge: Any,
-        blender: Any,
+        blender_bridge: BlenderBridge,
+        blender: BaseAgent,
         workdir: Path,
         artifacts: ArtifactRegistry,
         provenance: ProvenanceGraph,

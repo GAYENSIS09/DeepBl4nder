@@ -269,7 +269,7 @@ class LipSyncPlugin(Plugin):
         return smoothed
 
     def export_json(self, frames: list[LipSyncFrame], out_path: Path) -> Path:
-        """Exporte les blendshapes en JSON pour Blender/UE5."""
+        """Exporte les blendshapes en JSON pour Blender."""
         import json
 
         data = {

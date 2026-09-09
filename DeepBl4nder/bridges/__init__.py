@@ -1,3 +1,3 @@
-"""Bridges : interfaces de communication avec les moteurs externes (Blender, UE5, Godot, AI Video)."""
+"""Bridges : interfaces de communication avec les moteurs externes (Blender)."""
 
 from __future__ import annotations

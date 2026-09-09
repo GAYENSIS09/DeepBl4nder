@@ -15,8 +15,7 @@
 5. [Base de données](#5-base-de-données)
 6. [Tests](#6-tests)
 7. [Scripts de déploiement](#7-scripts-de-déploiement)
-8. [UE5 Server](#8-ue5-server)
-9. [CI/CD](#9-cicd)
+8. [CI/CD](#8-cicd)
 
 ---
 
@@ -66,13 +65,12 @@ DeepBl4nder repose sur [NVIDIA NeMo Labs OO-Agents (NOOA)](https://github.com/NV
 │                         DeepBl4nder — Architecture                       │
 ├──────────────────────────────────────────────────────────────────────────┤
 │                                                                          │
-│  ┌─────────────┐    ┌──────────────────────────────────────────────────┐ │
-│  │  Frontend    │    │                API Gateway (FastAPI)            │ │
-│  │  Next.js     │───▶│  /api/auth  /api/productions  /api/events      │ │
-│  │  :3000       │    │  Auth JWT │ RBAC │ Multi-tenant │ SSE          │ │
-│  └─────────────┘    └────────────────────┬─────────────────────────────┘ │
-│                                          │                               │
-│                                          ▼                               │
+│  ┌─────────────┐                                                        │
+│  │  TUI        │                                                        │
+│  │  Terminal    │───▶ PipelineRunner (In-Process)                        │
+│  │  (Textual)  │                                                        │
+│  └─────────────┘                                                        │
+│                                                                          │
 │  ┌────────────────────────────────────────────────────────────────────┐  │
 │  │                     PipelineRunner (Orchestrateur)                 │  │
 │  │                                                                    │  │
@@ -94,21 +92,16 @@ DeepBl4nder repose sur [NVIDIA NeMo Labs OO-Agents (NOOA)](https://github.com/NV
 │            ┌─────────────────────────────┼────────────────────────┐      │
 │            │                             │                        │      │
 │            ▼                             ▼                        ▼      │
-│  ┌─────────────────┐   ┌──────────────────────┐   ┌────────────────┐  │
-│  │  Worker Blender  │   │  UE5 Server (opt.)   │   │  Frontend UI   │  │
-│  │  Docker + GPU    │   │  REST API :8080       │   │  Next.js       │  │
-│  │  Blender 4.1     │   │  Unreal Engine 5      │   │  SSE Events    │  │
-│  └─────────────────┘   └──────────────────────┘   └────────────────┘  │
-│  ┌─────────────────┐   ┌──────────────────────┐                       │
-│  │  Godot Server   │   │  AI Video Server     │                       │
-│  │  REST API :8081 │   │  REST API :8082      │                       │
-│  │  Godot 4 (opt.) │   │  CogVideoX/SVD (opt.)│                       │
-│  └─────────────────┘   └──────────────────────┘                       │
-│                                                                        │
-│  ┌────────────────────────────────────────────────────────────────────┐ │
-│  │                     Infrastructure                                 │ │
-│  │  PostgreSQL 16 │ Redis 7 │ MinIO │ Langfuse │ Celery              │ │
-│  └────────────────────────────────────────────────────────────────────┘ │
+│  ┌─────────────────┐   ┌──────────────────────────────────────────────┐  │
+│  │  Worker Blender  │   │  Routeur LLM Cloud (litellm)                │  │
+│  │  Blender 4.1     │   │  Gemini │ Groq │ NVIDIA │ OpenRouter │      │  │
+│  │  Cycles/EEVEE    │   │  Cloudflare (UnifiedLLM, fallback/vote)     │  │
+│  └─────────────────┘   └──────────────────────────────────────────────┘  │
+│                                                                          │
+│  ┌────────────────────────────────────────────────────────────────────┐  │
+│  │                     Stockage local                                 │  │
+│  │  data/runs/ (JSONL events, artifacts, scripts, renders)           │  │
+│  └────────────────────────────────────────────────────────────────────┘  │
 └──────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -118,24 +111,15 @@ DeepBl4nder repose sur [NVIDIA NeMo Labs OO-Agents (NOOA)](https://github.com/NV
 |--------|-------------|------|
 | **Langage** | Python 3.12+ | Langage principal |
 | **Framework agentique** | NOOA 0.0.8 | Orchestration multi-agents |
-| **API** | FastAPI + Uvicorn | Gateway HTTP/REST, SSE |
-| **Base de données** | PostgreSQL 16 / SQLite (dev) | Données persistantes |
-| **Cache / File d'attente** | Redis 7 | Pub/Sub, Celery broker |
-| **Object Storage** | MinIO | Artifacts, rendus |
-| **Rendu 3D** | Blender 4.1 (headless) | Scènes, animation, rendu |
+| **LLM (multi-fournisseurs)** | litellm (Gemini, Groq, NVIDIA, OpenRouter, Cloudflare) | Routeur cloud, UnifiedLLM |
+| **Rendu 3D** | Blender 4.1 (headless) | Scènes, animation, rendu (Cycles/EEVEE) |
 | **Rendu vidéo** | FFmpeg | Post-traitement vidéo |
-| **Moteur temps réel** | Unreal Engine 5 (optionnel) | Rendu Lumen/Nanite |
-| **Moteur open source** | Godot 4 (optionnel) | Rendu GDScript/WebGL |
-| **Génération vidéo IA** | CogVideoX / SVD / AnimateDiff (optionnel) | T2V, I2V, cache GPU |
-| **Frontend** | Next.js | Interface utilisateur |
-| **Observabilité LLM** | Langfuse | Traçage des appels LLM |
+| **Interface** | TUI (Textual) | Interface terminal |
 | **Validation de code** | AST + politique | Sécurité du code généré |
-| **Migrations DB** | Alembic | Versioning du schéma |
-| **Tests** | Pytest + httpx | Suite de tests |
+| **Tests** | Pytest | Suite de tests |
 | **Linting** | Ruff + Mypy | Qualité de code |
 | **Conteneurs** | Docker + Docker Compose | Déploiement |
 | **CI/CD** | GitHub Actions | Intégration continue |
-| **LLM (multi-fournisseurs)** | Gemini, Groq, NVIDIA, OpenRouter, Cloudflare, Local | Génération IA |
 
 ### Fournisseurs LLM supportés
 
@@ -146,7 +130,6 @@ DeepBl4nder repose sur [NVIDIA NeMo Labs OO-Agents (NOOA)](https://github.com/NV
 | NVIDIA NIM | `nvidia_nim/meta/llama-3.3-70b-instruct` | `NVIDIA_API_KEY` |
 | OpenRouter | `openrouter/meta-llama/llama-3.3-70b-instruct` | `OPENROUTER_API_KEY` |
 | Cloudflare Workers AI | `cloudflare/@cf/meta/llama-3.3-70b-instruct` | `CLOUDFLARE_API_KEY` |
-| Local (Ollama) | `ollama/llama3` | Aucune |
 
 Le `LLMRouter` supporte deux modes de routage :
 - **vote** (défaut) : tous les fournisseurs sains votent, majorité gagne.
@@ -158,14 +141,13 @@ Un mécanisme de cooldown simple protège contre les erreurs de taux/quota.
 
 ```
 deepbl4nder/
-├── agents/          # Agents NOOA (Director, Blender, QA, Audio, Compositing, Localization, Story, etc.)
-├── api/             # FastAPI app, routes, DB models, auth, pipeline, SSE
+├── agents/          # Agents NOOA (Story, Storyboard, Director, Blender, QA, Audio, Compositing, Localization, etc.)
 ├── artifacts/       # Registre d'artifacts, provenance graph
 ├── bridge/          # WorkerProcess (exécution de processus OS)
 ├── bridges/blender/ # BlenderBridge (exécution Blender headless)
 ├── codegen/         # Validateur AST, politique de code
 ├── domain/          # Objets métier (SceneSpec, ShotSpec, QAReport, StorySpec, etc.)
-├── llm.py           # Routeur LLM multi-fournisseurs (LLMRouter)
+├── llm/             # Routeur LLM cloud multi-fournisseurs (litellm, UnifiedLLM)
 ├── plugins/         # Plugins (Blender, FFmpeg, Audio, TTS, Storage, Subtitle, etc.)
 ├── production/      # Runner, runs, étapes, événements, budget, reprise
 ├── skills/          # Registre de skills NOOA (progressive disclosure)
@@ -180,9 +162,10 @@ deepbl4nder/
 
 ### Prérequis
 
-- Docker >= 24.0 + Docker Compose >= 2.24
-- Python >= 3.12 (pour le développement local)
-- GPU NVIDIA (optionnel, pour le rendu Blender/UE5)
+- Docker >= 24.0 + Docker Compose >= 2.24 (optionnel, recommandé)
+- Python >= 3.12
+- Blender 4.1+ (requis — moteur de rendu 3D)
+- Au moins une clé API LLM (Gemini, Groq, NVIDIA, OpenRouter ou Cloudflare)
 
 ### Installation via Docker (recommandé)
 
@@ -208,23 +191,18 @@ docker compose up -d
 
 | Service | Port | Description |
 |---------|------|-------------|
-| Frontend | 3000 | Interface Next.js |
-| API | 8000 | FastAPI Gateway |
-| API Docs | 8000/docs | Swagger UI |
-| PostgreSQL | 5432 | Base de données |
-| Redis | 6379 | Cache / File d'attente |
-| MinIO Console | 9001 | Object Storage UI |
-| MinIO API | 9000 | Object Storage API |
-| Langfuse | 3002 | Observabilité LLM |
-| UE5 Server | 8080 | Unreal Engine 5 (optionnel) |
-| Godot Server | 8081 | Godot 4 (optionnel) |
-| AI Video Server | 8082 | Génération vidéo IA (optionnel) |
+| TUI | — | Interface terminal Textual (in-process) |
+| Blender Worker | — | Blender 4.1 headless + FFmpeg (Docker) |
 
 ### Installation locale (développement)
 
 ```bash
 # Installer le package en mode édition
 pip install -e ".[dev]"
+
+# Configurer les clés API (au moins une)
+cp .env.example .env
+# Éditer .env avec vos clés API
 
 # Linter
 python -m ruff check DeepBl4nder tests
@@ -249,7 +227,6 @@ DeepBl4nder validate mon_script.py
 | `sandbox` | `nooa[sandbox]==0.0.8` | Exécution sandboxée |
 | `tracing` | `nooa[tracing]==0.0.8` | Tracing NOOA |
 | `mcp` | `nooa[mcp]==0.0.8` | Model Context Protocol |
-| `vllm` | `vllm>=0.8` | LLM local haute performance |
 | `worker` | `psutil` | Monitoring worker |
 | `dev` | `ruff, mypy, pytest, httpx>=0.27` | Développement |
 
@@ -258,20 +235,22 @@ DeepBl4nder validate mon_script.py
 Les variables clés à configurer dans `.env` :
 
 ```bash
-# Sécurité
-DEEPBL4NDER_SECRET_KEY=<64-caractères-minimum>
-JWT_SECRET=<secret-jwt>
-
-# Base de données
-POSTGRES_PASSWORD=<mot-de-passe-fort>
-
 # LLM (au moins un)
 GEMINI_API_KEY=...
 GROQ_API_KEY=...
 NVIDIA_API_KEY=...
+OPENROUTER_API_KEY=...
+CLOUDFLARE_API_KEY=...
+CLOUDFLARE_ACCOUNT_ID=...
+
+# Mode de routage LLM (fallback ou vote)
+DeepBl4nder_LLM_MODE=fallback
 
 # Budget max par production
 DEEPBL4NDER_BUDGET=1.0
+
+# Blender
+BLENDER_EXE=/usr/local/bin/blender
 ```
 
 ### Dockerfiles
@@ -279,7 +258,6 @@ DEEPBL4NDER_BUDGET=1.0
 | Fichier | Image | Usage |
 |---------|-------|-------|
 | `Dockerfile` | Image runtime de base | Python + Blender + FFmpeg, commande `DeepBl4nder` |
-| `Dockerfile.api` | `DeepBl4nder/api` | FastAPI Gateway, non-root, healthcheck |
 | `Dockerfile.worker` | `DeepBl4nder/worker` | Blender 4.1 LTS headless + FFmpeg, GPU, non-root |
 
 Le worker installe Blender 4.1.1 depuis le tarball officiel et inclut toutes les bibliothèques graphiques nécessaires au rendu headless (X11, OpenGL, Mesa).
@@ -371,73 +349,27 @@ Le système supporte la reprise complète :
 
 ---
 
-## 5. Base de données
+## 5. Stockage
 
-### Schéma conceptuel
+### Stockage local
 
-La base de données gère le socle SaaS multi-tenant :
+Les données de production sont stockées localement :
 
 ```
-┌──────────────────────────────────────────────────────────────────┐
-│                     Schéma de la base de données                  │
-├──────────────────────────────────────────────────────────────────┤
-│                                                                  │
-│  User ──────────┐                                               │
-│    │             │                                               │
-│    │          Membership (role: owner/admin/editor/viewer)       │
-│    │             │                                               │
-│    │          Organization ──┐                                   │
-│    │             │            │                                   │
-│    │          Workspace ─────┤                                   │
-│    │             │            │                                   │
-│    │          Project ───────┤                                   │
-│    │             │            │                                   │
-│    │          Production ────┘                                   │
-│    │             │                                               │
-│    └─────────────┘                                               │
-│                                                                  │
-│  Production:                                                     │
-│    ├── name, brief, status (draft/queued/running/completed/...)  │
-│    ├── version (incrémentée à chaque run)                        │
-│    ├── progress (0.0 → 1.0)                                     │
-│    ├── workdir (chemin vers les artifacts)                       │
-│    └── finished_at                                               │
-│                                                                  │
-│  Artifacts (registre en mémoire + disque):                       │
-│    ├── id, type, name, path, version, sha256, status, cost      │
-│    └── provenance (graphe dirigé: parent → enfant)               │
-└──────────────────────────────────────────────────────────────────┘
+data/runs/{production_id}/
+├── events.jsonl      # Journal d'événements (NDJSON, append-only)
+├── brief.json        # Brief original
+├── scene_spec.json   # SceneSpec (checkpoint)
+├── script.py         # Script Blender (checkpoint)
+├── artifacts/        # Artefacts générés (scripts, rendus, audio, etc.)
+└── qa_report.json    # Rapport QA final
 ```
 
-### Isolation multi-tenant
+### Graphes d'artifacts
 
-- Chaque ressource (Organization, Workspace, Project, Production) est scopée par son propriétaire.
-- Les requêtes passent par des filtres tenant qui retournent 404 (pas de fuite d'existence).
-- Les rôles RBAC : `owner` > `admin` > `editor` > `viewer`.
-
-### Migrations Alembic
-
-```bash
-# Générer une migration après changement de modèle
-alembic revision --autogenerate -m "description"
-
-# Appliquer les migrations
-alembic upgrade head
-
-# Rollback
-alembic downgrade -1
-```
-
-Le fichier `alembic/env.py` lit l'URL de la base depuis la variable `DEEPBL4NDER_DB` ou fallback SQLite.
-
-### Données non relationnelles
-
-| Stockage | Technologie | Contenu |
-|----------|-------------|---------|
-| Fichiers run | Disque (`/work`, `/projects`) | Scripts, rendus, frames, JSON |
-| EventLog | JSONL sur disque | Journal d'événements append-only |
-| Object Storage | MinIO | Artifacts binaires, rendus finaux |
-| Cache | Redis | Sessions, routing stats, pub/sub |
+- **Provenance** : `Brief → Spec → AgentRun → Code → Blend → Render`
+- **Dépendance** : `Asset → Scene → Shot → Render` — recalcul si asset modifié
+- **Knowledge graph** (optionnel) : relations sémantiques entre entités
 
 ---
 
@@ -445,7 +377,7 @@ Le fichier `alembic/env.py` lit l'URL de la base depuis la variable `DEEPBL4NDER
 
 ### Vue d'ensemble de la suite de tests
 
-La suite compte **18 fichiers de test** couvrant l'ensemble des composants :
+La suite compte **15 fichiers de test** couvrant l'ensemble des composants :
 
 | Fichier | Module testé | Nombre de tests | Description |
 |---------|-------------|-----------------|-------------|
@@ -454,19 +386,16 @@ La suite compte **18 fichiers de test** couvrant l'ensemble des composants :
 | `test_codegen.py` | `codegen/` | 7 | Validateur AST, politique de code, imports interdits |
 | `test_bridge.py` | `bridge/` + `bridges/` | 5 | WorkerProcess, BlenderBridge, fail-closed |
 | `test_cli.py` | `cli.py` | 4 | Commandes CLI : inspect, validate, --version |
-| `test_llm.py` | `llm.py` | 40+ | Routeur LLM, vote, fallback, cooldown, découverte, classification erreurs |
+| `test_llm.py` | `llm/` | 40+ | Routeur LLM, vote, fallback, cooldown, découverte, classification erreurs |
 | `test_runner.py` | `production/runner.py` | 18+ | Pipeline complet, révisions, budget, reprise, checkpoint, synthèse |
 | `test_production.py` | `production/` | 12 | Runs, étapes, événements, budget, alertes, récupération |
 | `test_decoupling.py` | Architecture | 10 | Découplage NOOA, pas de réimplémentation générique |
 | `test_nooa_capabilities.py` | `agents/` | 12 | Capacités NOOA : Template, Reflexion, Predict, CodeActLite, mémoire, events |
 | `test_nooa_compat.py` | `nooa_compat.py` | 18 | Compatibilité enveloppes NOOA, coercition, réparations |
-| `test_saas_api.py` | `api/` | 20+ | Auth, RBAC, CRUD, pipeline E2E, SSE, CORS, revision, preview |
 | `test_plugins.py` | `plugins/` | 14 | Plugins (Blender, Audio, Storage, Subtitle, AssetLibrary, KnowledgeGraph) |
 | `test_scheduler.py` | `bridges/scheduler.py` | 4 | WorkerScheduler : soumission, parallélisme, ajout à chaud |
 | `test_media.py` | `domain/media.py` | 5 | AudioPlan, AudioMaster, CompositeSpec, LanguagePackage |
 | `test_skills.py` | `skills/` | 4 | Découverte, chargement, progressive disclosure |
-| `test_seed.py` | `api/seed.py` | 4 | Seed admin, idempotence, reset mot de passe |
-| `test_logging_setup.py` | `logging_setup.py` | 2 | Journalisation fichier rotatif, idempotence |
 
 ### Comment exécuter les tests
 
@@ -491,7 +420,6 @@ python -m pytest -q  # Les tests LLM utilisent des stubs/mock
 
 - **Pas de dépendance réseau** : tous les tests LLM utilisent `FakeLLMClient` ou des stubs.
 - **Tests d'intégration** : `test_runner.py` teste le pipeline complet avec des agents stub.
-- **Tests E2E API** : `test_saas_api.py` utilise `TestClient` de FastAPI.
 - **Invariantes structurels** : `test_decoupling.py` vérifie que le domaine n'importe jamais NOOA.
 - **Régressions** : de nombreux tests portent des commentaires de régression (logs datés).
 
@@ -499,7 +427,7 @@ python -m pytest -q  # Les tests LLM utilisent des stubs/mock
 
 ## 7. Scripts de déploiement
 
-Le répertoire `scripts/` contient 4 scripts Bash de gestion :
+Le répertoire `scripts/` contient des scripts Bash de gestion :
 
 ### `setup.sh` — Initialisation
 
@@ -508,23 +436,8 @@ Le répertoire `scripts/` contient 4 scripts Bash de gestion :
 ```
 
 - Vérifie les prérequis (Docker, Docker Compose).
-- Crée `.env` depuis `.env.production` si absent.
-- Crée les répertoires `work/`, `projects/`, `data/`.
-- Configure le bucket MinIO si le client `mc` est disponible.
-
-### `deploy.sh` — Déploiement production
-
-```bash
-./scripts/deploy.sh [staging|production]
-```
-
-- Pull des dernières images Docker.
-- Build des images custom (sans cache).
-- Arrêt des services existants.
-- Démarrage de l'infrastructure (PostgreSQL, Redis, MinIO).
-- Exécution des migrations Alembic.
-- Démarrage de tous les services.
-- Vérification santé API et Frontend.
+- Crée `.env` depuis `.env.example` si absent.
+- Crée les répertoires `data/runs/`.
 
 ### `health-check.sh` — Vérification santé
 
@@ -532,86 +445,12 @@ Le répertoire `scripts/` contient 4 scripts Bash de gestion :
 ./scripts/health-check.sh
 ```
 
-Vérifie la disponibilité de tous les services :
-- API (port 8000)
-- Frontend (port 3000)
-- PostgreSQL (port 5432)
-- Redis (port 6379)
-- MinIO (port 9000)
-- Langfuse (port 3002, optionnel)
-- UE5 Server (port 8080, optionnel)
-
-### `backup.sh` — Sauvegarde
-
-```bash
-./scripts/backup.sh [répertoire_de_sauvegarde]
-```
-
-- Dump PostgreSQL compressé (gzip).
-- Archive MinIO (tar.gz).
-- Sauvegarde des fichiers de configuration (`.env`, `docker-compose.yml`).
+Vérifie la disponibilité des services :
+- Blender (vérification binaire)
 
 ---
 
-## 8. UE5 Server
-
-### Architecture
-
-```
-DeepBl4nder API ──▶ UE5Bridge ──▶ REST API (ce serveur) ──▶ UE5 Python API ──▶ UE5 Editor
-```
-
-Le serveur UE5 est une API FastAPI autonome qui communique avec l'éditeur Unreal Engine 5 via son API Python. Il doit s'exécuter sur une machine où UE5 est installé.
-
-### Endpoints
-
-| Méthode | Endpoint | Description |
-|---------|----------|-------------|
-| GET | `/health` | Santé du serveur + disponibilité UE5 |
-| POST | `/level/create` | Créer un level |
-| POST | `/level/delete` | Supprimer un level |
-| POST | `/asset/import` | Importer un asset (.fbx, .gltf, .glb) |
-| POST | `/actor/create` | Créer un acteur |
-| POST | `/material/create` | Créer un matériau PBR Lumen |
-| POST | `/material/apply` | Appliquer un matériau |
-| POST | `/lighting/setup` | Configurer l'éclairage Lumen |
-| POST | `/light/create` | Créer une lumière |
-| POST | `/sequencer/setup` | Configurer le Sequencer |
-| POST | `/sequencer/add_camera` | Ajouter une piste caméra |
-| POST | `/sequencer/add_actor_track` | Ajouter une piste d'animation |
-| POST | `/render/start` | Lancer un rendu MRQ |
-| GET | `/render/status` | Statut du rendu en cours |
-| POST | `/render/cancel` | Annuler le rendu |
-| POST | `/cvar/set` | Définir une console variable UE5 |
-| POST | `/quality/preset` | Appliquer un preset qualité |
-
-### Presets de qualité
-
-| Preset | Lumen GI | Nanite | Screen % | Ombres | Motion Blur |
-|--------|----------|--------|----------|--------|-------------|
-| low | OFF | OFF | - | - | - |
-| medium | ON | ON | - | - | - |
-| high | ON | ON | 100 | - | - |
-| epic | ON | ON | 100 | 5 | - |
-| cinematic | ON | ON | 150 | 5 | 4 |
-
-### Installation
-
-```bash
-# Via Docker Compose (profile "ue5")
-docker compose --profile ue5 up -d
-
-# Ou manuellement
-cd ue5-server
-pip install -r requirements.txt
-python server.py
-```
-
-Le serveur écoute sur le port **8080**. Les endpoints sont actuellement stubbés (les appels UE5 Python API sont commentés) — l'implémentation réelle nécessite une instance UE5 avec le plugin Python activé.
-
----
-
-## 9. CI/CD
+## 8. CI/CD
 
 ### Workflow GitHub Actions
 
@@ -629,22 +468,10 @@ Le fichier `.github/workflows/ci.yml` définit 5 jobs :
 │           │                                                      │
 │           ▼                                                      │
 │  Job 2: docker-build (push uniquement)                          │
-│  ├── Build Dockerfile.api ──▶ ghcr.io/.../api                   │
 │  └── Build Dockerfile.worker ──▶ ghcr.io/.../worker             │
 │           │                                                      │
-│  Job 3: docker-build-frontend (push uniquement)                 │
-│  └── Build frontend/Dockerfile ──▶ ghcr.io/.../frontend         │
-│           │                                                      │
 │           ▼                                                      │
-│  Job 4: integration-test (push uniquement)                      │
-│  ├── Créer .env de test                                         │
-│  ├── Démarrer PostgreSQL, Redis, MinIO                          │
-│  ├── Démarrer l'API                                             │
-│  ├── Health check                                               │
-│  └── Pytest dans le conteneur                                   │
-│           │                                                      │
-│           ▼                                                      │
-│  Job 5: deploy (main uniquement)                                │
+│  Job 3: deploy (main uniquement)                                │
 │  └── Déploiement SSH (configurable)                             │
 │                                                                  │
 └──────────────────────────────────────────────────────────────────┘
@@ -660,7 +487,7 @@ Le fichier `.github/workflows/ci.yml` définit 5 jobs :
 - Registry : `ghcr.io` (GitHub Container Registry).
 - Tags : SHA du commit, branche, `latest` (branche par défaut).
 - Cache : GitHub Actions cache (`type=gha`).
-- Build matrix : `api` + `worker` en parallèle, `frontend` séparé.
+- Build : `worker` image Docker.
 
 ### Déploiement
 

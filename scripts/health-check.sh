@@ -57,13 +57,6 @@ else
     echo "⚠️  Langfuse (port 3002) - not running"
 fi
 
-# UE5 Server (optional)
-if curl -sf http://localhost:8080/health > /dev/null 2>&1; then
-    echo "✅ UE5 Server (port 8080)"
-else
-    echo "⚠️  UE5 Server (port 8080) - not running"
-fi
-
 echo ""
 if [ $STATUS -eq 0 ]; then
     echo "=== All core services healthy ==="

@@ -21,7 +21,6 @@ from DeepBl4nder.agents.review import ReviewAgent
 from DeepBl4nder.agents.sfx import SoundDesignerAgent
 from DeepBl4nder.agents.story import StoryAgent
 from DeepBl4nder.agents.board import StoryboardAgent
-from DeepBl4nder.agents.ue5 import UE5Agent
 
 __all__ = [
     "AnimatorAgent",
@@ -40,5 +39,4 @@ __all__ = [
     "SoundDesignerAgent",
     "StoryAgent",
     "StoryboardAgent",
-    "UE5Agent",
 ]

@@ -22,25 +22,17 @@ DeepBl4nder/
 │   ├── loc.py        # LocalizationAgent
 │   ├── music.py      # MusicComposerAgent
 │   ├── review.py     # ReviewAgent
-│   ├── sfx.py        # SoundDesignerAgent
-│   ├── ue5.py        # UE5Agent
-│   ├── godot.py      # GodotAgent
-│   └── ai_video.py   # AIVideoAgent
+│   └── sfx.py        # SoundDesignerAgent
 ├── production/       # PipelineRunner, BudgetTracker, EventLog
-├── llm/              # Système LLM local
-│   ├── model_registry.py    # Spécs modèles Qwen3
-│   ├── classifier.py        # Classification tâches
-│   ├── cascade.py           # Router cascade (1.5B→4B→8B)
-│   ├── server.py            # Serveur llama-cpp-python
-│   ├── client.py            # Client HTTP
-│   ├── interface.py         # LLMClient unifié
-│   └── download.py          # Téléchargeur GGUF
+├── llm/              # Routeur LLM cloud multi-fournisseurs (litellm)
+│   ├── interface.py         # UnifiedLLM / build_llm() — interface NOOA
+│   └── __init__.py          # build_llm() — routeur partagé
 ├── domain/           # Modèles métier typés (Brief, SceneSpec, etc.)
-├── bridges/          # Ponts moteurs (blender, ue5, godot, ai_video)
+├── bridges/          # Ponts moteurs (blender)
 ├── artifacts/        # ArtifactRegistry, ProvenanceGraph
 ├── plugins/          # KnowledgeGraph, RenderFarm
 ├── codegen/          # Validateur AST scripts Blender
-├── skills/           # 26 skills embarqués
+├── skills/           # 32 skills embarqués
 ├── tui/              # Interface terminal Textual
 ├── cli.py            # Point d'entrée CLI
 └── tests/            # Suite de tests
@@ -111,39 +103,32 @@ story, storyboard, director, blender, qa, ... = build_agents()
 
 Créer un dataclass typé dans `DeepBl4nder/domain/`, l'exporter dans `__init__.py`, et l'utiliser comme type de retour d'une capacité agentique (contrat de sortie).
 
-## Système LLM Local
+## Routeur LLM
 
-Le module `DeepBl4nder.llm` fournit un système complet :
+Le module `DeepBl4nder.llm` fournit un routeur cloud multi-fournisseurs :
 
 | Module | Rôle |
 |--------|------|
-| `model_registry.py` | Registre modèles Qwen3 (1.5B, 4B, 8B GGUF) |
-| `classifier.py` | Classification heuristique tâches (mots-clés) |
-| `cascade.py` | Router cascade : 1.5B → 4B → 8B |
-| `server.py` | Serveur llama-cpp-python (GPU) |
-| `client.py` | Client HTTP compatible OpenAI |
-| `interface.py` | `LLMClient` / `build_llm()` pour agents |
-| `download.py` | Téléchargeur GGUF depuis HuggingFace |
+| `interface.py` | `UnifiedLLM` / `build_llm()` — interface NOOA |
+| `__init__.py` | `build_llm()` — routeur partagé (litellm) |
 
-### Routage en cascade
+Le routeur agrège 5 fournisseurs cloud : Gemini, Groq, NVIDIA, OpenRouter, Cloudflare.
+Au moins une clé API est requise. Deux modes de routage :
+- **fallback** (défaut) : basculement sur erreur.
+- **vote** (via `DeepBl4nder_LLM_MODE`) : tous les fournisseurs sains votent.
+
+### Utilisation
 
 ```python
 from DeepBl4nder.llm import build_llm
 
-client = build_llm()
-result = await client.acall(messages=[...])  # Auto-select + escalade
+llm = build_llm()
+result = await llm.acall(messages=[...])
 ```
 
-Le routeur :
-1. Classifie la tâche (CODING, REASONING, GENERAL, FAST)
-2. Sélectionne le modèle le plus léger capable
-3. En cas d'échec/qualité insuffisante → escalade au modèle suivant
+### Configuration
 
-### Télécharger les modèles
-
-```bash
-python -m DeepBl4nder.llm.download --all
-```
+Les clés API sont définies dans `.env` : `GEMINI_API_KEY`, `GROQ_API_KEY`, `NVIDIA_API_KEY`, `OPENROUTER_API_KEY`, `CLOUDFLARE_API_KEY` + `CLOUDFLARE_ACCOUNT_ID`.
 
 ## Exécuter un script Blender
 
@@ -186,15 +171,15 @@ pytest
 pytest tests/test_decoupling.py -q  # Découplage NOOA ↔ domaine
 ```
 
-## Architecture sans API
+## Architecture
 
 L'ancien module `DeepBl4nder/api/` (FastAPI, JWT, RBAC, PostgreSQL, Redis, MinIO, Langfuse) a été **supprimé**. L'architecture est maintenant :
 
 - **TUI** : Lance le pipeline in-process via `tui/embedded_api.py`
-- **LLM** : Serveur local `llama.cpp` sur port 8080
-- **Docker** : `docker compose up -d` → LLM + Blender worker
+- **LLM** : Routeur cloud multi-fournisseurs via `litellm` (Gemini, Groq, NVIDIA, OpenRouter, Cloudflare)
+- **Docker** : `docker compose up -d` → Blender worker
 
-Plus de serveur HTTP, plus de base de données, plus d'authentification.
+Plus de serveur HTTP, plus de base de données, plus d'authentification. Au moins une clé API LLM est requise.
 
 ## Déploiement Docker
 
@@ -202,10 +187,8 @@ Plus de serveur HTTP, plus de base de données, plus d'authentification.
 # Core
 docker compose up -d
 
-# Profils optionnels
-docker compose --profile ue5 up -d
-docker compose --profile godot up -d
-docker compose --profile ai-video up -d
+# TUI
+docker compose --profile tui up -d
 ```
 
 ## Vérifications

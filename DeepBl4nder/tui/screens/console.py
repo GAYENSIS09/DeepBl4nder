@@ -62,6 +62,8 @@ class SidePanel(Widget):
             yield Static("-", id="panel-budget", markup=True)
             yield Static("LLM in use", id="panel-llm-title")
             yield Static("-", id="panel-llm", markup=True)
+            yield Static("LLM metrics", id="panel-metrics-title")
+            yield Static("-", id="panel-metrics", markup=True)
 
     def on_mount(self) -> None:
         self._prod_name = self.query_one("#panel-prod-name", Label)
@@ -69,6 +71,7 @@ class SidePanel(Widget):
         self._progress = self.query_one("#panel-progress", ProgressBar)
         self._budget = self.query_one("#panel-budget", Static)
         self._llm = self.query_one("#panel-llm", Static)
+        self._metrics = self.query_one("#panel-metrics", Static)
 
     def update_production(self, prod: EmbeddedProduction | None) -> None:
         if prod is None:
@@ -114,6 +117,23 @@ class SidePanel(Widget):
             lines.append("model: [i](no reply yet)[/i]")
         self._llm.update("\n".join(lines))
 
+    def update_metrics(self, metrics: dict) -> None:
+        if not metrics or not metrics.get("total_calls"):
+            self._metrics.update("[dim]no calls yet[/]")
+            return
+        lines = [
+            f"calls [b]{metrics['total_calls']}[/b] · ${metrics['total_cost_usd']:.4f} "
+            f"· {metrics['total_tokens']:,} tok",
+            f"lat {metrics['avg_latency_ms']:.0f}ms (p50 {metrics['p50_latency_ms']:.0f}/p95 {metrics['p95_latency_ms']:.0f})",
+        ]
+        agents = sorted(metrics.get("by_agent", {}).items(), key=lambda kv: -kv[1]["calls"])[:4]
+        for name, info in agents:
+            lines.append(
+                f"[dim]{name}[/dim]: {info['calls']} calls · ${info['cost']:.4f} · {info['tokens']:,} tok"
+            )
+        self._metrics.update("\n".join(lines))
+        self._metrics.styles.color = theme.WARNING if metrics.get("total_failures") else theme.TEXT_MUTED
+
 
 class ConsoleScreen(BaseScreen):
     """Main console: brief in, live agent reasoning stream out."""
@@ -147,7 +167,14 @@ class ConsoleScreen(BaseScreen):
         status_bar = self.query_one(StatusBar)
         status_bar.set_budget(self.api.budget.budget)
         self._pump = asyncio.create_task(self._pump_loop())
+        self.set_interval(2.0, self._refresh_metrics)
         self.run_worker(self._bootstrap_agents(), name="bootstrap-agents", exclusive=True)
+
+    def _refresh_metrics(self) -> None:
+        try:
+            self.side_panel.update_metrics(self.api.llm_metrics())
+        except Exception:  # noqa: BLE001 - observability must never break the UI
+            return
 
     def on_resize(self) -> None:
         self._apply_responsive_layout()
@@ -220,9 +247,11 @@ class ConsoleScreen(BaseScreen):
             return
 
         self._current = prod
+        self._cost = 0.0
         self.stream.clear_stream()
         self.side_panel.update_production(prod)
         self.side_panel.update_budget(self.api.budget.report())
+        self.side_panel.update_metrics(self.api.llm_metrics())
         task_bar = self.task_bar
         task_bar.set_running(True)
         status_bar = self.query_one(StatusBar)

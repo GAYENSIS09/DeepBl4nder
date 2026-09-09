@@ -1,6 +1,6 @@
 # 04 — Agents : 14 agents NOOA, runs, transitions, collaboration
 
-> Architecture Local-First — Consolidée août 2026
+> Architecture consolidée — Août 2026
 
 ## 14 Agents NOOA
 
@@ -51,9 +51,7 @@ BlenderAgent → QAAgent
 
 | Agent | Moteur | Module |
 |-------|--------|--------|
-| **UE5Agent** | Unreal Engine 5 (Lumen/Nanite/MRQ) | `ue5.py` |
-| **GodotAgent** | Godot 4 (GDScript/WebGL) | `godot.py` |
-| **AIVideoAgent** | CogVideoX / SVD / AnimateDiff | `ai_video.py` |
+| **BlenderAgent** | Blender (bpy) | `blender.py` |
 
 ---
 

@@ -28,16 +28,16 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any, Callable
 
-from DeepBl4nder.agents.base import GenerationError
+from DeepBl4nder.agents.base import BaseAgent, GenerationError
 from DeepBl4nder.artifacts.provenance import ProvenanceGraph
+from DeepBl4nder.bridges.blender.bridge import BlenderBridge
 from DeepBl4nder.artifacts.registry import Artifact, ArtifactRegistry
 from DeepBl4nder.production.context import ContextInjector
 from DeepBl4nder.codegen.validator import ValidationReport, validate_for_worker
 from DeepBl4nder.domain.patch import Patch, apply_patches
 from DeepBl4nder.domain.project import Brief
 from DeepBl4nder.domain.qa import Issue, IssueKind, QAReport, RevisionSpec
-from DeepBl4nder.domain.scene import BlenderScript, SceneSpec, RenderOutput, ENGINE_UE5
-from DeepBl4nder.domain.ue5 import UE5Commands
+from DeepBl4nder.domain.scene import BlenderScript, SceneSpec, RenderOutput
 from DeepBl4nder.domain.media import AudioPlan, AudioMaster, CompositeSpec, LanguagePackage, MusicPlan, SoundDesignPlan
 from DeepBl4nder.domain.narrative import StorySpec, StoryboardSpec
 from DeepBl4nder.plugins.registry import PluginRegistry
@@ -126,9 +126,9 @@ class PipelineRunner(PluginShortcuts):
         self,
         *,
         project_id: str,
-        director: Any,
-        blender: Any,
-        qa: Any,
+        director: BaseAgent,
+        blender: BaseAgent,
+        qa: BaseAgent,
         workdir: Path,
         plugins: PluginRegistry | None = None,
         artifacts: ArtifactRegistry | None = None,
@@ -139,25 +139,22 @@ class PipelineRunner(PluginShortcuts):
         max_render_retries: int = 2,
         event_hook: Callable[[str, dict[str, Any]], None] | None = None,
         # Agents pré-production optionnels
-        story: Any = None,
-        storyboard: Any = None,
+        story: BaseAgent | None = None,
+        storyboard: BaseAgent | None = None,
         # Agents conception optionnels
-        character_designer: Any = None,
-        environment_artist: Any = None,
-        animator: Any = None,
+        character_designer: BaseAgent | None = None,
+        environment_artist: BaseAgent | None = None,
+        animator: BaseAgent | None = None,
         # Agents post-production optionnels
-        audio: Any = None,
-        music_composer: Any = None,
-        sound_designer: Any = None,
-        localization: Any = None,
-        compositing: Any = None,
-        review: Any = None,
+        audio: BaseAgent | None = None,
+        music_composer: BaseAgent | None = None,
+        sound_designer: BaseAgent | None = None,
+        localization: BaseAgent | None = None,
+        compositing: BaseAgent | None = None,
+        review: BaseAgent | None = None,
         target_languages: list[str] | None = None,
         # Blender bridge pour l'exécution
-        blender_bridge: Any = None,
-        # UE5 support
-        ue5: Any = None,
-        ue5_bridge: Any = None,
+        blender_bridge: BlenderBridge | None = None,
         # Patch support
         session_factory: Any = None,
         production_id: str | None = None,
@@ -188,10 +185,6 @@ class PipelineRunner(PluginShortcuts):
 
         # Blender bridge for rendering
         self.blender_bridge = blender_bridge
-
-        # UE5 support
-        self.ue5 = ue5
-        self.ue5_bridge = ue5_bridge
 
         self.plugins = plugins or PluginRegistry()
         self.workdir = workdir
@@ -315,7 +308,7 @@ class PipelineRunner(PluginShortcuts):
         if self.event_hook is not None:
             self.event_hook(kind, payload)
 
-    def _reported_llm_meta(self, agent: Any) -> dict[str, Any]:
+    def _reported_llm_meta(self, agent: BaseAgent) -> dict[str, Any]:
         """Métadonnées modèle pour les événements llm_call ``completed``.
 
         Rapporte le vainqueur réel du vote du routeur (``provider`` + ``model``)
@@ -370,7 +363,7 @@ class PipelineRunner(PluginShortcuts):
 
     async def _cached_agent_call(
         self,
-        agent: Any,
+        agent: BaseAgent,
         method_name: str,
         cache_prefix: str,
         *args: Any,
@@ -578,21 +571,31 @@ class PipelineRunner(PluginShortcuts):
                 scene = await self._plan(brief, story_spec, storyboard_spec)
             self.checkpoints.mark_checkpoint("director")
 
-        # STEP 5: Character Design (optional)
+        # STEP 5+6: Character Design + Environment Design — indépendants
+        # (tous deux consomment ``scene``, produisent des artefacts distincts) :
+        # exécutés en parallèle pour économiser le temps de la pipeline.
+        designers: list[str] = []
         if self.character_designer is not None:
-            if "character_design" in reusable:
-                self.checkpoints.reuse_step("character_design", {"output": "character_design.json"})
-            else:
-                await self._run_character_design(scene)
-                self.checkpoints.mark_checkpoint("character_design")
-
-        # STEP 6: Environment Design (optional)
+            designers.append("character_design")
         if self.environment_artist is not None:
-            if "environment" in reusable:
-                self.checkpoints.reuse_step("environment", {"output": "environment.json"})
+            designers.append("environment")
+
+        async def _design(step: str) -> None:
+            if step == "character_design":
+                if "character_design" in reusable:
+                    self.checkpoints.reuse_step("character_design", {"output": "character_design.json"})
+                else:
+                    await self._run_character_design(scene)
+                    self.checkpoints.mark_checkpoint("character_design")
             else:
-                await self._run_environment(scene)
-                self.checkpoints.mark_checkpoint("environment")
+                if "environment" in reusable:
+                    self.checkpoints.reuse_step("environment", {"output": "environment.json"})
+                else:
+                    await self._run_environment(scene)
+                    self.checkpoints.mark_checkpoint("environment")
+
+        if designers:
+            await asyncio.gather(*(_design(step) for step in designers))
 
         if "script" in reusable:
             script, script_path = cached["script"]
@@ -601,19 +604,8 @@ class PipelineRunner(PluginShortcuts):
             script, script_path = await self._build(scene)
         self.checkpoints.mark_checkpoint("blender")
 
-        # Validation: different for Blender vs UE5
-        is_ue5 = scene.render.is_ue5_engine()
-        if is_ue5:
-            # UE5: validate commands structure
-            validation = ValidationReport(ok=True)
-            if isinstance(script, UE5Commands):
-                if not script.commands:
-                    validation.add("UE5Commands is empty")
-            else:
-                validation.add("Expected UE5Commands, got " + type(script).__name__)
-        else:
-            # Blender: validate AST
-            validation = validate_for_worker(script.code)
+        # Blender: validate AST
+        validation = validate_for_worker(script.code)
 
         if "report" in reusable:
             report = cached["report"]
@@ -638,12 +630,7 @@ class PipelineRunner(PluginShortcuts):
                 scene = await self._plan(brief, story_spec, storyboard_spec)
             script, script_path = await self._build(scene)
             # Validation after revision
-            if is_ue5:
-                validation = ValidationReport(ok=True)
-                if isinstance(script, UE5Commands) and not script.commands:
-                    validation.add("UE5Commands is empty")
-            else:
-                validation = validate_for_worker(script.code)
+            validation = validate_for_worker(script.code)
             report = await self._assess(scene, script_path, validation, script)
 
         # STEP 10: Animation (optional, after QA passed)
@@ -669,33 +656,6 @@ class PipelineRunner(PluginShortcuts):
             # Compositing waits for all to finish. Review is final step.
 
             async def _run_render_task():
-                # UE5: render happens via MRQ on the server (already triggered in _build_ue5)
-                if is_ue5:
-                    # Poll render status from UE5 server
-                    if self.ue5_bridge and self.ue5_bridge.available():
-                        try:
-                            self.ue5_bridge.get_render_status()
-                            # Create a minimal RenderOutput for the pipeline
-                            render_dir = self.workdir / "render"
-                            render_dir.mkdir(parents=True, exist_ok=True)
-                            # Find output file
-                            output_files = list(render_dir.rglob("*.mp4"))
-                            if output_files:
-                                video_path = output_files[0]
-                            else:
-                                video_path = render_dir / f"{scene.brief[:30] if scene.brief else 'scene'}.mp4"
-                            return RenderOutput(
-                                video_path=str(video_path),
-                                scene_name=scene.brief[:30] if scene.brief else "ue5_scene",
-                                duration=sum(s.duration for s in scene.shots) if scene.shots else 30.0,
-                                fps=scene.render.fps,
-                                resolution=scene.render.resolution,
-                                format=scene.render.format,
-                            )
-                        except Exception as e:
-                            self.event_log.append("ue5_render_status_error", {"error": str(e)})
-                    return None
-
                 # Blender: local rendering
                 # Rendu déjà produit par un run précédent avec le même script :
                 # on le réutilise (étape la plus coûteuse du pipeline).
@@ -917,84 +877,9 @@ class PipelineRunner(PluginShortcuts):
         self.production_run.complete_step("director")
         return scene
 
-    async def _build(self, scene: SceneSpec) -> tuple[Any, Path]:
-        """Route vers le bon moteur de rendu selon scene.render.engine."""
-        engine = scene.render.engine.upper()
-
-        if engine == ENGINE_UE5 or scene.render.is_ue5_engine():
-            return await self._build_ue5(scene)
-        else:
-            # Blender (CYCLES, EEVEE, BLENDER, default)
-            return await self._build_blender(scene)
-
-    async def _build_ue5(self, scene: SceneSpec) -> tuple[UE5Commands, Path]:
-        """Génère les commandes UE5 et les exécute via le bridge."""
-        self.production_run.start_step("blender")  # Réutilise le step "blender" pour UE5
-        self._emit("llm_call", {"step": "blender", "agent": "UE5Agent", "status": "started", "model": getattr(self.ue5, '_get_model_id', lambda: 'unknown')()})
-        t0 = time.time()
-        try:
-            commands = await self._with_generation_retry(
-                "blender", lambda: self.ue5.build_commands(scene)
-            )
-        except GenerationError:
-            # Fallback: commandes basiques
-            commands = self._synthesize_ue5_commands(scene)
-        elapsed = round(time.time() - t0, 2)
-        self._emit("llm_call", {"step": "blender", "agent": "UE5Agent", "status": "completed", "elapsed_s": elapsed, **self._reported_llm_meta(self.ue5)})
-
-        # Exécuter les commandes via le bridge UE5
-        if self.ue5_bridge and self.ue5_bridge.available():
-            for cmd in commands.commands:
-                try:
-                    result = self.ue5_bridge._command(cmd.endpoint, cmd.payload, timeout=cmd.timeout)
-                    if not result.ok:
-                        self.event_log.append("ue5_command_failed", {"endpoint": cmd.endpoint, "error": result.error})
-                except Exception as e:
-                    self.event_log.append("ue5_command_error", {"endpoint": cmd.endpoint, "error": str(e)})
-
-        # Sauvegarder les commandes
-        path = self.workdir / "ue5_commands.json"
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(json.dumps(commands.to_mapping(), ensure_ascii=False, indent=2), encoding="utf-8")
-        artifact = self.artifacts.register(
-            Artifact(type="ue5_commands", name=commands.scene_name, path=path)
-        )
-        if self._director_art:
-            self.provenance.record(self._director_art, artifact.id)
-
-        self._charge("blender", artifact)
-        self.production_run.complete_step("blender")
-        return commands, path
-
-    def _synthesize_ue5_commands(self, scene: SceneSpec) -> UE5Commands:
-        """Fallback: commandes UE5 basiques quand le LLM échoue."""
-        from DeepBl4nder.domain.ue5 import UE5Command
-        scene_name = _safe_name(scene.brief[:30] if scene.brief else "scene")
-        commands = [
-            UE5Command(endpoint="level/create", payload={"name": scene_name, "template": "empty"}),
-            UE5Command(endpoint="lighting/setup", payload={
-                "lights": [{"type": "DirectionalLight", "name": "Sun", "intensity": 10.0, "rotation": (45, 0, 0)}],
-                "use_lumen": True,
-                "skylight_intensity": 1.0,
-            }),
-        ]
-        # Add characters
-        for char in scene.characters:
-            commands.append(UE5Command(endpoint="actor/create", payload={
-                "type": "SkeletalMeshActor",
-                "name": char.name,
-                "transform": {"location": [char.position[0] * 100, char.position[1] * 100, char.position[2] * 100]},
-            }))
-        # Add render
-        commands.append(UE5Command(endpoint="render/start", payload={
-            "output": str((self.workdir / "render" / f"{scene_name}.mp4").resolve()),
-            "resolution": list(scene.render.resolution),
-            "format": scene.render.format,
-            "quality": "cinematic",
-        }, timeout=600.0))
-        self.event_log.append("ue5_commands_synthesized", {"scene": scene_name, "reason": "generation_failed_twice"})
-        self._emit("llm_call", {"step": "blender", "status": "synthesized_fallback"})
-        return UE5Commands(scene_name=scene_name, commands=commands)
+    async def _build(self, scene: SceneSpec) -> tuple[BlenderScript, Path]:
+        """Construit le script Blender pour la scène."""
+        return await self._build_blender(scene)
 
     async def _build_blender(self, scene: SceneSpec) -> tuple[BlenderScript, Path]:
         """Build Blender script (original logic)."""
@@ -1067,28 +952,11 @@ class PipelineRunner(PluginShortcuts):
         scene: SceneSpec,
         script_path: Path,
         validation: ValidationReport,
-        script: Any,  # BlenderScript or UE5Commands
+        script: Any,  # BlenderScript
     ) -> QAReport:
         self.production_run.start_step("qa")
         self._emit("llm_call", {"step": "qa", "agent": "QAAgent", "status": "started", "model": getattr(self.qa, '_get_model_id', lambda: 'unknown')()})
         t0 = time.time()
-
-        # UE5: skip full QA, just check validation
-        if scene.render.is_ue5_engine():
-            if not validation.ok:
-                issues = [
-                    Issue(kind=IssueKind.TECHNICAL, message=error, step="blender")
-                    for error in validation.errors
-                ]
-                report = QAReport(passed=False, score=0.0, issues=issues)
-            else:
-                # UE5 commands generated successfully
-                report = QAReport(passed=True, score=0.8, issues=[])
-
-            elapsed = round(time.time() - t0, 2)
-            self._emit("llm_call", {"step": "qa", "agent": "QAAgent", "status": "completed", "elapsed_s": elapsed, "score": report.score})
-            self.production_run.complete_step("qa")
-            return report
 
         # Blender: full QA with code assessment
         script_code = getattr(script, "code", "")
@@ -1119,7 +987,7 @@ class PipelineRunner(PluginShortcuts):
         self._write_json(
             "qa_report.json",
             {
-                "script_sha256": CheckpointManager.script_fingerprint(script_code) if script_code else "ue5_commands",
+                "script_sha256": CheckpointManager.script_fingerprint(script_code) if script_code else "",
                 "passed": report.passed,
                 "score": report.score,
                 "issues": [

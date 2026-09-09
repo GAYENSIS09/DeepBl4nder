@@ -15,61 +15,58 @@ skinparam arrow {
     FontColor #F2F2F2
 }
 
-title DeepBl4nder — LLM Cascade Routing (Qwen3)
+title DeepBl4nder — Routeur LLM Cloud (litellm)
 
 package "Agent" {
     [Agent Request] as Request
 }
 
-package "TaskClassifier" {
-    [Classifier\n(Heuristic keywords)] as Classifier
+package "LLMRouter (litellm)" {
+    [Router\nFallback / Vote] as Router
 }
 
-package "CascadeRouter" {
-    [Router\nCategory → Model] as Router
+package "Fournisseurs Cloud" {
+    [Gemini] as G
+    [Groq] as Gr
+    [NVIDIA] as Nv
+    [OpenRouter] as Or
+    [Cloudflare] as Cf
 }
 
-package "Local LLM Server (llama.cpp)" {
-    [Model Selector] as Selector
-    [Qwen3-1.5B\n(1.5 GB VRAM)] as M1
-    [Qwen3-4B\n(3 GB VRAM)] as M2
-    [Qwen3-8B\n(5.5 GB VRAM)] as M3
-}
-
-package "Response Quality Check" {
-    [Quality Check\n(JSON valid, tool calls, content)] as Quality
+package "Observabilité" {
+    [Santé / Cooldown\n/ Budget USD] as Health
 }
 
 ' Flow
-Request --> Classifier : Task text + messages
-Classifier --> Router : ModelCategory
+Request --> Router : UnifiedLLM (acall)
+Router --> G : 1er fournisseur sain
+Router --> Gr
+Router --> Nv
+Router --> Or
+Router --> Cf
 
-Router --> Selector : ModelCategory
+G --> Router : SUCCESS
+Gr --> Router : SUCCESS
+Nv --> Router : SUCCESS
+Or --> Router : SUCCESS
+Cf --> Router : SUCCESS
 
-' Category → Model mapping
-Selector --> M1 : FAST / GENERAL\n(1.5B → 4B)
-Selector --> M2 : GENERAL / CODING\n(4B → 8B)
-Selector --> M3 : CODING / REASONING\n(8B first)
+' Failover
+G -.-> Router : échec (cooldown)
+Router -.-> Gr : fallback
+Gr -.-> Router : échec (cooldown)
+Router -.-> Nv : fallback
 
-M1 --> Quality : Response
-Quality --> Router : FAIL / Low quality
-Router --> Selector : Escalate
-Selector --> M2 : Retry with 4B
-M2 --> Quality : Response
-Quality --> Router : FAIL
-Router --> Selector : Escalate
-Selector --> M3 : Retry with 8B
-M3 --> Quality : Response
-Quality --> Request : SUCCESS
-
-' Return
-Quality --> Request : Final Response
+Router --> Health : enregistre succès/échecs
+Router --> Request : Final Response
 
 legend right
-    | Couleur | Modèle |
-    | <back:#AAFF00><color:#0A0A0A> ■ </color></back> | Qwen3-1.5B (FAST) — 1.5 GB |
-    | <back:#88CC00><color:#0A0A0A> ■ </color></back> | Qwen3-4B (GENERAL) — 3 GB |
-    | <back:#E6C229><color:#0A0A0A> ■ </color></back> | Qwen3-8B (CODING/REASONING) — 5.5 GB |
+    | Couleur | Fournisseur |
+    | <back:#AAFF00><color:#0A0A0A> ■ </color></back> | Gemini (GEMINI_API_KEY) |
+    | <back:#88CC00><color:#0A0A0A> ■ </color></back> | Groq (GROQ_API_KEY) |
+    | <back:#E6C229><color:#0A0A0A> ■ </color></back> | NVIDIA (NVIDIA_API_KEY) |
+    | <back:#61AFEF><color:#0A0A0A> ■ </color></back> | OpenRouter (OPENROUTER_API_KEY) |
+    | <back:#56B6C2><color:#0A0A0A> ■ </color></back> | Cloudflare (CLOUDFLARE_API_KEY) |
 endlegend
 
 @enduml

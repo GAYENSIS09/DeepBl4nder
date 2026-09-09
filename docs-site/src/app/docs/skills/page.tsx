@@ -3,7 +3,7 @@ import { MermaidDiagram } from '@/components/diagrams/MermaidDiagram'
 
 export const metadata = {
   title: 'Skills - Progressive Disclosure of Domain Knowledge - DeepBl4nder',
-  description: 'How 36+ skills provide on-demand expertise through progressive loading, and why context efficiency is the foundation of every agent interaction.',
+  description: 'How 32 skills provide on-demand expertise through progressive loading, and why context efficiency is the foundation of every agent interaction.',
 }
 
 const mermaidChart1 = `graph LR
@@ -64,7 +64,7 @@ A skill in DeepBl4nder is not an agent, not a tool, and not a plugin. It is a st
 
 ## The Philosophy of Progressive Loading
 
-The core insight behind progressive disclosure is that **not all knowledge is needed at the same time**. Rather than loading all 36+ skill definitions into an agent's context at initialization — which would consume precious tokens before a single task has been attempted — DeepBl4nder loads skills in stages. Each stage provides just enough information for the agent to decide whether it needs deeper knowledge, and only when that deeper knowledge is needed does it get loaded.
+The core insight behind progressive disclosure is that **not all knowledge is needed at the same time**. Rather than loading all 32 skill definitions into an agent's context at initialization — which would consume precious tokens before a single task has been attempted — DeepBl4nder loads skills in stages. Each stage provides just enough information for the agent to decide whether it needs deeper knowledge, and only when that deeper knowledge is needed does it get loaded.
 `
 
 const section2 = `
@@ -109,9 +109,9 @@ The frontmatter is minimal by design. The name is the unique identifier used in 
 
 The body of the SKILL.md file is where the real knowledge lives. It is structured with clear headings, concise rules, and embedded code examples. The conventions are straightforward: describe the core concepts first, show common patterns with working code, and then state the rules that the agent must follow. Rules are not suggestions — they are constraints that ensure generated code and decisions are consistent with the domain's requirements.
 
-## The Skill Catalog: 36+ Skills Across Every Aspect of 3D Production
+## The Skill Catalog: 32 Skills Across Every Aspect of 3D Production
 
-DeepBl4nder ships with over 36 skills, each covering a specific domain of 3D production. The breadth is intentional: the system is designed to handle the entire pipeline from story development through final compositing, and that requires expertise at every stage.
+DeepBl4nder ships with 32 skills, each covering a specific domain of 3D production. The breadth is intentional: the system is designed to handle the entire pipeline from story development through final compositing, and that requires expertise at every stage.
 
 The **3D and Modeling** category contains the foundational skills: blender-python for the Blender Python API, modeling for mesh creation and manipulation, assets for asset management and library operations, uv for UV unwrapping and layout, texturing for material creation and texture painting, shading for shader development, rigging for character and mechanical rigging, lighting for scene illumination, and rendering for output generation. These skills form the backbone of the BlenderAgent's expertise, and they are the ones most frequently loaded during production.
 
@@ -170,7 +170,7 @@ The two-level API — \`discover()\` for cheap metadata and \`resolve()\` for fu
 
 Every design decision in the skill system ultimately comes down to token economics. An LLM context window is a finite resource, and every token spent on skill content is a token not available for the conversation history, the current task description, or the model's own reasoning.
 
-Consider the math. A typical SKILL.md file is between 500 and 2,000 tokens. The reference files within a skill add another 500 to 5,000 tokens. If all 36 skills were loaded at their summary level, that would cost approximately 1,000 tokens. If all 36 skills were loaded at their full SKILL.md level, that would cost approximately 36,000 tokens. If all reference files were loaded as well, the cost could exceed 100,000 tokens.
+Consider the math. A typical SKILL.md file is between 500 and 2,000 tokens. The reference files within a skill add another 500 to 5,000 tokens. If all 32 skills were loaded at their summary level, that would cost approximately 1,000 tokens. If all 32 skills were loaded at their full SKILL.md level, that would cost approximately 32,000 tokens. If all reference files were loaded as well, the cost could exceed 100,000 tokens.
 
 The progressive disclosure model means that a typical production run loads perhaps 5 to 8 skills at their summary level (500 tokens), 2 to 3 skills at their full SKILL.md level (3,000 tokens), and 1 to 2 reference files (1,000 tokens). The total cost is roughly 4,500 tokens — a 96% reduction compared to loading everything.
 

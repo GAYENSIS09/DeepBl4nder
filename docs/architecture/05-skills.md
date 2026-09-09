@@ -23,7 +23,7 @@ style Claude Code) avec `run_script(name, ...)` et `read_file(path)` protégé.
 
 ## Catalogue
 
-Catalogue complet embarqué (26 skills) : blender-python, storytelling, dialogue,
+Catalogue complet embarqué (32 skills) : blender-python, storytelling, dialogue,
 storyboard, cinematography, composition, feasibility, modeling, assets, uv,
 texturing, shading, rigging, animation, camera, lighting, simulation, rendering,
 compositing, sound-design, music, voice, translation, subtitles, continuity, qa.

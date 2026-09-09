@@ -5,9 +5,6 @@
 # Usage:
 #   docker compose up -d                    # Core: LLM + Blender worker
 #   docker compose --profile tui up -d      # Avec TUI
-#   docker compose --profile ue5 up -d      # Avec UE5
-#   docker compose --profile godot up -d    # Avec Godot
-#   docker compose --profile ai-video up -d # Avec AI Video
 #
 # Services:
 #   llm-server      — llama-cpp-python avec Qwen3 (GPU)
@@ -35,6 +32,7 @@ services:
       - ./models:/models
     environment:
       NVIDIA_VISIBLE_DEVICES: all
+      NVIDIA_DRIVER_CAPABILITIES: compute,utility
     deploy:
       resources:
         reservations:
@@ -66,13 +64,15 @@ services:
     environment:
       <<: *common-env
       DeepBl4nder_WORKER: "1"
+      NVIDIA_VISIBLE_DEVICES: all
+      NVIDIA_DRIVER_CAPABILITIES: compute,utility,graphics
     deploy:
       resources:
         reservations:
           devices:
             - driver: nvidia
               count: 1
-              capabilities: [gpu]
+              capabilities: [gpu, compute, utility, graphics]
     restart: unless-stopped
     depends_on:
       llm-server:
@@ -103,89 +103,3 @@ services:
     stdin_open: true
     tty: true
     restart: unless-stopped
-
-  # ══════════════════════════════════════════════════════════
-  #  UE5 Server (optionnel, profile "ue5")
-  # ══════════════════════════════════════════════════════════
-
-  ue5-server:
-    image: deepbl4nder-ue5-server
-    build:
-      context: ./ue5-server
-      dockerfile: Dockerfile
-    ports:
-      - "8081:8080"
-    environment:
-      UE5_EXE: /opt/UnrealEngine/Engine/Binaries/Linux/UnrealEditor-Cmd
-      UE5_PROJECT: /ue5-projects/DeepBl4nder
-      DeepBl4nder_API_URL: http://llm-server:8080
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: 1
-              capabilities: [gpu]
-    profiles: ["ue5"]
-    restart: unless-stopped
-    depends_on:
-      llm-server:
-        condition: service_healthy
-
-  # ══════════════════════════════════════════════════════════
-  #  Godot Server (optionnel, profile "godot")
-  # ══════════════════════════════════════════════════════════
-
-  godot-server:
-    image: deepbl4nder-godot-server
-    build:
-      context: ./godot-server
-      dockerfile: Dockerfile
-    ports:
-      - "8082:8081"
-    environment:
-      GODOT_EXE: /usr/local/bin/godot
-      GODOT_PROJECT: /godot-projects/DeepBl4nder
-      DeepBl4nder_API_URL: http://llm-server:8080
-    volumes:
-      - ./work:/work
-    profiles: ["godot"]
-    restart: unless-stopped
-    depends_on:
-      llm-server:
-        condition: service_healthy
-
-  # ══════════════════════════════════════════════════════════
-  #  AI Video Server (optionnel, profile "ai-video")
-  # ══════════════════════════════════════════════════════════
-
-  ai-video-server:
-    image: deepbl4nder-ai-video-server
-    build:
-      context: ./ai-video-server
-      dockerfile: Dockerfile
-    ports:
-      - "8083:8082"
-    environment:
-      GPU_ID: "0"
-      CACHE_DIR: /cache/ai-video
-      OUTPUT_DIR: /output/ai-video
-      DeepBl4nder_API_URL: http://llm-server:8080
-    volumes:
-      - ai-video-cache:/cache/ai-video
-      - ./work:/work
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: 1
-              capabilities: [gpu]
-    profiles: ["ai-video"]
-    restart: unless-stopped
-    depends_on:
-      llm-server:
-        condition: service_healthy
-
-volumes:
-  ai-video-cache:

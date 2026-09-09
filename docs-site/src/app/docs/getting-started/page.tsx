@@ -8,27 +8,35 @@ export const metadata = {
 const mdxContent = `
 # Getting Started
 
-## The Promise of Local-First AI
+## What DeepBl4nder Is
 
-DeepBl4nder was born from a conviction that creative AI should not depend on cloud services, API keys, or monthly subscriptions. When you write a story prompt, that prompt should stay on your machine. When your GPU renders a frame, no telemetry should leave your workstation. The entire pipeline — from natural language understanding to 3D scene generation — runs locally, using open-weight models that you download once and use forever.
+DeepBl4nder is a multi-agent AI pipeline that transforms creative briefs into 3D scenes using Blender. Fourteen specialized agents collaborate through a cloud-based LLM router — generating narrative, storyboarding shots, directing scenes, writing Blender Python scripts, and evaluating quality — to produce rendered video from a single paragraph of text.
 
-This is not just a philosophical stance. It has practical consequences. Without network latency, your agents respond in milliseconds instead of seconds. Without API rate limits, you can run full productions without worrying about costs. Without cloud dependencies, your workflow continues even when your internet connection drops. The local-first approach means that the system is as fast as your GPU allows, as private as your hard drive, and as reliable as your own hardware.
+The system uses cloud LLM providers (Gemini, Groq, NVIDIA, OpenRouter, Cloudflare) rather than local models, so you do not need a specific GPU for language model inference. GPU hardware is only relevant if you want hardware-accelerated Blender rendering; the LLM layer runs entirely through cloud APIs.
 
 ## What You Need
 
-Before installing DeepBl4nder, your system needs three fundamental capabilities: a modern Python runtime, an NVIDIA GPU for local inference, and Docker for isolating heavy workloads. Let me explain why each of these matters.
+Before installing DeepBl4nder, your system needs two fundamental capabilities: a modern Python runtime and at least one cloud LLM API key. Docker is optional but recommended for isolated Blender rendering.
 
 **Python 3.12 or newer** is required because DeepBl4nder makes heavy use of async/await patterns, modern type hints, and recent improvements to the asyncio event loop. The agent runtime, the pipeline orchestrator, and the TUI all run as async coroutines, coordinating through Python's native concurrency primitives. Older Python versions lack the performance improvements and syntax features that make this coordination practical.
 
-**An NVIDIA GPU with at least 8GB of VRAM** is the heart of the system. The local LLM server runs Qwen3 models through llama-cpp-python, which needs to load the entire model weights into GPU memory. The smallest model (1.5B parameters) requires about 1.5GB, while the largest (8B) needs roughly 5.5GB. Blender's Cycles renderer also benefits from GPU acceleration, so having a capable NVIDIA card serves double duty. AMD GPUs are supported through HIP, and Apple Silicon through Metal, but NVIDIA with CUDA remains the primary target.
+**At least one cloud LLM API key** is required. DeepBl4nder routes requests through a multi-provider LLM router built on \`litellm\`. You need at least one of the following keys configured in your environment:
 
-**Docker with NVIDIA Container Toolkit** provides the isolation layer that keeps the LLM server and the Blender worker separate from your main system. The LLM server runs in its own container with direct GPU access, and the Blender worker runs in another container with Blender headless and FFmpeg pre-installed. This separation means you can update one component without affecting the other, and it ensures that the heavy GPU work does not interfere with your desktop environment.
+- \`GEMINI_API_KEY\` — Google Gemini
+- \`GROQ_API_KEY\` — Groq
+- \`NVIDIA_API_KEY\` — NVIDIA NIM
+- \`OPENROUTER_API_KEY\` — OpenRouter
+- \`CLOUDFLARE_API_KEY\` + \`CLOUDFLARE_ACCOUNT_ID\` — Cloudflare Workers AI
 
-## Installation in Five Steps
+The more providers you configure, the more resilient the system is — the router automatically falls back to the next provider if one fails.
 
-The installation process is designed to be as straightforward as possible, though the first run will take some time due to model downloads. Here is what each step accomplishes and why it matters.
+**Docker** (optional) is recommended for running Blender in an isolated container with GPU access. This keeps generated scripts contained and prevents any issues from affecting your main system.
 
-**Cloning the repository** gives you the full source code, including all 14 agents, the production pipeline, the LLM system, the TUI, and the 36+ embedded skills. The repository is structured as a single Python package with optional extras for the TUI and development tools.
+## Installation in Four Steps
+
+The installation process is designed to be as straightforward as possible.
+
+**Cloning the repository** gives you the full source code, including all 14 agents, the production pipeline, the LLM system, the TUI, and the 32 embedded skills. The repository is structured as a single Python package with optional extras for the TUI and development tools.
 
 \`\`\`bash
 git clone https://github.com/GAYENSIS09/DeepBl4nder.git
@@ -41,22 +49,30 @@ cd DeepBl4nder
 pip install -e ".[tui]"
 \`\`\`
 
-**Downloading the models** is the most time-consuming step, as you are fetching approximately 10GB of quantized model weights from HuggingFace. These are GGUF-format files optimized for llama-cpp-python. You can download all three models at once, or start with just the 1.5B model for quick testing and add the larger ones later. The download is resumable, so interrupted downloads will continue from where they left off.
+**Configuring at least one API key** is the critical step that connects DeepBl4nder to the cloud LLM providers. Create a \`.env\` file in the project root (or export the variables in your shell) with at least one key:
 
 \`\`\`bash
-python -m DeepBl4nder.llm.download --all
+# At least one of these is required:
+GEMINI_API_KEY=your-gemini-key
+GROQ_API_KEY=your-groq-key
+NVIDIA_API_KEY=your-nvidia-key
+OPENROUTER_API_KEY=your-openrouter-key
+CLOUDFLARE_API_KEY=your-cloudflare-key
+CLOUDFLARE_ACCOUNT_ID=your-cloudflare-account-id
 \`\`\`
 
-**Starting Docker services** brings up two containers: the LLM server on port 8080 and the Blender worker. The LLM server loads the default model (typically the 8B for best quality) and exposes an OpenAI-compatible API. The Blender worker provides a headless Blender 4.1 environment with FFmpeg for video processing. Both containers have direct GPU access through the NVIDIA Container Toolkit.
+You can also configure the router via \`~/.deepbl4nder/llm.json\` for advanced settings like provider priority, model selection rules, cooldown durations, and budget caps. See the LLM System documentation for details.
 
-\`\`\`bash
-docker compose up -d
-\`\`\`
-
-**Launching the TUI** starts the Textual terminal interface where you type creative briefs and watch agents work. The TUI connects to the Docker services through an in-process API, so there is no HTTP overhead between the interface and the agents.
+**Launching the TUI** starts the Textual terminal interface where you type creative briefs and watch agents work. The TUI connects to the agents through an in-process API, so there is no HTTP overhead between the interface and the agents.
 
 \`\`\`bash
 DeepBl4nder tui
+\`\`\`
+
+**Starting the Blender worker** (optional) brings up a Docker container with Blender 4.1 and FFmpeg pre-installed. This is needed for hardware-accelerated rendering. If you skip this step, the pipeline can still generate scripts and QA reports, but will not produce final rendered video.
+
+\`\`\`bash
+docker compose up -d blender-worker
 \`\`\`
 
 ## Your First Production
@@ -67,13 +83,7 @@ Type a creative brief describing the scene you want to create. Be as specific or
 
 As the pipeline runs, you see each agent's reasoning unfold in real-time. The StoryAgent appears first, analyzing your brief for characters, setting, and emotional tone. Then the StoryboardAgent takes over, planning camera angles and shot transitions. The DirectorAgent synthesizes everything into a detailed scene specification. The BlenderAgent writes Python code that constructs the 3D scene. And the QAAgent evaluates the output, requesting revisions if the quality falls below the threshold.
 
-The entire process typically takes between two and five minutes, depending on the complexity of your brief and the speed of your GPU. When it completes, you find rendered video files, Blender scripts, and QA reports in the production output directory.
-
-## Understanding the GPU Backend
-
-DeepBl4nder automatically detects your GPU backend at startup. For NVIDIA cards, it prefers OptiX (the hardware-accelerated ray tracing API) over CUDA. For AMD GPUs, it uses HIP. For Apple Silicon, it uses Metal. This detection happens transparently — you do not need to configure anything. The system simply uses the fastest available backend for your hardware.
-
-If you have multiple GPUs, you can control which ones are used through the \`CUDA_VISIBLE_DEVICES\` environment variable. This is particularly useful if you want to dedicate one GPU to the LLM server and another to Blender rendering, preventing memory contention between the two workloads.
+The entire process typically takes between two and five minutes, depending on the complexity of your brief and the speed of your cloud LLM providers. When it completes, you find rendered video files, Blender scripts, and QA reports in the production output directory.
 
 ## What Happens Next
 

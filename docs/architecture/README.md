@@ -1,12 +1,12 @@
 # DeepBl4nder — Architecture (Source de vérité)
 
-> **Statut :** Architecture Local-First consolidée (août 2026)
-> L'ancienne architecture SaaS (FastAPI, PostgreSQL, Redis, MinIO, Langfuse, API cloud) a été **supprimée**.
-> Ce dossier est la source de vérité unique pour l'architecture **Local-First** actuelle.
+> **Statut :** Architecture consolidée (août 2026)
+> DeepBl4nder utilise un **routeur LLM cloud multi-fournisseurs** (via `litellm`) et Blender 4.1+ pour le rendu 3D.
+> Ce dossier est la source de vérité unique pour l'architecture actuelle.
 
 ## Ce que DeepBl4nder est
 
-DeepBl4nder est une plateforme de **production audiovisuelle locale** assistée par agents IA, construite **au-dessus de NOOA 0.0.8**.
+DeepBl4nder est une plateforme de **production audiovisuelle** assistée par agents IA, construite **au-dessus de NOOA 0.0.8**.
 
 ```
 ┌─────────────────────────────────────────────────────────────────────┐
@@ -18,38 +18,37 @@ DeepBl4nder est une plateforme de **production audiovisuelle locale** assistée 
 │                    14 AGENTS NOOA (In-Process)                      │
 │  Story │ Storyboard │ Director │ Character │ Environment          │
 │  Blender │ QA │ Audio │ Compositing │ Localization │ Review       │
-│  Animator │ Music │ Sound Design │ UE5 │ Godot │ AI Video         │
+│  Animator │ Music │ Sound Design                                   │
 └─────────────────────────────────────────────────────────────────────┘
                               │
                               ▼
 ┌─────────────────────────────────────────────────────────────────────┐
-│              LOCAL LLM SERVER (llama.cpp / Qwen3)                   │
+│              CLOUD LLM ROUTER (litellm, UnifiedLLM)                 │
 │  ┌─────────────────────────────────────────────────────────────┐   │
-│  │  Cascade Routing:  Qwen3-1.5B → Qwen3-4B → Qwen3-8B         │   │
-│  │  FAST (1.5B) → GENERAL (4B) → CODING/REASONING (8B)         │   │
+│  │  Gemini │ Groq │ NVIDIA │ OpenRouter │ Cloudflare           │   │
+│  │  Mode: fallback (défaut) ou vote (DeepBl4nder_LLM_MODE)     │   │
 │  └─────────────────────────────────────────────────────────────┘   │
 └─────────────────────────────────────────────────────────────────────┘
                               │
-              ┌───────────────┼───────────────┐
-              ▼               ▼               ▼
-        ┌──────────┐   ┌──────────┐   ┌──────────┐
-        │ Blender  │   │ UE5      │   │ Godot    │
-        │ Worker   │   │ Server   │   │ Server   │
-        │ (Docker) │   │ (Docker) │   │ (Docker) │
-        └──────────┘   └──────────┘   └──────────┘
+                              ▼
+                        ┌──────────┐
+                        │ Blender  │
+                        │ Worker   │
+                        │ (Docker) │
+                        └──────────┘
 ```
 
-**Règle d'or** : DeepBl4nder est une **plateforme de production audiovisuelle locale** dont le runtime agentique est NOOA. Toute capacité fournie par NOOA est utilisée, jamais réimplémentée. **Aucun composant cloud** (API, DB, cache, auth) n'existe plus.
+**Règle d'or** : DeepBl4nder est une **plateforme de production audiovisuelle** dont le runtime agentique est NOOA. Toute capacité fournie par NOOA est utilisée, jamais réimplémentée. Au moins une clé API LLM est requise pour le fonctionnement.
 
 ## Décisions Architecturales (ADR)
 
 | ADR | Sujet | Choix | Raison |
 |-----|-------|-------|--------|
-| ADR-001 | Architecture | Local-First, in-process TUI | Simplicité, confidentialité, pas de dépendances cloud |
-| ADR-002 | LLM | llama.cpp + Qwen3 GGUF | Modèles locaux, GPU, pas d'API keys |
-| ADR-003 | Routage LLM | Cascade 1.5B → 4B → 8B | Optimisation VRAM/latence |
+| ADR-001 | Architecture | TUI in-process | Simplicité, pas de dépendances cloud lourdes |
+| ADR-002 | LLM | litellm multi-fournisseur (Gemini, Groq, NVIDIA, OpenRouter, Cloudflare) | Haute disponibilité, pas de dépendance unique, pas de modèle local |
+| ADR-003 | Routage LLM | Fallback (défaut) ou vote | Résilience, tolerance d'erreur par provider |
 | ADR-004 | Interface | TUI (Textual) | Développeur-first, live stream, pas de navigateur |
-| ADR-005 | Déploiement | Docker Compose simple | `docker compose up -d` — LLM + Blender |
+| ADR-005 | Déploiement | Docker Compose simple | `docker compose up -d` — Blender worker |
 | ADR-006 | Agents | Factory centralisée | `agents.factory.build_agents()` source unique |
 | ADR-007 | Contexte | KG sémantique + Vector Store | RAG pour injection schéma domain |
 
@@ -73,19 +72,11 @@ DeepBl4nder/
 │   ├── loc.py            # LocalizationAgent
 │   ├── music.py          # MusicComposerAgent
 │   ├── review.py         # ReviewAgent
-│   ├── sfx.py            # SoundDesignerAgent
-│   ├── ue5.py            # UE5Agent
-│   ├── godot.py          # GodotAgent
-│   └── ai_video.py       # AIVideoAgent
+│   └── sfx.py            # SoundDesignerAgent
 ├── production/           # PipelineRunner, BudgetTracker, EventLog
-├── llm/                  # Système LLM local
-│   ├── model_registry.py    # Spécs Qwen3 (1.5B/4B/8B GGUF)
-│   ├── classifier.py        # Classification tâches (heuristique)
-│   ├── cascade.py           # Router cascade 1.5B→4B→8B
-│   ├── server.py            # Serveur llama-cpp-python
-│   ├── client.py            # Client HTTP (OpenAI-compatible)
-│   ├── interface.py         # LLMClient / build_llm() unifié
-│   └── download.py          # Téléchargeur GGUF (HuggingFace)
+├── llm/                  # Routeur LLM cloud multi-fournisseurs (litellm)
+│   ├── interface.py         # UnifiedLLM / build_llm() — interface NOOA
+│   └── __init__.py          # build_llm() — routeur partagé
 ├── domain/               # Modèles métier typés (dataclasses)
 │   ├── narrative.py      # StorySpec, Act, StoryBeat, DialogueLine, Storyboard*
 │   ├── scene.py          # SceneSpec, ShotSpec, CharacterSpec, CameraSpec...
@@ -94,14 +85,11 @@ DeepBl4nder/
 │   ├── project.py        # Brief, Project, Production
 │   └── schema_*.py       # Bootstrap KG + Vector Store
 ├── bridges/              # Ponts vers moteurs externes
-│   ├── blender/          # BlenderBridge (bpy headless)
-│   ├── ue5/              # UE5Bridge (REST)
-│   ├── godot/            # GodotBridge (REST)
-│   └── ai_video/         # AIVideoBridge (REST)
+│   └── blender/          # BlenderBridge (bpy headless)
 ├── artifacts/            # ArtifactRegistry + ProvenanceGraph
 ├── plugins/              # KnowledgeGraph, RenderFarm
 ├── codegen/              # ASTValidator (sécurité scripts Blender)
-├── skills/               # 26 skills embarqués (SKILL.md)
+├── skills/               # 32 skills embarqués (SKILL.md)
 ├── tui/                  # Interface Terminal (Textual)
 │   ├── app.py            # App principale
 │   ├── embedded_api.py   # Pipeline in-process
@@ -121,7 +109,6 @@ DeepBl4nder/
 | Redis | ❌ Supprimé — Pas de cache/queue distribué |
 | MinIO | ❌ Supprimé — Stockage local |
 | Langfuse | ❌ Supprimé — Observabilité locale (logs) |
-| LLM Cloud (Gemini, Groq, NVIDIA, OpenRouter, Cloudflare) | ❌ Supprimé — llama.cpp local |
 | Frontend Next.js | ❌ Supprimé — TUI Textual |
 | Auth/JWT | ❌ Supprimé — Pas d'auth multi-tenant |
 
@@ -149,4 +136,4 @@ DeepBl4nder/
 3. `04-agents.md` — 14 agents, collaboration
 4. `07-workers-blender.md` — Workers, codegen, sécurité
 5. `09-qa-et-revision.md` — QA + boucle révision
-6. Module `DeepBl4nder/llm/` — Système LLM local complet
+6. Module `DeepBl4nder/llm/` — Routeur LLM cloud multi-fournisseurs

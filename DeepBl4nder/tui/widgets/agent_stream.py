@@ -27,9 +27,13 @@ _KIND_STYLES: dict[str, tuple[str, str]] = {
     "system_prompt": ("sys", theme.TEXT_DIM),
     "system_prompt_cached": ("sys", theme.TEXT_DIM),
     "context": ("ctx", theme.TEXT_DIM),
+    "context_compacted": ("ctx", theme.WARNING),
     "text_reply": ("text", theme.WARNING),
     "python_output": ("shell", theme.TEXT_DIM),
     "tool_call": ("tool", theme.INFO),
+    "tool_result": ("result", theme.INFO),
+    "agent_call_start": ("method", theme.INFO),
+    "agent_call_end": ("method", theme.INFO),
     "llm_complete": ("done", theme.TEXT_DIM),
     "call_start": ("waiting", theme.TEXT_DIM),
     "call_end": ("replied", theme.TEXT_DIM),
@@ -123,6 +127,25 @@ def _detail_lines(meta: dict, kind: str) -> list[str]:
         return [f"{meta['plugin']}.{meta['method']}"]
     if kind == "tool_call" and meta.get("arguments"):
         return [f"  args: {meta['arguments']}"]
+    if kind == "context_compacted" and meta.get("events"):
+        lines = [f"range {meta['events']}"]
+        summary = meta.get("summary_text") or ""
+        if summary:
+            lines.append(f"summary: {summary[:200]}")
+        else:
+            lines.append("no summary text (pure truncation)")
+        return lines
+    if kind == "agent_call_start":
+        lines = [f"call {meta.get('call_id', '')[:8]}"]
+        if meta.get("needs_generation"):
+            lines.append("LLM method")
+        if not meta.get("top_level"):
+            lines.append("nested")
+        return lines
+    if kind == "agent_call_end" and meta.get("method"):
+        return [f"call {meta.get('call_id', '')[:8]}"]
+    if kind == "tool_result":
+        return [f"value: {meta.get('_full', '')[:400]}"]
     return []
 
 

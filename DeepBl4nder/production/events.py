@@ -40,13 +40,20 @@ class ProductionEvent:
 
 @dataclass
 class EventLog:
-    """Journal append-only : chaque événement est flush'é avant retour."""
+    """Journal append-only : chaque événement est flush'é avant retour.
+
+    ``load()`` est mis en cache (invalidation par mtime) : pendant un run, la
+    relecture complète du journal (``inject_run_history``) est évitée à chaque
+    appel tant que le fichier n'a pas changé.
+    """
 
     path: Path
 
     def __post_init__(self) -> None:
         self.path.parent.mkdir(parents=True, exist_ok=True)
         self._cached_last_seq: int | None = None
+        self._cached_events: list[ProductionEvent] | None = None
+        self._cached_mtime: float | None = None
 
     def append(self, kind: str, payload: dict[str, Any] | None = None) -> ProductionEvent:
         seq = self._last_seq() + 1
@@ -55,11 +62,22 @@ class EventLog:
             handle.write(event.to_json() + "\n")
             handle.flush()
         self._cached_last_seq = seq
+        # invalide le cache de lecture : le fichier vient de changer
+        self._cached_events = None
+        self._cached_mtime = None
         return event
 
     def load(self) -> list[ProductionEvent]:
         if not self.path.exists():
+            self._cached_events = []
+            self._cached_mtime = None
             return []
+        try:
+            mtime = self.path.stat().st_mtime
+        except OSError:
+            mtime = -1.0
+        if self._cached_events is not None and mtime == self._cached_mtime:
+            return self._cached_events
         events: list[ProductionEvent] = []
         with self.path.open("r", encoding="utf-8") as handle:
             for line in handle:
@@ -71,6 +89,8 @@ class EventLog:
                 except json.JSONDecodeError:
                     continue
                 events.append(ProductionEvent(**data))
+        self._cached_events = events
+        self._cached_mtime = mtime
         return events
 
     def _last_seq(self) -> int:

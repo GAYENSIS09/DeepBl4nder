@@ -125,7 +125,7 @@ def _enable_tracing_if_configured() -> None:
         _TRACING_ENABLED = True
 
 
-def scene_spec_postcondition(agent: Any, result: Any, call: Any) -> None:
+def scene_spec_postcondition(_agent: BaseAgent | None, result: Any, call: Any) -> None:
     """Invariant : une SceneSpec planifiée doit contenir au moins un plan.
 
     Lève ``InvariantError`` (retry de validation NOOA, modèle corrigeable)
@@ -144,7 +144,7 @@ def scene_spec_postcondition(agent: Any, result: Any, call: Any) -> None:
         )
 
 
-def blender_script_postcondition(agent: Any, result: Any, call: Any) -> None:
+def blender_script_postcondition(_agent: BaseAgent | None, result: Any, call: Any) -> None:
     """Invariant : un BlenderScript généré doit avoir du code non vide."""
     from DeepBl4nder.domain.scene import BlenderScript
 
@@ -154,7 +154,7 @@ def blender_script_postcondition(agent: Any, result: Any, call: Any) -> None:
         raise InvariantError("BlenderScript.code ne doit pas être vide.")
 
 
-def story_spec_postcondition(agent: Any, result: Any, call: Any) -> None:
+def story_spec_postcondition(_agent: BaseAgent | None, result: Any, call: Any) -> None:
     """Invariant : une StorySpec produite doit porter une logline."""
     from DeepBl4nder.domain.narrative import StorySpec
 
@@ -168,7 +168,7 @@ def story_spec_postcondition(agent: Any, result: Any, call: Any) -> None:
         )
 
 
-def storyboard_spec_postcondition(agent: Any, result: Any, call: Any) -> None:
+def storyboard_spec_postcondition(_agent: BaseAgent | None, result: Any, call: Any) -> None:
     """Invariant : un StoryboardSpec produit doit contenir au moins un plan."""
     from DeepBl4nder.domain.narrative import StoryboardSpec
 

@@ -18,6 +18,7 @@ from DeepBl4nder.domain.project import Brief
 from DeepBl4nder.domain.qa import Issue, QAReport
 from DeepBl4nder.domain.scene import BlenderScript, RenderOutput, SceneSpec
 from DeepBl4nder.production.events import EventLog
+from DeepBl4nder.agents.base import BaseAgent
 from DeepBl4nder.production.runs import ProductionRun
 
 logger = logging.getLogger("DeepBl4nder.pipeline")
@@ -41,9 +42,9 @@ class CheckpointManager:
         self,
         *,
         workdir: Path,
-        story: Any = None,
-        storyboard: Any = None,
-        animator: Any = None,
+        story: BaseAgent | None = None,
+        storyboard: BaseAgent | None = None,
+        animator: BaseAgent | None = None,
         write_json: Callable[[str, Any], Path],
         production_run: ProductionRun,
         emit: Callable[[str, dict[str, Any]], None],
