@@ -1,7 +1,16 @@
-"""Live agent stream widget - renders NOOA bridge events with brand colors."""
+"""Live agent stream widget - renders NOOA bridge events with brand colors.
+
+Design (expert production console):
+- Le burst de fin d'appel LLM est consolidé : reasoning/tool_call/context ne
+  font plus 5 lignes simultanées, ils sont pliés dans une seule ligne de tour
+  ``llm_complete`` (détail complet disponible dans l'overlay ``v``).
+- Le contenu produit (``output``) est révélé progressivement (fractionnement
+  avec petit délai) pour un rendu "streaming" même si NOOA émet une seule fois.
+"""
 
 from __future__ import annotations
 
+import asyncio
 from collections import deque
 from datetime import datetime
 
@@ -19,6 +28,13 @@ _STEP_HEADERS = {
     "revision_requested", "approval_required", "run_completed", "run_blocked",
     "run_failed", "run_cancelled", "budget_alert", "render_started",
     "render_completed", "patches_applied",
+}
+
+# Événements pliés dans la ligne de tour ``llm_complete`` : ils ne sont plus
+# écrits individuellement (c'était le "tout d'un coup" en fin de génération).
+_TURN_FOLD = {
+    "reasoning", "tool_call", "context", "system_prompt", "system_prompt_cached",
+    "agent_call_start", "agent_call_end",
 }
 
 _KIND_STYLES: dict[str, tuple[str, str]] = {
@@ -71,6 +87,38 @@ def _head(stamp: str, actor: str | None, prefix: str, style: str) -> Text:
     return text
 
 
+def _snip_preview(value: str, limit: int = 240) -> str:
+    compact = " ".join((value or "").splitlines())
+    if len(compact) <= limit:
+        return compact
+    return f"{compact[:limit]}... ({len(compact)} chars)"
+
+
+def _turn_details(meta: dict) -> list[str]:
+    """Lignes compactes du tour, consolidées depuis reasoning/tool_call/context."""
+    lines: list[str] = []
+    tokens = meta.get("tokens")
+    if isinstance(tokens, int):
+        parts = [f"tokens {meta.get('prompt_tokens', 0)} + {tokens}"]
+        if meta.get("reasoning_tokens"):
+            parts.append(f"reasoning {meta['reasoning_tokens']}")
+        lines.append(" ".join(parts))
+    if meta.get("cached_tokens"):
+        lines.append(f"cached {meta['cached_tokens']}")
+    if meta.get("dynamic_context_len"):
+        lines.append(f"context {meta['dynamic_context_len']} chars")
+    if meta.get("cost_usd"):
+        lines.append(f"cost ${meta['cost_usd']:.4f}")
+    tools = meta.get("tool_calls") or []
+    if tools:
+        names = ", ".join(str(c.get("function_name", c.get("name", "tool"))) for c in tools[:3])
+        lines.append(f"{len(tools)} tool call(s): {names}")
+    reasoning = meta.get("reasoning_preview")
+    if reasoning:
+        lines.append(f"thought: {reasoning}")
+    return lines
+
+
 def render_event(event: StreamEvent) -> list[Text]:
     """Convert a normalized stream event into styled lines for the log."""
     kind, actor, stamp = event.kind, event.actor, _stamp(event.ts)
@@ -101,18 +149,8 @@ def render_event(event: StreamEvent) -> list[Text]:
 def _detail_lines(meta: dict, kind: str) -> list[str]:
     if kind == "output" and "content_length" in meta:
         return [f"{meta['content_length']} chars"]
-    if kind == "llm_complete" and "tokens" in meta:
-        lines = [
-            f"tokens {meta.get('prompt_tokens', 0)} + {meta.get('tokens', 0)} "
-            f"(reasoning {meta.get('reasoning_tokens', 0)})"
-        ]
-        if meta.get("cached_tokens"):
-            lines.append(f"cached {meta['cached_tokens']}")
-        if meta.get("dynamic_context_len"):
-            lines.append(f"context {meta['dynamic_context_len']} chars")
-        if meta.get("cost_usd"):
-            lines.append(f"cost ${meta['cost_usd']:.4f}")
-        return lines
+    if kind == "llm_complete":
+        return _turn_details(meta)
     if kind == "context" and meta.get("chars"):
         return [f"{meta['chars']} chars injected to the model"]
     if kind in ("system_prompt", "system_prompt_cached") and "chars" in meta:
@@ -155,10 +193,14 @@ class AgentStream(Widget):
     count: reactive[int] = reactive(0)
     _PLACEHOLDER = "Waiting for a brief. Type your idea in the bar above and press Run."
 
+    _OUTPUT_CHUNK = 96
+    _OUTPUT_DELAY = 0.018
+
     def __init__(self, *, id: str = "agent-stream") -> None:
         super().__init__(id=id)
         self._log: RichLog | None = None
         self._text_buffer: deque[str] = deque(maxlen=2000)
+        self._output_worker: asyncio.Task | None = None
 
     def compose(self) -> ComposeResult:
         self._log = RichLog(
@@ -187,15 +229,56 @@ class AgentStream(Widget):
     def write_event(self, event: StreamEvent) -> None:
         if self._log is None:
             return
+
+        if event.kind == "output":
+            self._start_output_stream(event)
+            return
+        if event.kind in _TURN_FOLD:
+            return
+
         for line in render_event(event):
             self._log.write(line)
             self._text_buffer.append(str(line))
         self.count += 1
 
+    # ========== progressive output rendering ==========
+
+    def _start_output_stream(self, event: StreamEvent) -> None:
+        """Reveal ``output`` content progressively (fractionné + délai).
+
+        NOOA n'émet ``LLMOutput`` qu'une seule fois en fin de génération ;
+        on simule un rendu "streaming" côté affichage pour un flux vivant.
+        """
+        if self._output_worker is not None and not self._output_worker.done():
+            self._output_worker.cancel()
+        self._output_worker = asyncio.create_task(self._stream_output(event))
+
+    async def _stream_output(self, event: StreamEvent) -> None:
+        if self._log is None:
+            return
+        head = _head(_stamp(event.ts), event.actor, "", theme.TEXT)
+        head.append(event.content, style=theme.TEXT)
+        text = str(event.content) or ""
+        head_plain = str(head)
+        self._log.write(head)
+        self._text_buffer.append(head_plain)
+        self.count += 1
+
+        for start in range(0, len(text), self._OUTPUT_CHUNK):
+            piece = text[start:start + self._OUTPUT_CHUNK]
+            wrapper = Text(f"  {piece}", style=theme.TEXT)
+            self._log.write(wrapper)
+            self._text_buffer.append(str(wrapper))
+            self.count += 1
+            await asyncio.sleep(self._OUTPUT_DELAY)
+
     def _write_placeholder(self) -> None:
         self.write_line(self._PLACEHOLDER)
 
     def clear_stream(self) -> None:
+        if self._output_worker is not None and not self._output_worker.done():
+            self._output_worker.cancel()
+            self._output_worker = None
         if self._log is not None:
             self._log.clear()
         self.count = 0

@@ -1,7 +1,6 @@
 ---
 name: feasibility
-description: Étudier la faisabilité technique d'une idée : durée, complexité, ressources, budget, risques.
----
+description: "Étudier la faisabilité technique d'une idée : durée, complexité, ressources, budget, risques."---
 
 # Faisabilité
 

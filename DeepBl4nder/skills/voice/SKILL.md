@@ -1,7 +1,6 @@
 ---
 name: voice
-description: Doubler les personnages : casting vocal, direction, diction, accents, synchronisation.
----
+description: "Doubler les personnages : casting vocal, direction, diction, accents, synchronisation."---
 
 # Voix
 

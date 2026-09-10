@@ -159,32 +159,24 @@ The mode selection is not just a configuration flag — it changes the behavior 
 
 ## Integration with BlenderAgent
 
-The BlenderAgent uses the CodeGen validator as an integral part of its CodeAct strategy. When the agent generates a Blender script, it immediately validates the script. If validation fails, the agent receives the specific error messages and can regenerate the script with corrections.
+The BlenderAgent uses the CodeGen validator as an integral part of its strategy — not just as a manual step, but as a **postcondition**. When the agent returns a \`BlenderScript\`, the \`blender_script_postcondition\` automatically runs \`validate_for_worker\` on the code. If validation fails (syntax error, forbidden import, etc.), the postcondition raises an \`InvariantError\` with the exact error and line number, causing NOOA to retry with the model correcting in-session.
+
+This means validation is deterministic and happens at build time, not at render time. A script with a syntax error at line 334 is caught immediately rather than discovered hours later during the render step.
 
 \`\`\`python
-class BlenderAgent(Agent):
-    @strategy(CodeActStrategy())
-    async def build_scene(self, scene: SceneSpec) -> BlenderScript:
-        # Generate code via LLM
-        code = await self.runtime.generate(
-            prompt=f"Create a Blender scene: {scene.description}",
-            output_model=BlenderScript,
+# Postcondition (automatic — no manual call needed):
+def blender_script_postcondition(_agent, result, call) -> None:
+    if not isinstance(result, BlenderScript):
+        return
+    if not (result.code or "").strip():
+        raise InvariantError("BlenderScript.code ne doit pas être vide.")
+    report = validate_for_worker(result.code)
+    if not report.ok:
+        detail = "; ".join(report.errors[:3])
+        raise InvariantError(
+            f"Script rejected by worker validation: {detail}. "
+            "Fix and return via return_result(BlenderScript(...))."
         )
-
-        # Validate before execution
-        report = validate_for_worker(code.code, mode="strict")
-
-        if not report.ok:
-            # Provide specific feedback for regeneration
-            feedback = "\\n".join(report.errors)
-            code = await self.runtime.generate(
-                prompt=f"Fix these validation errors:\\n{feedback}",
-                output_model=BlenderScript,
-            )
-
-        # Execute validated code
-        result = self.bridge.execute_python(code.code)
-        return code
 \`\`\`
 
 This feedback loop is one of the most powerful aspects of the system. Rather than simply blocking bad code and giving up, the agent receives detailed information about what went wrong and can fix it. The result is that the system is self-correcting: initial code generation may fail validation, but the agent learns from the errors and produces correct code on subsequent attempts.

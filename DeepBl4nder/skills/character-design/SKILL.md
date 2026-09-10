@@ -1,7 +1,6 @@
 ---
 name: character-design
-description: Conception de personnages 3D : proportions, styles, pipelines de production.
----
+description: "Conception de personnages 3D : proportions, styles, pipelines de production."---
 
 # Character Design
 

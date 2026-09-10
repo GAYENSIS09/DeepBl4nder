@@ -11,8 +11,34 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from nooa import TextSkill
+from nooa.skill import _find_skill_md, _parse_frontmatter
 
 _FRONTMATTER_DESCRIPTION = re.compile(r"(?m)^description:\s*(.+)$")
+
+
+def _load_skill_utf8(path: Path, skill_id: str) -> TextSkill:
+    """Charge un skill en lisant SKILL.md en UTF-8 (mitige nooa/skill.py:211).
+
+    nooa lit SKILL.md avec l'encodage par defaut du process (cp1252 sur
+    Windows), ce qui leve ``UnicodeDecodeError`` sur le contenu accentue
+    UTF-8 des skills. On reconstruit un ``TextSkill`` equivalent a partir du
+    texte decode en UTF-8 pour que l'agent fonctionne quelle que soit la
+    locale.
+    """
+    skill_md = _find_skill_md(path)
+    if skill_md is None:
+        raise ValueError(f"SKILL.md not found in {path}")
+    meta, body = _parse_frontmatter(skill_md.read_text(encoding="utf-8"))
+    description = str(meta.get("description") or path.name).strip()
+
+    class_name = "".join(word.capitalize() for word in skill_id.split("-"))
+    docstring = f"{description}\n---\n{body.strip()}"
+    skill_class = type(
+        class_name,
+        (TextSkill,),
+        {"__doc__": docstring, "_id": skill_id or None, "_skill_path": path},
+    )
+    return skill_class.__new__(skill_class)  # type: ignore[return-value]
 
 
 @dataclass(frozen=True)
@@ -52,7 +78,10 @@ class SkillRegistry:
         path = self.root / name
         if not (path / "SKILL.md").is_file():
             raise KeyError(f"skill not found: {name}")
-        return TextSkill(path=path, id=name)
+        try:
+            return TextSkill(path=path, id=name)
+        except UnicodeDecodeError:
+            return _load_skill_utf8(path, name)
 
     def summaries(self) -> list[str]:
         return [info.to_summary() for info in self.discover()]

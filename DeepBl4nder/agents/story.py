@@ -12,7 +12,7 @@ from DeepBl4nder.agents.base import (
     DefaultsMixin,
     story_spec_postcondition,
 )
-from DeepBl4nder.domain.narrative import StorySpec
+from DeepBl4nder.domain.narrative import Act, DialogueLine, StoryBeat, StorySpec  # noqa: F401  # exposé dans le sandbox
 from DeepBl4nder.skills.registry import SkillRegistry
 
 

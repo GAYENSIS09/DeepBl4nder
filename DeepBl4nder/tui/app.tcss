@@ -74,14 +74,19 @@ SidePanel {
     layout: vertical;
 }
 
-#panel-title, #panel-budget-title, #panel-llm-title {
+#panel-title, #panel-budget-title, #panel-llm-title, #panel-pipeline-title, #panel-pool-title {
     color: $primary;
     text-style: bold;
     margin-bottom: 1;
 }
 
-#panel-budget, #panel-llm {
+#panel-budget, #panel-llm, #panel-pool {
     color: $text-muted;
+    margin-bottom: 1;
+}
+
+#pipeline-tracker {
+    color: $text;
     margin-bottom: 1;
 }
 
@@ -337,6 +342,12 @@ SidePanel {
 #settings-actions Button {
     margin-left: 1;
     min-width: 10;
+}
+
+.setting-note {
+    color: $text-muted;
+    margin-bottom: 1;
+    width: 100%;
 }
 
 /* ============ Event detail overlay ============ */

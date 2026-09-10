@@ -29,7 +29,7 @@ Every production follows the same nine-step journey, though the specific agents 
 
 **Character and Environment Design** run in parallel. The CharacterDesignerAgent creates detailed specifications for each character in the scene. The EnvironmentArtistAgent designs the world they inhabit. These steps run concurrently because they are independent — the character design does not depend on the environment design, and vice versa.
 
-**Blender Script Generation** is where the BlenderAgent produces the actual Python code that constructs the 3D scene. The agent reads the SceneSpec, loads relevant skills (modeling, shading, lighting, rendering), and generates a complete Blender Python script. It also handles asset management — downloading HDRI maps from PolyHaven and character models from Quaternius.
+**Blender Script Generation** is where the BlenderAgent produces the actual Python code that constructs the 3D scene. The agent reads the SceneSpec, loads relevant skills (modeling, shading, lighting, rendering), and generates a complete Blender Python script. It also handles asset management — downloading HDRI maps from PolyHaven and character models from Quaternius. The generated script is validated against the AST policy (syntax + allowed imports) before acceptance — invalid scripts trigger in-session correction rather than late render failures. The \`render_dir\` parameter specifies where output files must be written.
 
 **Quality Assessment** is the critical quality gate. The QAAgent evaluates the generated script against the SceneSpec across four dimensions: technical correctness, visual quality, continuity, and semantic fidelity. If the score is above 70, the pipeline proceeds. If the score is below 70, a revision loop begins.
 
@@ -104,7 +104,7 @@ For efficiency, the event log is cached in memory and invalidated by file modifi
 
 ## Parallel Execution and Resource Management
 
-The pipeline uses async semaphores to control parallelism. LLM calls are limited to two concurrent requests. GPU rendering is limited to four concurrent shots. Post-production tasks have no explicit limit because they primarily use CPU resources.
+The pipeline uses async semaphores to control parallelism. LLM calls are limited to two concurrent requests. GPU rendering is limited to four concurrent shots. Post-production tasks have no explicit limit because they primarily use CPU resources. By default, \`enable_parallel_shots\` is \`False\` — the single-scene script covers all shots via frame ranges, avoiding the LLM cost of regenerating a separate script per shot. Set \`enable_parallel_shots=True\` to render shots independently in parallel.
 
 These limits are not arbitrary — they reflect the environment you are operating in. The LLM concurrency limit manages cloud quota and cost rather than local GPU memory: because agent reasoning is served by a cloud multi-provider router, each concurrent call consumes billed tokens against your provider quota and budget. Two concurrent calls keeps spend predictable and avoids rate-limit contention across the aggregated providers. Each rendering job consumes GPU memory for the scene data and the render buffers. Four concurrent jobs is typically the maximum that fits in a 24GB VRAM GPU.
 

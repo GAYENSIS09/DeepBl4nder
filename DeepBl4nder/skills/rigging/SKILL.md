@@ -1,7 +1,6 @@
 ---
 name: rigging
-description: Créer et valider les rigs : armatures, poids, contraintes, contrôleurs.
----
+description: "Créer et valider les rigs : armatures, poids, contraintes, contrôleurs."---
 
 # Rigging
 

@@ -8,7 +8,7 @@ from nooa import CodeActStrategy, strategy
 from nooa.config.strategy_config import CodeActConfig
 
 from DeepBl4nder.agents.base import BaseAgent, DefaultsMixin, storyboard_spec_postcondition
-from DeepBl4nder.domain.narrative import StorySpec, StoryboardSpec
+from DeepBl4nder.domain.narrative import StorySpec, StoryboardShot, StoryboardSpec  # noqa: F401  # StoryboardShot exposé dans le sandbox
 from DeepBl4nder.skills.registry import SkillRegistry
 
 

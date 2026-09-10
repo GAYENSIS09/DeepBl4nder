@@ -160,7 +160,7 @@ class PipelineRunner(PluginShortcuts):
         production_id: str | None = None,
         # Optimisation options
         enable_cache: bool = True,
-        enable_parallel_shots: bool = True,
+        enable_parallel_shots: bool = False,
         max_parallel_shots: int = 4,
         max_parallel_llm: int = 2,
     ) -> None:
@@ -854,7 +854,10 @@ class PipelineRunner(PluginShortcuts):
         self._emit("llm_call", {"step": "director", "agent": "DirectorAgent", "status": "started", "model": getattr(self.director, '_get_model_id', lambda: 'unknown')()})
         t0 = time.time()
         scene = await self._with_generation_retry(
-            "director", lambda: self.director.plan_scene(brief)
+            "director",
+            lambda: self.director.plan_scene(
+                brief, story_spec=story_spec, storyboard_spec=storyboard_spec
+            ),
         )
         elapsed = round(time.time() - t0, 2)
         self._emit("llm_call", {"step": "director", "agent": "DirectorAgent", "status": "completed", "elapsed_s": elapsed, **self._reported_llm_meta(self.director)})
@@ -893,7 +896,7 @@ class PipelineRunner(PluginShortcuts):
             if hasattr(self.blender, "context") and hasattr(self.blender.context, "set"):
                 self.blender.context["render_dir"] = render_dir
             script = await self._with_generation_retry(
-                "blender", lambda: self.blender.build_script(scene)
+                "blender", lambda: self.blender.build_script(scene, render_dir=render_dir)
             )
         except GenerationError:
             # Deux générations épuisées (log 22:49 : le modèle recopie

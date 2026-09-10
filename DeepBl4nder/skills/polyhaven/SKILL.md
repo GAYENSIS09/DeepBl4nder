@@ -1,7 +1,6 @@
 ---
 name: polyhaven
-description: Intégration Poly Haven API : HDRIs, textures, modèles 3D CC0 pour scènes Blender.
----
+description: "Intégration Poly Haven API : HDRIs, textures, modèles 3D CC0 pour scènes Blender."---
 
 # Poly Haven Integration
 

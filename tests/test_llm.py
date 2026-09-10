@@ -581,6 +581,41 @@ def test_router_acall_guards_None_or_empty_messages(monkeypatch: pytest.MonkeyPa
     assert captured[0].seen[-1] == [{"role": "user", "content": ""}]
 
 
+def test_get_client_passes_nooa_compatible_cache_points(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """NOOA attend des dicts ({'role': ...}) ; ["messages"] déclenchait
+    'str' object has no attribute 'get' avant tout appel réseau."""
+    _clear_llm_env(monkeypatch)
+    monkeypatch.setenv("GEMINI_API_KEY", "k1")
+    seen: dict[str, object] = {}
+
+    def factory(model: str, **kw: object) -> Any:
+        seen.update(kw)
+        return _StubClient(model)
+
+    router = llm.LLMRouter(client_factory=factory, provider_ids=["gemini"])
+    router.call([{"role": "user", "content": "a"}])
+    assert seen["cache_control_injection_points"] == [{"role": "system"}]
+
+
+def test_get_client_cache_points_disabled_by_env(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _clear_llm_env(monkeypatch)
+    monkeypatch.setenv("GEMINI_API_KEY", "k1")
+    monkeypatch.setenv("DeepBl4nder_LLM_CACHE", "off")
+    seen: dict[str, object] = {}
+
+    def factory(model: str, **kw: object) -> Any:
+        seen.update(kw)
+        return _StubClient(model)
+
+    router = llm.LLMRouter(client_factory=factory, provider_ids=["gemini"])
+    router.call([{"role": "user", "content": "a"}])
+    assert seen["cache_control_injection_points"] == []
+
+
 def test_router_stats_shape(monkeypatch: pytest.MonkeyPatch) -> None:
     _clear_llm_env(monkeypatch)
     monkeypatch.setenv("GEMINI_API_KEY", "k1")

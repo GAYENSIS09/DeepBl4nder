@@ -144,7 +144,7 @@ Brief → Story → Storyboard → Director → Character/Environment → Blende
 
 ### Boucle de révision
 
-Si QA échoue → feedback → révision automatique → re-QA (max 3 itérations par défaut). Sinon le run passe en `blocked`.
+Si QA échoue → feedback → révision automatique → re-QA (max 1 itération par défaut, configurable via `max_revisions`). Sinon le run passe en `blocked`.
 
 ---
 

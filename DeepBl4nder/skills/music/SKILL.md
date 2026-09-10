@@ -1,7 +1,6 @@
 ---
 name: music
-description: Composer ou sélectionner la musique : thème, tempo, intensité, cohérence émotionnelle.
----
+description: "Composer ou sélectionner la musique : thème, tempo, intensité, cohérence émotionnelle."---
 
 # Musique
 

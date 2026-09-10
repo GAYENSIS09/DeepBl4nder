@@ -1,7 +1,6 @@
 ---
 name: assets
-description: Gérer le cycle de vie des assets : recherche, génération, import, validation, versioning.
----
+description: "Gérer le cycle de vie des assets : recherche, génération, import, validation, versioning."---
 
 # Assets
 

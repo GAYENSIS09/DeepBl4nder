@@ -299,7 +299,7 @@ class LLMRouter:
             "cache_control_injection_points": (
                 [] if os.environ.get("DeepBl4nder_LLM_CACHE", "1").strip().lower()
                 in {"0", "false", "off"}
-                else ["messages"]
+                else [{"role": "system"}]
             ),
             # Fail fast : le vote s'appuie sur les autres fournisseurs en cas
             # d'échec. Un seul retry court pour les erreurs transitoires,

@@ -2,7 +2,7 @@
 
 Top: brief input + engine picker + run controls.
 Middle: live agent stream (reasoning, code, tool calls, steps) on the left,
-production status + artifacts shortcut on the right.
+production status + LLM pool + pipeline tracker on the right.
 Bottom: status bar with real-time cost, budget, provider and step.
 """
 
@@ -26,6 +26,7 @@ from DeepBl4nder.tui.embedded_api import EmbeddedAPI, EmbeddedProduction
 from DeepBl4nder.tui.event_bridge import StreamEvent
 from DeepBl4nder.tui.screens.base import BaseScreen
 from DeepBl4nder.tui.widgets.agent_stream import AgentStream
+from DeepBl4nder.tui.widgets.pipeline import PipelineTracker
 from DeepBl4nder.tui.widgets.status_bar import StatusBar
 from DeepBl4nder.tui.widgets.task_bar import TaskBar
 
@@ -49,6 +50,7 @@ class SidePanel(Widget):
         self._prod_name = None
         self._prod_status = None
         self._progress = None
+        self._pool = None
         self._budget = None
         self._llm = None
 
@@ -58,6 +60,10 @@ class SidePanel(Widget):
             yield Label("-", id="panel-prod-name")
             yield Label("-", id="panel-prod-status")
             yield ProgressBar(id="panel-progress", show_percentage=True)
+            yield Static("Pipeline", id="panel-pipeline-title")
+            yield PipelineTracker(id="pipeline-tracker")
+            yield Static("LLM pool", id="panel-pool-title")
+            yield Static("-", id="panel-pool", markup=True)
             yield Static("Budget breakdown", id="panel-budget-title")
             yield Static("-", id="panel-budget", markup=True)
             yield Static("LLM in use", id="panel-llm-title")
@@ -69,9 +75,48 @@ class SidePanel(Widget):
         self._prod_name = self.query_one("#panel-prod-name", Label)
         self._prod_status = self.query_one("#panel-prod-status", Label)
         self._progress = self.query_one("#panel-progress", ProgressBar)
+        self._pool = self.query_one("#panel-pool", Static)
         self._budget = self.query_one("#panel-budget", Static)
         self._llm = self.query_one("#panel-llm", Static)
         self._metrics = self.query_one("#panel-metrics", Static)
+
+    @property
+    def pipeline(self) -> PipelineTracker:
+        return self.query_one("#pipeline-tracker", PipelineTracker)
+
+    def update_pool(self, providers: list[dict]) -> None:
+        """LLM pool complet : ordre de rotation, victoires, échecs, cooldown.
+
+        OpenRouter configuré mais toujours "idle" (jamais atteint car un
+        fournisseur précédent du pool gagne en mode fallback) est signalé
+        explicitement au lieu de disparaître de l'affichage.
+        """
+        if not providers:
+            self._pool.update("[dim]not initialized[/]")
+            return
+        total_wins = sum(p.get("wins", 0) for p in providers)
+        lines = []
+        for idx, provider in enumerate(providers):
+            pid = provider.get("id", "?")
+            hints = []
+            if provider.get("wins"):
+                hints.append(f"{provider['wins']}w")
+            if provider.get("failures"):
+                hints.append(f"{provider['failures']}f")
+            cooldown = provider.get("cooldown_remaining_s", 0)
+            if cooldown > 0:
+                hints.append(f"cool {cooldown:.0f}s")
+            suffix = f" ({', '.join(hints)})" if hints else ""
+            color = (
+                theme.ERROR if cooldown > 0
+                else theme.SUCCESS if provider.get("wins")
+                else theme.TEXT_MUTED
+            )
+            line = f"[{color}]{idx + 1}. {pid}{suffix}[/]"
+            if total_wins and not provider.get("wins") and cooldown <= 0:
+                line += " [dim](idle - behind winner)[/]"
+            lines.append(line)
+        self._pool.update("\n".join(lines))
 
     def update_production(self, prod: EmbeddedProduction | None) -> None:
         if prod is None:
@@ -186,19 +231,12 @@ class ConsoleScreen(BaseScreen):
 
     async def _bootstrap_agents(self) -> None:
         try:
-            agents = self.api.create_agents()
+            self.api.create_agents()
         except Exception as exc:  # noqa: BLE001
             self.stream.write_line(f"Agent crew unavailable: {exc}", theme.ERROR)
             self.notify(f"No LLM provider configured: {exc}", severity="error")
             self.query_one(StatusBar).set_provider("no provider")
             return
-        self.stream.write_line(f"Agent crew ready - {len(agents)} agents wired to the live stream", theme.SUCCESS)
-        stats = self.api.router_stats()
-        pool = stats.get("pool") or []
-        if pool:
-            self.stream.write_line(f"LLM router ({stats.get('rotation', '?')}): {', '.join(pool)}", theme.TEXT_MUTED)
-        else:
-            self.stream.write_line("LLM router not initialized yet (no provider configured?)", theme.WARNING)
         self._refresh_provider_label()
 
     async def _pump_loop(self) -> None:
@@ -369,16 +407,24 @@ class ConsoleScreen(BaseScreen):
         self._event_ring.append(event)
         kind = event.kind
         status_bar = self.query_one(StatusBar)
+        tracker = self.side_panel.pipeline
 
         if kind == "run_started":
             status_bar.set_running(True)
+            tracker.reset()
         elif kind in ("run_completed", "run_blocked", "run_failed", "run_cancelled"):
             status_bar.set_running(False)
             self.task_bar.set_running(False)
-        elif kind in ("step_started",):
+        elif kind == "step_started":
             status_bar.set_step(event.content.replace("step started: ", ""))
+            tracker.on_step(kind, (event.meta or {}).get("step"))
+        elif kind == "step_completed":
+            tracker.on_step(kind, (event.meta or {}).get("step"))
+        elif kind == "step_failed":
+            tracker.on_step(kind, (event.meta or {}).get("step"))
         elif kind == "revision_requested":
             status_bar.set_step("revising")
+            tracker.on_step(kind, (event.meta or {}).get("step"))
 
         if kind in ("cost_recorded", "llm_complete", "call_end"):
             cost = self._extract_cost(event, kind)
@@ -414,6 +460,7 @@ class ConsoleScreen(BaseScreen):
         prod = self.api.get_production(self._current.id)
         self.side_panel.update_production(prod)
         self.side_panel.update_budget(self.api.budget.report())
+        self.side_panel.update_pool(self.api.router_stats().get("providers") or [])
         self._refresh_provider_label()
 
     def _provider_info(self) -> tuple[str, list[str]]:
@@ -461,6 +508,7 @@ class ConsoleScreen(BaseScreen):
         provider_line, models = self._provider_info()
         self.query_one(StatusBar).set_provider(provider_line)
         self.side_panel.update_llm(provider_line, models)
+        self.side_panel.update_pool(self.api.router_stats().get("providers") or [])
 
     def _stream_fail(self, message: str) -> None:
         self.stream.write_line(message, theme.ERROR)

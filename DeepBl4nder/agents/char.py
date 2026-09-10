@@ -13,8 +13,8 @@ from nooa.agentdoc import hidden
 from nooa.config.strategy_config import CodeActConfig
 
 from DeepBl4nder.agents.base import BaseAgent, DefaultsMixin, InvariantError
-from DeepBl4nder.domain.media import CharacterDesignResult
-from DeepBl4nder.domain.scene import SceneSpec
+from DeepBl4nder.domain.media import CharacterDesignResult, CharacterModel  # noqa: F401  # exposé dans le sandbox
+from DeepBl4nder.domain.scene import CharacterSpec, SceneSpec  # noqa: F401  # CharacterSpec exposé dans le sandbox
 from DeepBl4nder.skills.registry import SkillRegistry
 
 
@@ -49,6 +49,9 @@ class CharacterDesignerAgent(BaseAgent, DefaultsMixin):
     - Prefer primitives for prototyping, detailed meshes for final
     - Always include material/shading specification
     - Mark characters needing external assets (import_path)
+    - NEVER `import bpy` in the execution cell: the sandbox has no Blender
+      Python, so `ModuleNotFoundError` is raised and the turn is lost. Just
+      build and return `CharacterDesignResult(characters=[CharacterModel(...)])`.
     - Output MUST be a valid CharacterDesignResult
 
     ## Character Types

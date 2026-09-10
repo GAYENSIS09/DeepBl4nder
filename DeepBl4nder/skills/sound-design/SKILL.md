@@ -1,7 +1,6 @@
 ---
 name: sound-design
-description: Concevoir l'ambiance sonore : fond, événements, hiérarchie, cohérence avec l'image.
----
+description: "Concevoir l'ambiance sonore : fond, événements, hiérarchie, cohérence avec l'image."---
 
 # Sound Design
 

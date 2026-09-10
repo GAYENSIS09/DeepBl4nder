@@ -68,7 +68,7 @@ The factory also ensures that agents are constructed in a known order with known
 
 ## Fail-Closed Security
 
-When an AI system generates code that will be executed on your machine, security is not optional — it is existential. DeepBl4nder takes a **fail-closed** approach to generated code: every Blender Python script passes through an AST (Abstract Syntax Tree) validator before execution.
+When an AI system generates code that will be executed on your machine, security is not optional — it is existential. DeepBl4nder takes a **fail-closed** approach to generated code: every Blender Python script passes through an AST (Abstract Syntax Tree) validator before execution. This validation happens at two levels: (1) as a **postcondition** on \`build_script\`/\`refine_script\` — if the model returns a script with a syntax error or forbidden import, the postcondition rejects it in-session with the exact line number, forcing immediate correction; and (2) in the **render worker** — the same validator runs again before Blender execution as a defense-in-depth measure.
 
 The validator checks the script against a set of security policies defined in \`CodePolicy\`. It verifies that the script only imports allowed modules (\`bpy\`, \`mathutils\`, \`math\`), does not call forbidden builtins (\`exec\`, \`eval\`, \`compile\`), does not invoke system commands (\`subprocess\`, \`os.system\`), and does not exceed a maximum source length. If any of these checks fail, the script is never executed — period.
 

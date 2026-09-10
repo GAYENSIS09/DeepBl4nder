@@ -1,7 +1,6 @@
 ---
 name: storytelling
-description: Structurer un récit dramatique : intention, conflit, arc narratif, rythme et thème.
----
+description: "Structurer un récit dramatique : intention, conflit, arc narratif, rythme et thème."---
 
 # Storytelling
 

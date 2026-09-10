@@ -1,7 +1,6 @@
 ---
 name: simulation
-description: Ajouter des simulations physiques : fluides, tissus, cheveux, particules, contraintes.
----
+description: "Ajouter des simulations physiques : fluides, tissus, cheveux, particules, contraintes."---
 
 # Simulation
 

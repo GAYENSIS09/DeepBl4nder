@@ -15,7 +15,16 @@ from nooa.config.strategy_config import CodeActConfig
 
 from DeepBl4nder.agents.base import BaseAgent, DefaultsMixin, scene_spec_postcondition
 from DeepBl4nder.domain.project import Brief
-from DeepBl4nder.domain.scene import SceneSpec
+from DeepBl4nder.domain.scene import (  # noqa: F401  # exposé dans le sandbox
+    AnimationSpec,
+    CameraSpec,
+    CharacterSpec,
+    EnvironmentSpec,
+    LightingSpec,
+    RenderSpec,
+    SceneSpec,
+    ShotSpec,
+)
 from DeepBl4nder.domain.narrative import StorySpec, StoryboardSpec
 from DeepBl4nder.skills.registry import SkillRegistry
 

@@ -209,7 +209,8 @@ class RenderManager(PluginShortcuts):
                     if self.blender is not None and hasattr(self.blender, "refine_script"):
                         try:
                             feedback = f"Render attempt {render_attempt} failed: {e}. Fix the script to produce a valid output file."
-                            script = await self.blender.refine_script(scene, feedback, script.version + 1)
+                            render_dir = str((workdir / "render").resolve()).replace("\\", "/")
+                            script = await self.blender.refine_script(scene, feedback, script.version + 1, render_dir)
                             # Update script path for next iteration
                             script_path = workdir / f"{script.scene_name}_v{script.version}.py"
                             script_path.write_text(script.code, encoding="utf-8")
@@ -256,7 +257,8 @@ class RenderManager(PluginShortcuts):
                 shot_workdir.mkdir(parents=True, exist_ok=True)
 
                 # Generate script for this shot
-                shot_script = await self.blender.build_script(shot_scene)
+                render_dir = str((shot_workdir / "render").resolve()).replace("\\", "/")
+                shot_script = await self.blender.build_script(shot_scene, render_dir=render_dir)
                 shot_script.scene_name = f"{script.scene_name}_shot_{shot_idx}"
 
                 # Validate and run

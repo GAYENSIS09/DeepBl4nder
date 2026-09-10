@@ -13,7 +13,7 @@ from nooa.agentdoc import hidden
 from nooa.config.strategy_config import CodeActConfig
 
 from DeepBl4nder.agents.base import BaseAgent, DefaultsMixin, InvariantError
-from DeepBl4nder.domain.media import MusicPlan
+from DeepBl4nder.domain.media import MusicCue, MusicPlan  # noqa: F401  # exposé dans le sandbox
 from DeepBl4nder.domain.scene import SceneSpec
 from DeepBl4nder.skills.registry import SkillRegistry
 

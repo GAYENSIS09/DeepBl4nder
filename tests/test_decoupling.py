@@ -182,6 +182,34 @@ def test_blender_script_postcondition_accepts_valid_code() -> None:
     )
 
 
+def test_blender_script_postcondition_rejects_syntax_error() -> None:
+    from nooa.strategy_validation import InvariantError
+
+    from DeepBl4nder.agents.base import blender_script_postcondition
+    from DeepBl4nder.domain.scene import BlenderScript
+
+    with pytest.raises(InvariantError, match="syntax error"):
+        blender_script_postcondition(
+            None,
+            BlenderScript(code="import bpy\nscene = bpy.context.scene\nif True\n", scene_name="s"),
+            None,
+        )
+
+
+def test_blender_script_postcondition_rejects_forbidden_import() -> None:
+    from nooa.strategy_validation import InvariantError
+
+    from DeepBl4nder.agents.base import blender_script_postcondition
+    from DeepBl4nder.domain.scene import BlenderScript
+
+    with pytest.raises(InvariantError, match="import not allowed"):
+        blender_script_postcondition(
+            None,
+            BlenderScript(code="import os\nos.system('x')\n", scene_name="s"),
+            None,
+        )
+
+
 def test_no_generic_runtime_reimplementation() -> None:
     """Aucun des concepts interdits (Roadmap C §40) ne doit exister."""
     forbidden = (

@@ -56,5 +56,14 @@ artifacts/
 DeepBl4nder/tui/asset-library/
 DeepBl4nder/tui/production/
 
+# Runtime knowledge graph (écrit par KnowledgeGraphPlugin pendant les tests)
+production/kg.json
+DeepBl4nder/production/kg.json
+
+# Fichiers runtime auto-générés
+scene_v1.py
+DeepBl4nder/scene_v1.py
+DeepBl4nder/asset-library/
+
 # Modèles LLM locaux (trop lourds pour Git)
 models/*.gguf

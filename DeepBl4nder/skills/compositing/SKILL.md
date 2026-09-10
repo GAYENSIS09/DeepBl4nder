@@ -1,7 +1,6 @@
 ---
 name: compositing
-description: Assembler les passes de rendu : correction, profondeur, effets, étalonnage final.
----
+description: "Assembler les passes de rendu : correction, profondeur, effets, étalonnage final."---
 
 # Compositing
 

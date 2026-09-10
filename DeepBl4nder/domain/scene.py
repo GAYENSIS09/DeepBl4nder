@@ -6,8 +6,82 @@ brief transformé directement en script Python (Roadmap B §11).
 
 from __future__ import annotations
 
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass, field, is_dataclass
 from typing import Any
+
+
+# ── helpers de coercition ────────────────────────────────────────────────
+# Les agents produisent parfois des dicts/listes là où la spec attend une
+# dataclass (ex: ``animation={"description": ...}`` au lieu d'une AnimationSpec).
+# Toutes les specs ci-dessous appliquent une __post_init__ défensive pour que
+# les étapes en aval (blender, env, character...) voient toujours des dataclasses.
+
+
+def _as_float(value: Any, default: float = 0.0) -> float:
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return default
+
+
+def _as_int(value: Any, default: int = 0) -> int:
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return default
+
+
+def _as_str(value: Any, default: str = "") -> str:
+    if value is None:
+        return default
+    return str(value)
+
+
+def _as_bool(value: Any) -> bool:
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str):
+        return value.strip().lower() in ("1", "true", "yes", "oui", "on")
+    return bool(value)
+
+
+def _as_tuple3(value: Any, default: tuple[float, float, float]) -> tuple[float, float, float]:
+    if isinstance(value, (list, tuple)) and len(value) == 3:
+        try:
+            return (float(value[0]), float(value[1]), float(value[2]))
+        except (TypeError, ValueError):
+            return default
+    return default
+
+
+def _as_tuple2(value: Any, default: tuple[int, int]) -> tuple[int, int]:
+    if isinstance(value, (list, tuple)) and len(value) == 2:
+        try:
+            return (int(value[0]), int(value[1]))
+        except (TypeError, ValueError):
+            return default
+    return default
+
+
+def _as_str_list(value: Any) -> list[str]:
+    if value is None:
+        return []
+    if isinstance(value, str):
+        return [v for v in (v.strip() for v in value.split(",")) if v]
+    if isinstance(value, (list, tuple)):
+        return [_as_str(v) for v in value if _as_str(v)]
+    return []
+
+
+def _coerce_or_instance(cls: type, value: Any):
+    """Renvoie une instance de ``cls``, en coercant un dict si nécessaire."""
+    if value is None:
+        return cls()
+    if isinstance(value, cls):
+        return value
+    if isinstance(value, dict):
+        return cls(**{k: v for k, v in value.items()})
+    return cls()
 
 
 # Moteurs de rendu supportés
@@ -33,9 +107,14 @@ class RenderSpec:
     output_format: str = "OPEN_EXR_MULTILAYER"  # format de sortie Blender (exr, png, mp4)
 
     def __post_init__(self):
-        # Ensure resolution is a fixed-length tuple of 2 ints
-        if isinstance(self.resolution, (list, tuple)) and len(self.resolution) == 2:
-            self.resolution = (int(self.resolution[0]), int(self.resolution[1]))
+        self.resolution = _as_tuple2(self.resolution, (1920, 1080))
+        self.fps = _as_int(self.fps, 24)
+        self.format = _as_str(self.format, "mp4")
+        self.samples = _as_int(self.samples, 256)
+        self.engine = _as_str(self.engine, "CYCLES")
+        self.denoise = _as_bool(self.denoise)
+        self.use_gpu = _as_bool(self.use_gpu)
+        self.output_format = _as_str(self.output_format, "OPEN_EXR_MULTILAYER")
 
     def is_blender_engine(self) -> bool:
         """True si le moteur est un variant de Blender."""
@@ -80,6 +159,11 @@ class CameraSpec:
     position: tuple[float, float, float] = (0.0, -5.0, 1.5)  # (x, y, z) en mètres
     rotation: tuple[float, float, float] = (0.0, 0.0, 0.0)  # (roll, pitch, yaw) en degrés
 
+    def __post_init__(self) -> None:
+        self.focal_length_mm = _as_float(self.focal_length_mm, 50.0)
+        self.position = _as_tuple3(self.position, (0.0, -5.0, 1.5))
+        self.rotation = _as_tuple3(self.rotation, (0.0, 0.0, 0.0))
+
 
 @dataclass
 class EnvironmentSpec:
@@ -91,6 +175,11 @@ class EnvironmentSpec:
     description: str = ""  # description textuelle du décor (ex: "forêt sombre et brumeuse")
     lighting_mood: str = "neutral"  # ambiance lumineuse : neutral, warm, cold, dramatic, cinematic
     rain: bool = False  # active la pluie et les flaques
+
+    def __post_init__(self) -> None:
+        self.description = _as_str(self.description)
+        self.lighting_mood = _as_str(self.lighting_mood, "neutral")
+        self.rain = _as_bool(self.rain)
 
 
 @dataclass
@@ -108,6 +197,17 @@ class CharacterSpec:
     languages: list[str] = field(default_factory=list)  # langues secondaires
     asset_id: str = ""  # identifiant de l'asset 3D (ex: "quaternius__animated_woman")
     asset_source: str = ""  # source : "quaternius", "mixamo", "polyhaven", "fallback", ""
+
+    def __post_init__(self) -> None:
+        self.name = _as_str(self.name)
+        self.description = _as_str(self.description)
+        self.position = _as_tuple3(self.position, (0.0, 0.0, 0.0))
+        self.main_language = _as_str(self.main_language)
+        self.languages = _as_str_list(self.languages)
+        if not self.main_language and self.languages:
+            self.main_language = self.languages[0]
+        self.asset_id = _as_str(self.asset_id)
+        self.asset_source = _as_str(self.asset_source)
 
     def spoken_languages(self) -> list[str]:
         """Langues parlées (principale en premier), sans doublon ni vide."""
@@ -138,6 +238,9 @@ class AnimationSpec:
 
     description: str = ""  # ex: "le personnage lève le bras et attrape la tasse"
 
+    def __post_init__(self) -> None:
+        self.description = _as_str(self.description)
+
 
 @dataclass
 class LightingSpec:
@@ -149,6 +252,11 @@ class LightingSpec:
     key_light: str = "area"  # type de lumière principale : area, point, sun, spot
     intensity: float = 1.0  # intensité relative (0.0 à 2.0)
     color: tuple[float, float, float] = (1.0, 1.0, 1.0) # couleur RGB normalisée (0-1)
+
+    def __post_init__(self) -> None:
+        self.key_light = _as_str(self.key_light, "area")
+        self.intensity = _as_float(self.intensity, 1.0)
+        self.color = _as_tuple3(self.color, (1.0, 1.0, 1.0))
 
 
 @dataclass
@@ -166,6 +274,26 @@ class ShotSpec:
     characters: list[CharacterSpec] = field(default_factory=list)  # personnages présents
     animation: AnimationSpec = field(default_factory=AnimationSpec)  # mouvement
     lighting: LightingSpec = field(default_factory=LightingSpec)  # éclairage
+
+    def __post_init__(self) -> None:
+        """Coerce les dicts produits par l'agent en sous-dataclasses.
+
+        Sans cela, un ``ShotSpec(animation={"description": ...})`` laissait un
+        ``dict`` dans le champ ``animation`` et l'étape suivante explosait sur
+        ``shot.animation.description`` (AttributError).
+        """
+        self.duration = _as_float(self.duration, 5.0)
+        self.fps = _as_int(self.fps, 24)
+        self.camera = _coerce_or_instance(CameraSpec, self.camera)
+        self.environment = _coerce_or_instance(EnvironmentSpec, self.environment)
+        if isinstance(self.characters, (list, tuple)):
+            self.characters = [
+                _coerce_or_instance(CharacterSpec, c) for c in self.characters
+            ]
+        else:
+            self.characters = []
+        self.animation = _coerce_or_instance(AnimationSpec, self.animation)
+        self.lighting = _coerce_or_instance(LightingSpec, self.lighting)
 
     def frame_count(self) -> int:
         """Nombre de frames du plan (logique déterministe, P3)."""
@@ -188,6 +316,29 @@ class SceneSpec:
 
     SCENE_SPEC_VERSION: int = 1
 
+    def __post_init__(self) -> None:
+        """Coerce les dicts produits par l'agent aux niveaux supérieurs."""
+        self.brief = _as_str(self.brief)
+        self.environment = _coerce_or_instance(EnvironmentSpec, self.environment)
+        if isinstance(self.characters, (list, tuple)):
+            self.characters = [
+                _coerce_or_instance(CharacterSpec, c) for c in self.characters
+            ]
+        else:
+            self.characters = []
+        if isinstance(self.shots, (list, tuple)):
+            self.shots = [_coerce_or_instance(ShotSpec, s) for s in self.shots]
+        else:
+            self.shots = []
+        if isinstance(self.render, dict):
+            self.render = (
+                RenderSpec.from_mapping(self.render)
+                if "fps" in self.render
+                else RenderSpec(**(self.render or {}))
+            )
+        else:
+            self.render = _coerce_or_instance(RenderSpec, self.render)
+
     def to_mapping(self) -> dict[str, Any]:
         """Sérialisation résumée pour le contexte agent (inchangée)."""
         return {
@@ -201,15 +352,31 @@ class SceneSpec:
         """Sérialisation complète pour persistance/versioning/patches.
 
         Récursive et JSON-safe : les sous-dataclasses (caméra, personnages…)
-        sont aplaties via ``dataclasses.asdict``.
+        sont aplaties via ``dataclasses.asdict``. Défensif : un champ produit
+        par l'agent peut être ``None`` ou déjà un ``dict`` (rare mais observé
+        en production) — on ne fait pas exploser la sérialisation pour ça.
         """
+
+        def _asdict(value: Any) -> Any:
+            if is_dataclass(value):
+                return asdict(value)
+            if isinstance(value, dict):
+                return {k: _asdict(v) for k, v in value.items()}
+            if isinstance(value, (list, tuple)):
+                return [_asdict(v) for v in value]
+            return value
+
+        render = self.render
+        render_mapping = (
+            render.to_mapping() if is_dataclass(render) else _asdict(render)
+        )
         return {
             "schema_version": self.SCENE_SPEC_VERSION,
             "brief": self.brief,
-            "environment": asdict(self.environment),
-            "characters": [asdict(c) for c in self.characters],
-            "shots": [asdict(s) for s in self.shots],
-            "render": self.render.to_mapping(),
+            "environment": _asdict(self.environment),
+            "characters": [_asdict(c) for c in self.characters],
+            "shots": [_asdict(s) for s in self.shots],
+            "render": render_mapping,
         }
 
     @classmethod

@@ -563,6 +563,23 @@ class BaseAgent(nooa.Agent):
 
 **Description :** Classe de base abstraite pour tous les agents DeepBl4nder. Hérite de `nooa.Agent` et ajoute des fonctionnalités communes : configuration du logging, activation du sandbox, et typage des stratégies.
 
+**Exposition des types dans le sandbox (NOOA 0.0.8) :**
+
+Les agents exposent automatiquement des types Python dans le REPL sandbox via les imports au niveau module. Le mécanisme : nooa filtre les globals de l'agent (`filter_module_globals(type(agent))`) et les injecte dans le namespace du sandbox. Tout type importé au niveau module dans un fichier agent est automatiquement disponible dans le code exécuté par le LLM sans aucune action supplémentaire.
+
+Types exposés par agent :
+- `DirectorAgent` : `SceneSpec`, `ShotSpec`, `CameraSpec`, `EnvironmentSpec`, `CharacterSpec`, `AnimationSpec`, `LightingSpec`, `RenderSpec`
+- `MusicComposerAgent` : `MusicCue` (via `MusicPlan`)
+- `SoundDesignerAgent` : `SoundLayer`
+- `AudioAgent` : `asdict` (via `dataclasses`)
+- `LocalizationAgent` : `asdict` (via `dataclasses`)
+- `QAAgent` : `asdict` (via `dataclasses`)
+- `CharacterDesignerAgent` : `CharacterModel`, `CharacterSpec`
+- `AnimatorAgent` : `AnimationClip`, `Keyframe`, `Constraint`
+- `EnvironmentArtistAgent` : `EnvironmentAsset`, `LightingSetup`
+- `StoryboardAgent` : `StoryboardShot`
+- `StoryAgent` : `Act`, `StoryBeat`, `DialogueLine`
+
 **Attributs hérités de `nooa.Agent` :**
 
 | Attribut | Type | Description |
@@ -631,10 +648,14 @@ def scene_spec_postcondition(result: dict) -> bool
 #### `blender_script_postcondition()`
 
 ```python
-def blender_script_postcondition(result: dict) -> bool
+def blender_script_postcondition(_agent: BaseAgent | None, result: Any, call: Any) -> None
 ```
 
-**Description :** Vérifie que le résultat est un `BlenderScript` valide (a un champ `script` non vide et de longueur raisonnable).
+**Description :** Vérifie que le résultat est un `BlenderScript` valide :
+1. Le champ `code` ne doit pas être vide.
+2. Le code doit passer la validation statique identique à celle du worker de rendu (`validate_for_worker`) : syntaxe Python correcte, imports limités à `bpy`, `math`, `mathutils`, `random`, `json`, pas de builtins interdits (`exec`, `eval`, `compile`, `open`, `input`, `__import__`).
+
+Lève `InvariantError` avec la ligne exacte de l'erreur, forçant le modèle à corriger en session (retry NOOA) au lieu d'un échec tardif au moment du rendu.
 
 ---
 
@@ -798,6 +819,26 @@ class BlenderAgent(BaseAgent, DefaultsMixin):
 
 **Sortie :** `BlenderScript` (voir `domain/scene.py`)
 
+**Paramètres de `build_script` :**
+
+| Paramètre | Type | Défaut | Description |
+|-----------|------|--------|-------------|
+| `spec` | `SceneSpec` | (requis) | Spécification de la scène à builder |
+| `render_dir` | `str` | `""` | Chemin absolu du dossier de sortie des fichiers rendus. Injecté dans le contexte NOOA comme variable Python accessible dans le sandbox. |
+
+**Paramètres de `refine_script` :**
+
+| Paramètre | Type | Défaut | Description |
+|-----------|------|--------|-------------|
+| `spec` | `SceneSpec` | (requis) | Spécification de la scène |
+| `revision_feedback` | `str` | (requis) | Feedback de révision QA |
+| `version` | `int` | `1` | Numéro de version du script |
+| `render_dir` | `str` | `""` | Chemin absolu du dossier de sortie |
+
+**Règle de fin de tour :** Le modèle DOIT terminer chaque tour par `return_result(BlenderScript(code=..., scene_name=..., version=...))`. Un tour qui se termine par du texte brut est rejeté par NOOA.
+
+**Validation :** Le code retourné est validé statiquement par `blender_script_postcondition` (syntaxe + politique de code) avant acceptation.
+
 **Compétences requises :** `blender-python`, `modeling`, `shading`, `lighting`, `camera`, `rendering`, `animation`, `compositing`
 
 ---
@@ -813,6 +854,13 @@ Agent de design de personnages.
 ```python
 class CharacterDesignerAgent(BaseAgent, DefaultsMixin):
     name = "character_designer_agent"
+```
+
+**Règle importante :** Ne jamais écrire `import bpy` dans la cellule d'exécution — le sandbox n'a pas Blender Python et lève `ModuleNotFoundError`. Il faut construire et retourner directement `CharacterDesignResult(characters=[CharacterModel(...)])`.
+
+**Sortie :** `CharacterDesignResult` (voir `domain/media.py`)
+
+Types imbriqués exposés dans le sandbox : `CharacterModel`, `CharacterSpec` (importés au niveau module, rendus disponibles automatiquement dans le REPL sandbox).
     agent_config = {"model": "gpt-4o"}
     skill_names = ["character-design", "modeling"]
     output_type = CharacterDesignResult
@@ -1028,7 +1076,9 @@ class QAAgent(BaseAgent, DefaultsMixin):
 
 **Description :** Agent qui évalue la qualité des sorties des autres agents. Utilise deux stratégies : `CodeActStrategy` (analyse du code) et `PredictStrategy` (évaluation prédictive). Produit un `QAReport` avec des issues classées par sévérité.
 
-**Sortie :** `QAReport` (voir `domain/qa.py`)
+**Limites de la stratégie :** `max_iterations=5`, `max_tool_calls=8` —borne le nombre de tours LLM pour éviter les boucles infinies lors de l'évaluation.
+
+**Sortie :** `QAReport` (voir `domain/qa.py`) — champs : `passed`, `score`, `issues`, `recommendations`. Pas de champ `status`, `errors`, ou `verdict`.
 
 **Fonction de postcondition :** `_qa_postcondition()`
 
@@ -1123,6 +1173,12 @@ Module d'export centralisé pour tous les types de domaine.
 ### 3.2 `domain/scene.py`
 
 Types de domaine pour les scènes 3D, les plans, l'éclairage, les caméras et le rendu.
+
+**Coercition automatique (`__post_init__`) :**
+
+Toutes les dataclasses de domaine (`ShotSpec`, `SceneSpec`, `CameraSpec`, `EnvironmentSpec`, `CharacterSpec`, `AnimationSpec`, `LightingSpec`, `RenderSpec`) appliquent une coercition défensive dans `__post_init__`. Les dicts produits par un agent LLM sont automatiquement convertis en instances de dataclass via `_coerce_or_instance()`. Les types scalaires (`float`, `int`, `str`, `bool`, `tuple`) sont coercés via des helpers (`_as_float`, `_as_int`, `_as_str`, `_as_bool`, `_as_tuple3`, `_as_tuple2`, `_as_str_list`).
+
+Cela garantit que les étapes en aval (blender, env, character...) voient toujours des dataclasses même si l'agent a produit un dict au lieu d'une instance.
 
 **Constantes :**
 

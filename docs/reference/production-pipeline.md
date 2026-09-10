@@ -278,7 +278,7 @@ blender_bridge: Any = None,         # Bridge d'exécution Blender
     session_factory: Any = None,        # Factory SQLAlchemy pour patches
     production_id: str | None = None,   # ID production (pour patches API)
     enable_cache: bool = True,          # Activer le cache LLM
-    enable_parallel_shots: bool = True, # Rendu parallèle des plans
+    enable_parallel_shots: bool = False,# Rendu parallèle des plans (désactivé par défaut : le script scène couvre tous les plans)
     max_parallel_shots: int = 4,        # Nombre max de plans parallèles
     max_parallel_llm: int = 2,          # Nombre max d'appels LLM parallèles
 ) -> None
@@ -975,7 +975,7 @@ fallbacks.py ─────└──▶ domain.scene, domain.narrative
 | `max_parallel_shots` | `4` | Nombre maximum de plans rendus en parallèle. |
 | `max_parallel_llm` | `2` | Nombre maximum d'appels LLM simultanés. |
 | `enable_cache` | `True` | Cache LLM in-memory activé. |
-| `enable_parallel_shots` | `True` | Rendu parallèle des plans activé. |
+| `enable_parallel_shots` | `False` | Rendu parallèle des plans désactivé par défaut. Le script scène couvre tous les plans via frame ranges ; activer ce paramètre régénère un script par plan (LLM coûteux). |
 | `_cache_ttl` | `3600` (1h) | Durée de vie du cache LLM. |
 
 ### Fichiers du workdir

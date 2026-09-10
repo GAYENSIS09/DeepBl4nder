@@ -1,7 +1,6 @@
 ---
 name: uv
-description: Déplier les UV pour un texturing propre : seams, densité uniforme, pack sans chevauchement.
----
+description: "Déplier les UV pour un texturing propre : seams, densité uniforme, pack sans chevauchement."---
 
 # UV Mapping
 

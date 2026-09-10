@@ -1,7 +1,6 @@
 ---
 name: shading
-description: Construire les matériaux et le look dev : PBR, valeurs physiques, cohérence de scène.
----
+description: "Construire les matériaux et le look dev : PBR, valeurs physiques, cohérence de scène."---
 
 # Shading
 

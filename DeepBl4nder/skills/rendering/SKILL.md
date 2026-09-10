@@ -1,7 +1,6 @@
 ---
 name: rendering
-description: Paramétrer et lancer le rendu : engine, samples, format, color management, budget GPU.
----
+description: "Paramétrer et lancer le rendu : engine, samples, format, color management, budget GPU."---
 
 # Rendu
 

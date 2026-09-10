@@ -65,8 +65,9 @@ class BlenderAgent(BaseAgent, DefaultsMixin):
     - The generated code will be validated by AST validator (CodePolicy) before execution.
 
     ## CRITICAL: Output file path
-    - The context variable ``render_dir`` contains the ABSOLUTE path where
-      output files MUST be written (e.g. ``C:/runs/abc/render``).
+    - The ``render_dir`` argument is available as a plain Python variable in
+      your execution cell. It contains the ABSOLUTE path where output files
+      MUST be written (e.g. ``C:/runs/abc/render``).
     - ALWAYS set ``scene.render.filepath`` to an ABSOLUTE path inside
       ``render_dir``. Example:
       ``scene.render.filepath = render_dir + "/output.mp4"``
@@ -173,11 +174,12 @@ class BlenderAgent(BaseAgent, DefaultsMixin):
         postconditions=[blender_script_postcondition],
         max_tokens=24576,
     )))
-    async def build_script(self, spec: SceneSpec) -> BlenderScript:  # type: ignore[return]
+    async def build_script(self, spec: SceneSpec, render_dir: str = "") -> BlenderScript:  # type: ignore[return]
         """Turn the scene spec into a deterministic Blender Python script.
 
-        The context variable ``render_dir`` contains the ABSOLUTE path where
-        output files MUST be written. ALWAYS set
+        The ``render_dir`` argument contains the ABSOLUTE path where output
+        files MUST be written (e.g. ``C:/runs/abc/render``) — it is available
+        as a plain Python variable in your execution cell. ALWAYS set
         ``scene.render.filepath = render_dir + "/<filename>"`` before calling
         ``bpy.ops.render.render(...)``. NEVER use relative ``//`` paths.
 
@@ -195,7 +197,18 @@ class BlenderAgent(BaseAgent, DefaultsMixin):
            - Sets scene.render.filepath to an ABSOLUTE path inside render_dir
            - Enables render passes (Combined, Depth, Normal, Mist, AO)
         6. Return BlenderScript with code, scene_name, version
+
+        ## CRITICAL: How to end the turn
+        - ALWAYS end your reply by calling
+          ``return_result(BlenderScript(code=<code>, scene_name=<scene>, version=<n>))``.
+        - NEVER end with plain text or a bare execute_python cell: the turn is
+          rejected ("failed") and you waste a full retry.
+        - The returned code is validated statically with the SAME checks as the
+          render worker (Python compile + imports restricted to bpy, math,
+          mathutils, random, json). A syntax error or forbidden import is
+          rejected; fix it in-session before returning.
         """
+        self.context["render_dir"] = render_dir or self.context.get("render_dir", "")
         self._load_core_skills()
 
         # Load skills relevant to this spec
@@ -245,12 +258,14 @@ class BlenderAgent(BaseAgent, DefaultsMixin):
         )
     )
     async def refine_script(
-        self, spec: SceneSpec, revision_feedback: str, version: int = 1
+        self, spec: SceneSpec, revision_feedback: str, version: int = 1,
+        render_dir: str = "",
     ) -> BlenderScript: # type: ignore[return]
         """Revise a generated Blender script from QA feedback.
 
-        The context variable ``render_dir`` contains the ABSOLUTE path where
-        output files MUST be written. ALWAYS set
+        The ``render_dir`` argument contains the ABSOLUTE path where output
+        files MUST be written (e.g. ``C:/runs/abc/render``) — available as a
+        plain Python variable in your execution cell. ALWAYS set
         ``scene.render.filepath = render_dir + "/<filename>"`` before calling
         ``bpy.ops.render.render(...)``. NEVER use relative ``//`` paths.
 
@@ -260,7 +275,18 @@ class BlenderAgent(BaseAgent, DefaultsMixin):
         3. Regenerate only the affected code paths
         4. Keep the script deterministic and reproducible (fixed seed)
         5. Bump ``version`` and return BlenderScript
+
+        ## CRITICAL: How to end the turn
+        - ALWAYS end your reply by calling
+          ``return_result(BlenderScript(code=<code>, scene_name=<scene>, version=<n>))``.
+        - NEVER end with plain text or a bare execute_python cell: the turn is
+          rejected ("failed") and you waste a full retry.
+        - The returned code is validated statically with the SAME checks as the
+          render worker (Python compile + imports restricted to bpy, math,
+          mathutils, random, json). A syntax error or forbidden import is
+          rejected; fix it in-session before returning.
         """
+        self.context["render_dir"] = render_dir or self.context.get("render_dir", "")
         self._load_core_skills()
         self._load_skills(
             "blender-python", "blender-api-reference",

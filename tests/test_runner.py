@@ -22,7 +22,7 @@ INVALID_SCRIPT = "import os\nprint(os.system('whoami'))\n"
 
 
 class StubDirector:
-    async def plan_scene(self, brief: Brief) -> SceneSpec:
+    async def plan_scene(self, brief: Brief, story_spec=None, storyboard_spec=None) -> SceneSpec:
         return SceneSpec(brief=brief.text)
 
 
@@ -31,7 +31,7 @@ class StubBlender:
         self.scripts = list(scripts or [])
         self.calls = 0
 
-    async def build_script(self, spec: SceneSpec) -> BlenderScript:
+    async def build_script(self, spec: SceneSpec, render_dir: str = "") -> BlenderScript:
         code = (
             self.scripts[min(self.calls, len(self.scripts) - 1)]
             if self.scripts
@@ -335,7 +335,7 @@ async def test_human_revision_not_consumed_on_exception(tmp_path: Path) -> None:
     (« Relancer le run ») ré-applique le même commentaire."""
 
     class ExplodingDirector(StubDirector):
-        async def plan_scene(self, brief: Brief) -> SceneSpec:
+        async def plan_scene(self, brief: Brief, story_spec=None, storyboard_spec=None) -> SceneSpec:
             raise RuntimeError("panne LLM transitoire")
 
     revision = {
@@ -373,7 +373,7 @@ async def test_human_revision_targets_director_when_asked(tmp_path: Path) -> Non
         def __init__(self) -> None:
             self.context = RecordingContext()
 
-        async def plan_scene(self, brief: Brief) -> SceneSpec:
+        async def plan_scene(self, brief: Brief, story_spec=None, storyboard_spec=None) -> SceneSpec:
             return SceneSpec(brief=brief.text)
 
     revision = {
@@ -430,7 +430,7 @@ class CountingDirector(StubDirector):
     def __init__(self) -> None:
         self.calls = 0
 
-    async def plan_scene(self, brief: Brief) -> SceneSpec:
+    async def plan_scene(self, brief: Brief, story_spec=None, storyboard_spec=None) -> SceneSpec:
         self.calls += 1
         return await super().plan_scene(brief)
 
@@ -617,7 +617,7 @@ class FlakyDirector:
         self.failures = failures
         self.calls = 0
 
-    async def plan_scene(self, brief: Brief) -> SceneSpec:
+    async def plan_scene(self, brief: Brief, story_spec=None, storyboard_spec=None) -> SceneSpec:
         self.calls += 1
         if self.calls <= self.failures:
             raise GenerationError(
@@ -753,7 +753,7 @@ class AlwaysFailingBlender:
     def __init__(self) -> None:
         self.calls = 0
 
-    async def build_script(self, spec: SceneSpec) -> BlenderScript:
+    async def build_script(self, spec: SceneSpec, render_dir: str = "") -> BlenderScript:
         self.calls += 1
         raise GenerationError(
             "return_result validation failed after 3 attempts.\n"

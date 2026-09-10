@@ -9,6 +9,7 @@ Utilise les skills : qa, continuity, feasibility, cinematography, composition.
 
 from __future__ import annotations
 
+from dataclasses import asdict  # noqa: F401  # exposé dans le sandbox
 from typing import Any
 
 from nooa import CodeActStrategy, PredictStrategy, strategy
@@ -61,6 +62,17 @@ class QAAgent(BaseAgent, DefaultsMixin):
             recommendations=[]  # list of improvement suggestions
         )
 
+    ## CRITICAL: never redeclare the result classes
+    - `QAReport`, `Issue`, `IssueKind` are ALREADY defined and imported in the
+      sandbox scope. NEVER write `class QAReport:`, `class Issue:`,
+      `class IssueKind:`, or any `class ...` in your generated code. Redefining
+      them raises `RestrictedCodeError` and the turn is rejected.
+    - Just CONSTRUCT and return them, as shown above. Do not copy their
+      definitions from the schema into the cell.
+    - `QAReport` accepts ONLY the kwargs shown above: `passed`, `score`,
+      `issues`, `recommendations`. There is no `status`, `errors`, or `verdict`
+      kwarg — using one raises a TypeError and costs a turn.
+
     ## Issue format
     Each issue MUST have a step target for targeted revision:
 
@@ -92,6 +104,8 @@ class QAAgent(BaseAgent, DefaultsMixin):
     @strategy(CodeActStrategy(config=CodeActConfig(
         postconditions=[_qa_postcondition],
         max_tokens=8192,
+        max_iterations=5,
+        max_tool_calls=8,
     )))
     async def assess(self, spec: SceneSpec, artifact_path: str, code: str = "") -> QAReport:  # type: ignore[return]
         """Assess the rendered artifact against the scene spec.
@@ -107,7 +121,7 @@ class QAAgent(BaseAgent, DefaultsMixin):
         4. If visual artifact (image/video): analyze against spec (camera, lighting, composition)
         5. Compare brief intent with rendered result (semantic check)
         6. Produce QAReport with score (0-100), issues (typed with step), recommendations
-        7. Issues MUST include step: "director" | "blender" | "audio" | "compositing" | "localization"
+        7. Issues MUST include step: "director" | "blender" | "qa" | "animation" | "compositing" | "localization"
         8. score >= 70.0 means passed=True, score < 70.0 means passed=False
         9. Always include at least one recommendation
         """

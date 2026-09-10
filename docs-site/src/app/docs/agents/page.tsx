@@ -95,7 +95,9 @@ The QAAgent produces a \`QAReport\` with a score from 0 to 100. Scores above 70 
 
 ## The Remaining Nine Agents
 
-The other nine agents handle specialized aspects of the production pipeline. The CharacterDesignerAgent creates detailed character specifications. The EnvironmentArtistAgent designs worlds and landscapes. The AnimatorAgent plans movement and keyframes. The AudioAgent, MusicComposerAgent, and SoundDesignerAgent handle the audio pipeline. The CompositingAgent manages post-processing. The LocalizationAgent handles subtitles and multi-language support. The ReviewAgent performs final quality checks on the complete output.
+The other nine agents handle specialized aspects of the production pipeline. The CharacterDesignerAgent creates detailed character specifications — it works purely with dataclasses and must never attempt to import bpy (the sandbox has no Blender Python runtime). The EnvironmentArtistAgent designs worlds and landscapes. The AnimatorAgent plans movement and keyframes. The AudioAgent, MusicComposerAgent, and SoundDesignerAgent handle the audio pipeline. The CompositingAgent manages post-processing. The LocalizationAgent handles subtitles and multi-language support. The ReviewAgent performs final quality checks on the complete output.
+
+Each agent's sandbox scope includes the domain types it needs — imported at module level so NOOA's visibility filter makes them available to the LLM automatically. For example, the DirectorAgent's sandbox includes \`ShotSpec\`, \`CameraSpec\`, \`EnvironmentSpec\`, etc., while the BlenderAgent's sandbox includes \`BlenderScript\`.
 
 These agents are invoked during the post-production phase, after the core pipeline has produced the 3D scene and animations. They run in parallel where possible — music composition, sound design, and audio mixing can all happen simultaneously because they operate on independent audio tracks.
 

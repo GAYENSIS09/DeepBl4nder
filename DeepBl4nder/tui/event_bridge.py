@@ -61,6 +61,14 @@ def _snip(text: str, limit: int) -> str:
     return f"{compact[:limit]}... ({len(compact)} chars)"
 
 
+def _snip_preview(value: str, limit: int = 240) -> str:
+    """Compact single-line preview of a long payload (used in turn metadata)."""
+    compact = " ".join((value or "").splitlines())
+    if len(compact) <= limit:
+        return compact
+    return f"{compact[:limit]}... ({len(compact)} chars)"
+
+
 def _g(event: Any, name: str, default: Any = "") -> Any:
     """Read an optional attribute, returning ``default`` when absent/None."""
     value = getattr(event, name, None)
@@ -197,6 +205,7 @@ def attach_agent_bridge(
             "tool_calls": tool_calls,
             "dynamic_context": dynamic,
             "dynamic_context_len": len(dynamic),
+            "reasoning_preview": _snip_preview(reasoning, 240) if reasoning else "",
         }
         if real.get("provider"):
             meta["provider"] = real["provider"]

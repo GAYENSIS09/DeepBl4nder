@@ -145,13 +145,32 @@ def scene_spec_postcondition(_agent: BaseAgent | None, result: Any, call: Any) -
 
 
 def blender_script_postcondition(_agent: BaseAgent | None, result: Any, call: Any) -> None:
-    """Invariant : un BlenderScript généré doit avoir du code non vide."""
+    """Invariant : un BlenderScript doit avoir du code non vide ET être accepté
+    par la validation statique (AST + politique de code).
+
+    Utilise exactement ``validate_for_worker``, la même validation que le
+    worker de rendu applique au moment du render : une erreur détectée ici
+    force le modèle à corriger EN SESSION (retry de validation NOOA) au lieu
+    d'un échec tardif du type « shot validation failed syntax error line 334 »
+    découvert seulement à l'étape render des heures plus tard.
+    """
     from DeepBl4nder.domain.scene import BlenderScript
 
     if not isinstance(result, BlenderScript):
         return
     if not (result.code or "").strip():
         raise InvariantError("BlenderScript.code ne doit pas être vide.")
+    from DeepBl4nder.codegen.validator import validate_for_worker
+
+    report = validate_for_worker(result.code)
+    if not report.ok:
+        detail = "; ".join(report.errors[:3])
+        raise InvariantError(
+            "Le script généré est rejeté par la validation statique du worker "
+            f"de rendu : {detail}. Corrigez puis terminez par "
+            "return_result(BlenderScript(code=..., scene_name=..., version=...)) "
+            "avec un script valide."
+        )
 
 
 def story_spec_postcondition(_agent: BaseAgent | None, result: Any, call: Any) -> None:

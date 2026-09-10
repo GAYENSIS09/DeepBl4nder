@@ -9,6 +9,7 @@ Utilise les skills : translation, subtitles, voice.
 
 from __future__ import annotations
 
+from dataclasses import asdict  # noqa: F401  # exposé dans le sandbox
 from typing import Any
 
 from nooa import CodeActStrategy, strategy

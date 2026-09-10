@@ -246,18 +246,10 @@ class EmbeddedAPI:
             )
 
         for slug, agent in agents.items():
-            blocks = getattr(agent, "_agent_context_blocks", None) or {}
-            names: list[str] = []
-            if "available_skills" in blocks:
-                try:
-                    count = len(agent.get_skill_registry().summaries())
-                except Exception:  # noqa: BLE001
-                    count = 0
-                names.append(f"<{count} core summaries>" if count else "core summaries")
-            for key in blocks:
-                if isinstance(key, str) and key.startswith("skill_"):
-                    names.append(key[len("skill_"):])
-            self._skills_event(slug, names)
+            # Pas de burst ``skills_loaded`` au boot : les 14 agents s'affichent
+            # dans le tracker d'étapes au fur et à mesure que chaque étape
+            # démarre. Le sink ne publie que lorsque l'agent charge réellement
+            # ses skills pendant la production (progressif, pas "liste d'agents").
             setattr(agent, "_skill_sink", self._runtime_skill_sink(slug))
 
         self._agents = agents

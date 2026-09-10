@@ -7,7 +7,7 @@ from textual.app import ComposeResult
 from textual.binding import Binding
 from textual.containers import Container, Horizontal, Vertical
 from textual.screen import Screen
-from textual.widgets import Button, Input, Label, Switch
+from textual.widgets import Button, Input, Label, Static, Switch
 
 from DeepBl4nder.llm import PROVIDERS
 from DeepBl4nder.tui.embedded_api import EmbeddedAPI
@@ -48,6 +48,20 @@ class SettingsModal(Screen):
                                     classes="setting-input",
                                 ),
                             )
+                    yield Horizontal(
+                        Label("Pool order", classes="setting-label"),
+                        Input(
+                            ",".join(self.api.default_providers) or ",".join(PROVIDERS),
+                            id="set-pool-order",
+                            classes="setting-input",
+                            placeholder="nvidia,openrouter,gemini,...",
+                        ),
+                    )
+                    yield Static(
+                        "Fallback: first provider that answers wins. OpenRouter is 4th in the pool, so NVIDIA wins before it is reached - put openrouter first here to actually use it.",
+                        id="settings-pool-note",
+                        classes="setting-note",
+                    )
                     yield Horizontal(Label("Enable generation cache", classes="setting-label"), Switch(value=self.api.enable_cache, id="set-cache", classes="setting-input"))
                 with Horizontal(id="settings-actions"):
                     yield Button("Save", id="btn-settings-save", variant="success")
@@ -82,6 +96,12 @@ class SettingsModal(Screen):
                 for pid, provider in PROVIDERS.items()
                 if provider.is_available() and self.query_one(f"#set-provider-{pid}", Switch).value
             ]
+            pool_order = self.query_one("#set-pool-order", Input).value
+            if pool_order.strip():
+                requested = [pid.strip() for pid in pool_order.split(",") if pid.strip()]
+                valid = [pid for pid in requested if pid in selected and pid in PROVIDERS]
+                remainder = [pid for pid in selected if pid not in valid]
+                selected = [*valid, *remainder]
             self.api.default_providers = selected
             self.notify("Settings saved", severity="success")
         except ValueError as exc:

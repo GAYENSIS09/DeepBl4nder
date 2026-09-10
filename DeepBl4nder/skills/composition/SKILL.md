@@ -1,7 +1,6 @@
 ---
 name: composition
-description: Composer les cadres : règle des tiers, lignes, équilibre, profondeur et contraste.
----
+description: "Composer les cadres : règle des tiers, lignes, équilibre, profondeur et contraste."---
 
 # Composition
 

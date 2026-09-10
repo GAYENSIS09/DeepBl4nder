@@ -1,7 +1,6 @@
 ---
 name: continuity
-description: Garantir la continuité entre les plans : costumes, lumière, position, props, raccords.
----
+description: "Garantir la continuité entre les plans : costumes, lumière, position, props, raccords."---
 
 # Continuité
 

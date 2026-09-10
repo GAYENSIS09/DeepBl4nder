@@ -1,7 +1,6 @@
 ---
 name: texturing
-description: Créer et appliquer les textures : albedo, roughness, normal, maps selon les besoins.
----
+description: "Créer et appliquer les textures : albedo, roughness, normal, maps selon les besoins."---
 
 # Texturing
 

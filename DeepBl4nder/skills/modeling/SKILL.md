@@ -1,7 +1,6 @@
 ---
 name: modeling
-description: Créer et modifier la géométrie Blender : primitives, extrusion, boucles, topologie propre.
----
+description: "Créer et modifier la géométrie Blender : primitives, extrusion, boucles, topologie propre."---
 
 # Modeling
 
