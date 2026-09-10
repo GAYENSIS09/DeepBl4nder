@@ -87,6 +87,23 @@ class CharacterDesignerAgent(BaseAgent, DefaultsMixin):
            - Blendshapes (if facial expressions needed)
            - Import path (if external asset)
         5. Return CharacterDesignResult with all character models
+
+        ## CRITICAL: Types available in the sandbox
+        - ONLY these domain types exist: ``CharacterDesignResult``,
+          ``CharacterModel``, ``CharacterSpec``, ``SceneSpec``. There is NO
+          ``MaterialProperties`` type — do not import or reference it. Use the
+          plain ``material`` string field of ``CharacterModel`` instead
+          (e.g. ``material="PBR_Skin"``).
+        - NEVER use ``__dict__``, ``vars(...)`` or ``__dataclass_fields__``:
+          the sandbox forbids dunder access. Read fields via attributes.
+
+        ## CRITICAL: How to end the turn
+        - ALWAYS end your reply by calling ``return_result(result)`` where
+          ``result`` is a CharacterDesignResult instance you built.
+        - NEVER end with plain text or a bare execute_python cell: the turn is
+          rejected ("failed") and you waste a full retry.
+        - At least one character is required (postcondition): pass a non-empty
+          ``characters=[CharacterModel(...)]`` list before returning.
         """
         self._load_core_skills()
         self._load_skills("character-design", "modeling", "shading", "rigging")

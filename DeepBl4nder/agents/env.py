@@ -78,6 +78,26 @@ class EnvironmentArtistAgent(BaseAgent, DefaultsMixin):
         6. Setup HDRI + area lights matching mood
         7. Add atmosphere (fog, particles) if needed
         8. Return EnvironmentDesignResult
+
+        ## CRITICAL: Sandbox restrictions
+        - NEVER use ``__dict__`` or ``vars(...)`` in the execution cell: the
+          sandbox forbids dunder attribute access (RestrictedCodeError).
+        - To read fields, use attribute access: ``scene.environment``,
+          ``env.description``, ``asset.name`` — the specs ARE dataclasses.
+        - Build the result explicitly instead of serializing:
+          ``assets=[EnvironmentAsset(name=..., asset_type=..., ...)]`` and
+          ``lighting=LightingSetup(key_light=..., intensity=...)``.
+        - The ``scene`` argument is passed into the cell as a real Python
+          variable every turn: do NOT redefine it, do NOT expect a previous
+          cell's variable (like ``_scene_data``) to still exist between turns.
+
+        ## CRITICAL: How to end the turn
+        - ALWAYS end your reply by calling ``return_result(design)`` where
+          ``design`` is an EnvironmentDesignResult instance you built.
+        - NEVER end with plain text or a bare execute_python cell: the turn is
+          rejected ("failed") and you waste a full retry.
+        - At least one asset is required (postcondition): pass a non-empty
+          ``assets=[...]`` list before returning.
         """
         self._load_core_skills()
         self._load_skills("modeling", "texturing", "lighting", "polyhaven", "shading")

@@ -6,6 +6,7 @@ brief transformé directement en script Python (Roadmap B §11).
 
 from __future__ import annotations
 
+import dataclasses
 from dataclasses import asdict, dataclass, field, is_dataclass
 from typing import Any
 
@@ -73,15 +74,54 @@ def _as_str_list(value: Any) -> list[str]:
     return []
 
 
-def _coerce_or_instance(cls: type, value: Any):
-    """Renvoie une instance de ``cls``, en coercant un dict si nécessaire."""
-    if value is None:
+def _default_instance(cls: type):
+    """Instance par défaut de ``cls``, en fournissant les champs requis.
+
+    ``CharacterSpec`` exige ``name`` (pas de valeur par défaut) : plutôt que
+    de laisser ``cls()`` lever un ``TypeError`` qui casserait la pipeline, on
+    inspecte les champs du dataclass et on comble les champs sans défaut.
+    """
+    try:
         return cls()
+    except TypeError:
+        pass
+    fields = getattr(cls, "__dataclass_fields__", {})
+    kwargs = {}
+    for fname, f in fields.items():
+        if f.default is not dataclasses.MISSING or f.default_factory is not dataclasses.MISSING:
+            continue
+        if fname == "name":
+            kwargs[fname] = ""
+        else:
+            kwargs[fname] = None
+    return cls(**kwargs) if kwargs else cls()
+
+
+def _coerce_or_instance(cls: type, value: Any):
+    """Renvoie une instance de ``cls``, en coercant dict/str/None.
+
+    Les agents produisent des valeurs hétérogènes : dict (``{...}``),
+    chaîne (un nom de personnage seul), ``None`` ou un objet du bon type.
+    ``name`` n'a pas de valeur par défaut (``CharacterSpec``) donc ``cls()``
+    seul peut échouer : on essaie ``cls(name=...)`` pour une chaîne, puis une
+    instance par défaut robuste — sans jamais lever de ``TypeError`` qui
+    casserait la pipeline.
+    """
     if isinstance(value, cls):
         return value
+    if value is None:
+        return _default_instance(cls)
     if isinstance(value, dict):
-        return cls(**{k: v for k, v in value.items()})
-    return cls()
+        try:
+            return cls(**{k: v for k, v in value.items()})
+        except TypeError:
+            return _default_instance(cls)
+    if isinstance(value, str):
+        try:
+            return cls(name=value)
+        except TypeError:
+            return _default_instance(cls)
+    return _default_instance(cls)
 
 
 # Moteurs de rendu supportés

@@ -56,6 +56,29 @@ class DirectorAgent(BaseAgent, DefaultsMixin):
     - Example: description="dark alley, rain, neon reflections" NOT a full sentence.
     - For brief: use a SHORT summary, not the full creative brief text.
 
+    ## CRITICAL: Dict vs dataclass access
+    - SceneSpec, ShotSpec, CameraSpec, EnvironmentSpec, CharacterSpec,
+      AnimationSpec, LightingSpec and RenderSpec are DATACLASSES exposed in the
+      sandbox: use ATTRIBUTE access (``shot.duration``, ``shot.camera``,
+      ``shot.animation.description``, ``scene.shots``).
+    - NEVER index a spec like a dict: ``shot['duration']``, ``scene['shots']``
+      raise ``TypeError: 'X' object is not subscriptable``.
+    - NEVER use ``__dict__`` or ``dataclasses.asdict`` to read back fields the
+      model created — read attributes directly.
+    - There is NO ``shot_id`` field on ``ShotSpec``: shots are identified by
+      their index in ``scene.shots``. Do not pass ``shot_id=``.
+    - For list-typed fields like ``characters``, pass real dataclass instances:
+      ``characters=[CharacterSpec(name="Version Adulte", description="...")]``.
+      A bare string is coerced to ``CharacterSpec(name=...)`` for you.
+
+    ## CRITICAL: How to end the turn
+    - ALWAYS end your reply by calling ``return_result(scene)`` where ``scene``
+      is a SceneSpec instance you built by executing Python.
+    - NEVER end with plain text or a bare execute_python cell: the turn is
+      rejected ("failed") and you waste a full retry.
+    - At least one shot is required (postcondition): build ``shots=[ShotSpec(...)]``
+      with a non-empty list before returning.
+
     ## Revision
     - On a QA revision, ``revision_feedback`` is set in context with the failing
       issues (kind, step, message) and recommendations. Adjust the spec

@@ -53,7 +53,19 @@ class StoryAgent(BaseAgent, DefaultsMixin):
         max_tokens=16384,
     )))
     async def plan_story(self, brief: Any) -> StorySpec:  # type: ignore[return]
-        """Generate a complete StorySpec from the creative brief."""
+        """Generate a complete StorySpec from the creative brief.
+
+        ## CRITICAL: How to end the turn
+        - ALWAYS end your reply by calling ``return_result(story)`` where
+          ``story`` is a StorySpec instance you built by executing Python.
+        - NEVER end with plain text or a bare execute_python cell: the turn is
+          rejected ("failed") and you waste a full retry.
+        - StorySpec, Act, StoryBeat and DialogueLine are dataclasses exposed in
+          the sandbox: use attribute access (``story.logline``,
+          ``beat.description``) — NEVER ``story['logline']``, ``beat.get(...)``
+          or ``__dict__``. Pass dicts only as constructor kwargs to the agent
+          helper runner, or return the dataclass instances directly.
+        """
         self._load_core_skills()
         self._load_skills("storytelling", "dialogue", "cinematography")
         self._load_schema_context("narrative")

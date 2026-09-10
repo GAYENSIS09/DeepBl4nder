@@ -38,6 +38,34 @@ def test_character_spec_multilingual() -> None:
     assert mapping["languages"] == ["en", "wo"]
 
 
+def test_shot_spec_coerces_messy_characters() -> None:
+    """"""
+    shot = ShotSpec(
+        characters=["Version Adulte", {"name": "Version Jeune", "description": "ado ebène"}],
+        animation={"description": "lève le bras"},
+        lighting={"intensity": 0.5},
+    )
+    assert [c.name for c in shot.characters] == ["Version Adulte", "Version Jeune"]
+    assert shot.animation.description == "lève le bras"
+    assert shot.lighting.intensity == 0.5
+    assert all(isinstance(c, CharacterSpec) for c in shot.characters)
+
+
+def test_shot_spec_defaults_survive_none() -> None:
+    """"""
+    shot = ShotSpec(
+        characters=None,
+        camera={"position": (1.0, 2.0, 3.0)},
+        environment=None,
+        animation=None,
+        lighting=None,
+    )
+    assert shot.camera.position == (1.0, 2.0, 3.0)
+    assert shot.environment is not None
+    assert shot.animation is not None
+    assert shot.lighting is not None
+
+
 def test_qa_report_status() -> None:
     ok = QAReport(passed=True, score=0.9)
     ko = QAReport(passed=False, score=0.3, issues=[Issue(kind=IssueKind.VISUAL, message="trop sombre")])

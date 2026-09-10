@@ -46,7 +46,19 @@ class StoryboardAgent(BaseAgent, DefaultsMixin):
         max_tokens=16384,
     )))
     async def plan_storyboard(self, story: StorySpec) -> StoryboardSpec:  # type: ignore[return]
-        """Generate a complete StoryboardSpec from a StorySpec."""
+        """Generate a complete StoryboardSpec from a StorySpec.
+
+        ## CRITICAL: How to end the turn
+        - ALWAYS end your reply by calling ``return_result(storyboard)`` where
+          ``storyboard`` is a StoryboardSpec instance you built by executing Python.
+        - NEVER end with plain text or a bare execute_python cell: the turn is
+          rejected ("failed") and you waste a full retry.
+        - StoryboardSpec and StoryboardShot are dataclasses exposed in the
+          sandbox: use attribute access (``shot.description``, ``shot.index``)
+          — NEVER ``storyboard['shots']``, ``shot.get(...)`` or ``__dict__``.
+        - Make total shot duration match the target from the story: check it in
+          Python (sum of ``shot.duration``) before returning.
+        """
         self._load_core_skills()
         self._load_skills("cinematography", "storyboard", "composition")
         self._load_schema_context("narrative")

@@ -792,6 +792,7 @@ class PipelineRunner(PluginShortcuts):
         story_spec = await self._with_generation_retry(
             "story", lambda: self.story.plan_story(brief)
         )
+        _require_result(story_spec, "story", "StoryAgent")
         elapsed = round(time.time() - t0, 2)
         self._emit("llm_call", {"step": "story", "agent": "StoryAgent", "status": "completed", "elapsed_s": elapsed, **self._reported_llm_meta(self.story)})
         path = self._write_json("story_spec.json", story_spec.to_mapping())
@@ -819,6 +820,7 @@ class PipelineRunner(PluginShortcuts):
             # Deux générations épuisées (modèle de secours récalcitrant sur
             # l'invariant shots) : synthèse déterministe plutôt que run tué.
             storyboard_spec = self._synthesize_storyboard(story_spec)
+        _require_result(storyboard_spec, "storyboard", "StoryboardAgent")
         elapsed = round(time.time() - t0, 2)
         self._emit("llm_call", {"step": "storyboard", "agent": "StoryboardAgent", "status": "completed", "elapsed_s": elapsed, **self._reported_llm_meta(self.storyboard)})
         path = self._write_json("storyboard_spec.json", storyboard_spec.to_mapping())
@@ -859,6 +861,7 @@ class PipelineRunner(PluginShortcuts):
                 brief, story_spec=story_spec, storyboard_spec=storyboard_spec
             ),
         )
+        _require_result(scene, "director", "DirectorAgent")
         elapsed = round(time.time() - t0, 2)
         self._emit("llm_call", {"step": "director", "agent": "DirectorAgent", "status": "completed", "elapsed_s": elapsed, **self._reported_llm_meta(self.director)})
         path = self._write_json("scene_spec.json", scene.to_full_dict())
@@ -903,6 +906,7 @@ class PipelineRunner(PluginShortcuts):
             # l'enveloppe d'appel au lieu du résultat) : script déterministe
             # plutôt que run tué après ~8 minutes de calcul.
             script = self._synthesize_blender_script(scene)
+        _require_result(script, "blender", "BlenderAgent")
         elapsed = round(time.time() - t0, 2)
         self._emit("llm_call", {"step": "blender", "agent": "BlenderAgent", "status": "completed", "elapsed_s": elapsed, **self._reported_llm_meta(self.blender)})
         path = self.workdir / _safe_name(script.scene_name or "scene") / "script.py"
@@ -1028,6 +1032,7 @@ class PipelineRunner(PluginShortcuts):
         result = await self._with_generation_retry(
             "character_design", lambda: self.character_designer.design_characters(scene)
         )
+        _require_result(result, "character_design", "CharacterDesignerAgent")
         elapsed = round(time.time() - t0, 2)
         self._emit("llm_call", {"step": "character_design", "agent": "CharacterDesignerAgent", "status": "completed", "elapsed_s": elapsed, **self._reported_llm_meta(self.character_designer)})
         path = self._write_json("character_design.json", result.to_mapping())
@@ -1050,6 +1055,7 @@ class PipelineRunner(PluginShortcuts):
         result = await self._with_generation_retry(
             "environment", lambda: self.environment_artist.design_environment(scene)
         )
+        _require_result(result, "environment", "EnvironmentArtistAgent")
         elapsed = round(time.time() - t0, 2)
         self._emit("llm_call", {"step": "environment", "agent": "EnvironmentArtistAgent", "status": "completed", "elapsed_s": elapsed, **self._reported_llm_meta(self.environment_artist)})
         path = self._write_json("environment_design.json", result.to_mapping())
@@ -1072,6 +1078,7 @@ class PipelineRunner(PluginShortcuts):
         result = await self._with_generation_retry(
             "animation", lambda: self.animator.generate_animations(scene)
         )
+        _require_result(result, "animation", "AnimatorAgent")
         elapsed = round(time.time() - t0, 2)
         self._emit("llm_call", {"step": "animation", "agent": "AnimatorAgent", "status": "completed", "elapsed_s": elapsed, **self._reported_llm_meta(self.animator)})
         path = self._write_json("animation.json", result.to_mapping())
@@ -1121,6 +1128,23 @@ def _to_mapping(obj: Any) -> dict[str, Any]:
     if hasattr(obj, "to_mapping"):
         return obj.to_mapping()
     return asdict(obj)
+
+
+def _require_result(result: Any, step: str, agent: str) -> None:
+    """Invalide proprement un résultat ``None`` d'une étape agent.
+
+    Quand un agent termine sans jamais appeler ``return_result`` (modèles
+    faibles qui finissent par du texte brut), NOOA retourne ``None`` : sans
+    ce garde-fou l'appel suivant ``result.to_mapping()`` lève un
+    ``AttributeError: 'NoneType' object has no attribute 'to_mapping'``
+    illisible. On lève ici une erreur descriptive qui nomme l'étape fautive.
+    """
+    if result is None:
+        raise RuntimeError(
+            f"Étape '{step}' : l'agent {agent} s'est terminé SANS résultat. "
+            "Il a probablement clôturé par du texte brut au lieu de "
+            "return_result(...). Relancez le run."
+        )
 
 
 def _safe_name(name: str) -> str:
